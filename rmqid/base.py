@@ -24,7 +24,7 @@ class StatefulObject(object):
 
     def __init__(self):
         """Create a new instance of the object defaulting to a closed state."""
-        self._set_state(self.CLOSED)
+        self._state = self.CLOSED
 
     def _set_state(self, value):
         """Set the state to the specified value, validating it is a supported
