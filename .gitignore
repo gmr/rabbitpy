@@ -1,0 +1,10 @@
+*.pyc
+*.egg-info
+.coverage
+.idea
+.DS_Store
+build
+dist
+tests/cover
+cover
+atlassian-ide-plugin.xml
