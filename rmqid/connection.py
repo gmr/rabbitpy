@@ -248,6 +248,23 @@ class Connection(base.StatefulObject):
         """
         return locale.getlocale()[0] or self.DEFAULT_LOCALE
 
+    def _is_server_rpc(self, frame_value):
+
+        return frame_value.name in ['Connection.Close', 'Channel.Close']
+
+    def _process_server_rpc(self, channel_id, frame_value):
+
+        if frame_value.name == 'Channel.Close':
+            del self._channels[channel_id]
+            raise exceptions.ChannelClosedException(channel_id,
+                                                    frame_value.reply_code,
+                                                    frame_value.reply_text)
+
+        elif frame_value.name == 'Connection.Close':
+            self._set_state(self.CLOSED)
+            raise exceptions.ConnectionClosedException(frame_value.reply_code,
+                                                       frame_value.reply_text)
+
     def _read_frame(self):
         """Read in a full frame and return it.
 
@@ -258,8 +275,11 @@ class Connection(base.StatefulObject):
         while not frame_in:
             try:
                 self._buffer += self._read_socket()
-            except socket.timeout:
-                continue
+            except socket.error as error:
+                self._set_state(self.CLOSED)
+                raise exceptions.ConnectionClosedException(-1,
+                                                           'Socket Error: %s' %
+                                                           error)
             LOGGER.debug('Buffer: %r', self._buffer)
             bytes_read, channel_id, frame_in = frame.demarshal(self._buffer)
             LOGGER.debug('Read %i bytes returning %s from channel %i',
@@ -414,20 +434,3 @@ class Connection(base.StatefulObject):
             LOGGER.debug('Appending %r received on channel %i to the buffer',
                          frame_value, channel_value)
             self._frame_buffer.append((channel_value, frame_value))
-
-    def _is_server_rpc(self, frame_value):
-
-        return frame_value.name in ['Connection.Close', 'Channel.Close']
-
-    def _process_server_rpc(self, channel_id, frame_value):
-
-        if frame_value.name == 'Channel.Close':
-            del self._channels[channel_id]
-            raise exceptions.ChannelClosedException(channel_id,
-                                                    frame_value.reply_code,
-                                                    frame_value.reply_text)
-
-        elif frame_value.name == 'Connection.Close':
-            self._set_state(self.CLOSED)
-            raise exceptions.ConnectionClosedException(frame_value.reply_code,
-                                                       frame_value.reply_text)
