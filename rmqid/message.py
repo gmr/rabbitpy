@@ -2,12 +2,14 @@
 The Message class represents a message that is sent or received
 
 """
+import datetime
 import logging
 import math
+import uuid
+
 from pamqp import body
 from pamqp import header
 from pamqp import specification
-import time
 
 from rmqid import base
 
@@ -16,18 +18,22 @@ LOGGER = logging.getLogger(__name__)
 
 class Message(base.AMQPClass):
 
-    def __init__(self, channel, body_value, properties):
+    def __init__(self, channel, body_value, properties, auto_id=False):
         super(Message, self).__init__(channel, 'Message')
         self.body = body_value
         self.properties = properties or self._base_properties
+        if auto_id and 'message_id' not in self.properties:
+            self._add_auto_message_id()
+
+    def _add_auto_message_id(self):
+        self.properties['message_id'] = str(uuid.uuid4())
 
     @property
     def _base_properties(self):
-        return {"timestamp": time.time()}
+        return {"timestamp": datetime.datetime.now()}
 
     @property
     def _properties(self):
-
         invalid_keys = [key for key in self.properties
                         if key not in specification.Basic.Properties.attributes]
         self._prune_invalid_properties(invalid_keys)
