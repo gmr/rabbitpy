@@ -6,6 +6,28 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
+class AMQPClass(object):
+    """Base Class object for wrapping the specification.Frame classes
+
+    """
+    def __init__(self, channel, name):
+        """Create a new ClassObject.
+
+        :param rmqid.Channel channel: The channel to execute commands on
+        :param str name: Set the name
+
+        """
+        self.name = name
+        self.channel = channel
+
+    def rpc(self, frame_value):
+        """Execute the RPC command for the frame.
+
+        :param pamqp.specification.Frame: The frame to send
+
+        """
+        self.channel.rpc(frame_value)
+
 
 class StatefulObject(object):
     """Base object for rmqid classes that need to maintain state such as
