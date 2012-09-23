@@ -1,4 +1,5 @@
 """
+Class representation of an AMQP channel
 
 """
 import logging
@@ -25,6 +26,7 @@ class Channel(base.StatefulObject):
         super(Channel, self).__init__()
         self._channel_id = channel_id
         self._connection = connection
+        self.maximum_frame_size = connection.maximum_frame_size
         self._open()
 
     def _build_close_frame(self):
@@ -70,7 +72,16 @@ class Channel(base.StatefulObject):
         :rtype: pamqp.specification.Frame or None
 
         """
-        self._connection.write_frame(frame_value, self._channel_id)
+        self.write_frame(frame_value)
         if frame_value.synchronous:
             return self._connection.wait_on_frame(frame_value.valid_responses,
                                                   self._channel_id)
+
+    def write_frame(self, frame_value):
+        """Marshal the frame and write it to the socket.
+
+        :param pamqp.specification.Frame or
+               pamqp.header.ProtocolHeader frame_value: The frame to write
+
+        """
+        self._connection.write_frame(frame_value, self._channel_id)

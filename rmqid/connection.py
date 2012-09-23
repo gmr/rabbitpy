@@ -2,6 +2,7 @@
 The Connection class negotiates and manages the connection state.
 
 """
+import collections
 import locale
 import logging
 import sys
@@ -11,6 +12,7 @@ try:
 except ImportError:
     ssl = None
 
+from pamqp import body
 from pamqp import frame
 from pamqp import header
 from pamqp import specification
@@ -46,8 +48,6 @@ class Connection(base.StatefulObject):
 
         """
         super(Connection, self).__init__()
-        self._socket = None
-
         if use_ssl and not ssl:
             LOGGER.warning('SSL requested but not available, disabling')
             use_ssl = False
@@ -59,12 +59,14 @@ class Connection(base.StatefulObject):
                       'ssl': use_ssl}
         self._buffer = str()
         self._channels = dict()
+        self._deliveries = dict()
         self._frame_buffer = list()
         self._heartbeat = 0
         self._maximum_channels = 0
-        self._maximum_frame_size = specification.FRAME_MAX_SIZE
-        self._minimum_frame_size = specification.FRAME_MIN_SIZE
+        self.maximum_frame_size = specification.FRAME_MAX_SIZE
+        self.minimum_frame_size = specification.FRAME_MIN_SIZE
         self._properties = dict()
+        self._socket = None
         self._connect()
 
     def _build_close_frame(self):
@@ -110,7 +112,7 @@ class Connection(base.StatefulObject):
 
         """
         return specification.Connection.TuneOk(self._maximum_channels,
-                                               self._maximum_frame_size,
+                                               self.maximum_frame_size,
                                                self._heartbeat)
 
     def _close_channels(self):
@@ -189,8 +191,8 @@ class Connection(base.StatefulObject):
         LOGGER.debug('Waiting for a Connection.Tune')
         frame_value = self.wait_on_frame(specification.Connection.Tune)
         self._maximum_channels = frame_value.channel_max
-        if frame_value.frame_max <> self._maximum_frame_size:
-            self._maximum_frame_size = frame_value.frame_max
+        if frame_value.frame_max <> self.maximum_frame_size:
+            self.maximum_frame_size = frame_value.frame_max
         if frame_value.heartbeat:
             self._heartbeat = frame_value.heartbeat
         self.write_frame(self._build_tune_ok_frame())
@@ -248,22 +250,69 @@ class Connection(base.StatefulObject):
         """
         return locale.getlocale()[0] or self.DEFAULT_LOCALE
 
+    def _get_next_channel_id(self):
+        """Return the next channel id
+
+        """
+        if not self._channels:
+            return 1
+        if len(self._channels.keys()) == self._maximum_channels:
+            raise exceptions.TooManyChannelsError
+        return max(self._channels.keys())
+
     def _is_server_rpc(self, frame_value):
 
-        return frame_value.name in ['Connection.Close', 'Channel.Close']
+        return frame_value.name in ['Connection.Close', 'Channel.Close',
+                                    'Basic.Deliver', 'Basic.Return',
+                                    'Basic.GetOk', 'Basic.GetEmpty']
+
+    def _normalize_expectation(self, expectation):
+        """Turn a class or list of classes into a list of class names.
+
+        :param class or list expectation: List of classes or class
+        :rtype: list
+
+        """
+        if isinstance(expectation, list):
+            output = list()
+            for value in expectation:
+                if isinstance(value, str):
+                    output.append(value)
+                else:
+                    output.append(value.name)
+            return output
+        return [expectation.name]
 
     def _process_server_rpc(self, channel_id, frame_value):
 
         if frame_value.name == 'Channel.Close':
+            LOGGER.warning('Received remote close for channel %i', channel_id)
             del self._channels[channel_id]
             raise exceptions.ChannelClosedException(channel_id,
                                                     frame_value.reply_code,
                                                     frame_value.reply_text)
 
         elif frame_value.name == 'Connection.Close':
+            LOGGER.warning('Received remote close for the connection')
             self._set_state(self.CLOSED)
             raise exceptions.ConnectionClosedException(frame_value.reply_code,
                                                        frame_value.reply_text)
+
+        elif frame_value.name == 'Basic.Deliver':
+            self._handle_delivery(channel_id, frame_value)
+
+    def _handle_delivery(self, channel_id, frame_value):
+
+        header_value = self.wait_on_frame('ContentHeader', channel_id)
+        body_value = list()
+        body_received = 0
+        while body_received < header_value.body_size:
+            body_part = self.wait_on_frame('ContentBody', channel_id)
+            body_received += len(body_part)
+            body_value.append(body_part)
+        self._deliveries[channel_id].append({'method': frame_value,
+                                             'header': header_value,
+                                             'body': ''.join(body_value)})
 
     def _read_frame(self):
         """Read in a full frame and return it.
@@ -289,12 +338,12 @@ class Connection(base.StatefulObject):
 
     def _read_socket(self):
         """Read the negotiated maximum frame size from the socket. Default
-        value for self._maximum_frame_size = pamqp.specification.FRAME_MAX_SIZE
+        value for self.maximum_frame_size = pamqp.specification.FRAME_MAX_SIZE
 
         :rtype: str
 
         """
-        return self._socket.recv(self._maximum_frame_size)
+        return self._socket.recv(self.maximum_frame_size)
 
     def _validate_connection_start(self, frame_value):
         """Validate the received Connection.Start frame
@@ -334,15 +383,6 @@ class Connection(base.StatefulObject):
         protocol_header = header.ProtocolHeader()
         self.write_frame(protocol_header, self.CHANNEL)
 
-    def _get_next_channel_id(self):
-        """Return the next channel id
-
-        """
-        if not self._channels:
-            return 1
-        if len(self._channels.keys()) == self._maximum_channels:
-            raise exceptions.TooManyChannelsError
-        return max(self._channels.keys())
 
     def close(self):
         """Close the connection, including all open channels
@@ -380,28 +420,12 @@ class Connection(base.StatefulObject):
         :param int channel_id: The channel id to send
 
         """
-        LOGGER.debug('Writing %s frame', frame_value.name)
         frame_data = frame.marshal(frame_value, channel_id)
         bytes_sent = 0
+        LOGGER.debug('Writing %s frame: %r', frame_value.name, frame_data)
         while bytes_sent < len(frame_data):
             bytes_sent += self._write_frame_data(frame_data)
-
-    def _normalize_expectation(self, expectation):
-        """Turn a class or list of classes into a list of class names.
-
-        :param class or list expectation: List of classes or class
-        :rtype: list
-
-        """
-        if isinstance(expectation, list):
-            output = list()
-            for value in expectation:
-                if isinstance(value, str):
-                    output.append(value)
-                else:
-                    output.append(value.name)
-            return output
-        return [expectation.name]
+        LOGGER.debug('Sent %i bytes total writing frame', bytes_sent)
 
     def wait_on_frame(self, expectation, channel_id=CHANNEL):
         """Wait for a frame to come in from the broker.
