@@ -63,15 +63,14 @@ class Channel(base.StatefulObject):
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
 
-    def rpc(self, frame_type, *args, **kwargs):
+    def rpc(self, frame_value):
         """Send a RPC command to the remote server.
 
-        :param class frame_type: The frame type to send
-        :param list *args: Positional args
-        :param dict **kwargs: Keyword args
+        :param pamqp.specification.Frame frame_value: The frame to send
         :rtype: pamqp.specification.Frame or None
 
         """
-        self._connection.write_frame(frame_type(*args, **kwargs))
-        if frame_type.synchronous:
-            return self._connection.wait_on_frame(frame_type.valid_responses)
+        self._connection.write_frame(frame_value, self._channel_id)
+        if frame_value.synchronous:
+            return self._connection.wait_on_frame(frame_value.valid_responses,
+                                                  self._channel_id)
