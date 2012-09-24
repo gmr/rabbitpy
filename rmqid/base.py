@@ -23,10 +23,11 @@ class AMQPClass(object):
     def rpc(self, frame_value):
         """Execute the RPC command for the frame.
 
-        :param pamqp.specification.Frame: The frame to send
+        :param pamqp.specification.Frame frame_value: The frame to send
+        :rtype: pamqp.specification.Frame | pamqp.message.Message
 
         """
-        self.channel.rpc(frame_value)
+        return self.channel.rpc(frame_value)
 
 
 class StatefulObject(object):

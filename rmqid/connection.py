@@ -2,7 +2,6 @@
 The Connection class negotiates and manages the connection state.
 
 """
-import collections
 import locale
 import logging
 import sys
@@ -12,14 +11,15 @@ try:
 except ImportError:
     ssl = None
 
-from pamqp import body
 from pamqp import frame
 from pamqp import header
+from pamqp import exceptions as pamqp_exceptions
 from pamqp import specification
 
 from rmqid import base
 from rmqid import channel
 from rmqid import exceptions
+from rmqid import message
 from rmqid import __version__
 
 LOGGER = logging.getLogger(__name__)
@@ -31,7 +31,8 @@ class Connection(base.StatefulObject):
 
     """
     CHANNEL = 0
-    CONNECTION_TIMEOUT = 3
+    CONNECTION_TIMEOUT = 1
+    CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk', 'Basic.Return']
     DEFAULT_HEARTBEAT_INTERVAL = 3
     DEFAULT_LOCALE = 'en_US'
 
@@ -59,8 +60,7 @@ class Connection(base.StatefulObject):
                       'ssl': use_ssl}
         self._buffer = str()
         self._channels = dict()
-        self._deliveries = dict()
-        self._frame_buffer = list()
+        self._stack = list()
         self._heartbeat = 0
         self._maximum_channels = 0
         self.maximum_frame_size = specification.FRAME_MAX_SIZE
@@ -68,6 +68,18 @@ class Connection(base.StatefulObject):
         self._properties = dict()
         self._socket = None
         self._connect()
+
+    def _add_to_frame_stack(self, channel_id, frame_value):
+        """Add the frame to the stack by creating the key value used in
+        expectations and then add it to the list.
+
+        :param int channel_id: The channel id the frame was received on
+        :param frame_value: The frame to add
+        :type frame_value: pamqp.specification.Frame|pmqid.message.message
+
+        """
+        key = '%i:%s' % (channel_id, frame_value.name)
+        self._stack.append((key, frame_value))
 
     def _build_close_frame(self):
         """Build and return the Connection.Close frame.
@@ -197,6 +209,24 @@ class Connection(base.StatefulObject):
             self._heartbeat = frame_value.heartbeat
         self.write_frame(self._build_tune_ok_frame())
 
+    def _create_message(self, channel_id, method_frame, header_frame, body):
+        """Create a message instance with the channel it was received on and the
+        dictionary of message parts.
+
+        :param int channel_id: The channel id the message was sent on
+        :param pamqp.specification.Frame method_frame: The method frame value
+        :param pamqp.header.ContentHeader header_frame: The header frame value
+        :param str body: The message body
+        :rtype: rmqid.message.Message
+
+        """
+        msg = message.Message(self._channels[channel_id],
+                              body,
+                              header_frame.properties.to_dict())
+        msg.method = method_frame
+        msg.name = method_frame.name
+        return msg
+
     def _create_socket(self, use_ssl):
         """Create the new socket, optionally with SSL support.
 
@@ -227,19 +257,38 @@ class Connection(base.StatefulObject):
         """Close the existing socket connection"""
         self._socket.close()
 
-    def _get_frame_from_buffer(self, expectation, channel_id=CHANNEL):
+    def _get_frame_from_stack(self, expectations):
         """Get the expected frame from the buffer if it exists.
 
-        :param class expectation: The frame class to get
-        :param int channel_id: The channel number the frame should be on
-        :rtype: pamqp.specification.Frame
+        :param list expectations: The list of keys that will satisfy the request
+        :rtype: pamqp.specification.Frame | rmqid.message.Message
 
         """
-        for offset in range(0, len(self._frame_buffer)):
-            if (channel_id == self._frame_buffer[offset][0] and
-                self._frame_buffer[offset][1].name in expectation):
-                LOGGER.debug('Found a buffered %s frame', expectation.name)
-                return self._frame_buffer.pop(offset)
+        for offset in range(0, len(self._stack)):
+            if self._stack[offset][0] in expectations:
+                frame_value = self._stack[offset]
+                self._stack.remove(frame_value)
+                return frame_value[1]
+        return None
+
+    def _get_frame_from_str(self, value):
+        """Get the pamqp frame from the string value.
+
+        :param str value: The value to parse for an pamqp frame
+        :return (str, int, pamqp.specification.Frame): Remainder of value,
+                                                       channel id and
+                                                       frame value
+
+        """
+        if not value:
+            return value, None, None
+        try:
+            byte_count, channel_id, frame_in = frame.demarshal(value)
+        except (pamqp_exceptions.DemarshalingException,
+                specification.FrameError) as error:
+            LOGGER.debug('Failed to demarshal: %r', error)
+            return value, None, None
+        return value[byte_count:], channel_id, frame_in
 
     def _get_locale(self):
         """Return the current locale for the python interpreter or the default
@@ -253,6 +302,8 @@ class Connection(base.StatefulObject):
     def _get_next_channel_id(self):
         """Return the next channel id
 
+        :rtype: int
+
         """
         if not self._channels:
             return 1
@@ -261,80 +312,108 @@ class Connection(base.StatefulObject):
         return max(self._channels.keys())
 
     def _is_server_rpc(self, frame_value):
+        """Returns True if the frame received is a server sent RPC command.
 
-        return frame_value.name in ['Connection.Close', 'Channel.Close',
-                                    'Basic.Deliver', 'Basic.Return',
-                                    'Basic.GetOk', 'Basic.GetEmpty']
+        :rtype: bool
 
-    def _normalize_expectation(self, expectation):
+        """
+        return frame_value.name in ['Channel.Close',
+                                    'Connection.Close']
+
+    def _normalize_expectations(self, channel_id, expectations):
         """Turn a class or list of classes into a list of class names.
 
-        :param class or list expectation: List of classes or class
+        :param expectations: List of classes or class name or class obj
+        :type expectations: list|str|pamqp.specification.Frame
         :rtype: list
 
         """
-        if isinstance(expectation, list):
+        LOGGER.debug('Normalizing %r', expectations)
+        if isinstance(expectations, list):
             output = list()
-            for value in expectation:
+            for value in expectations:
                 if isinstance(value, str):
-                    output.append(value)
+                    output.append('%i:%s' % (channel_id, value))
                 else:
-                    output.append(value.name)
+                    output.append('%i:%s' % (channel_id, value.name))
             return output
-        return [expectation.name]
+        elif isinstance(expectations, basestring):
+            return ['%i:%s' % (channel_id, expectations)]
+        return ['%i:%s' % (channel_id, expectations.name)]
 
     def _process_server_rpc(self, channel_id, frame_value):
+        """Process a RPC frame received from the server
 
+        :param int channel_id: The channel number
+        :param pamqp.message.Message frame_value: The message value
+        :rtype: rmqid.message.Message
+        :raises: rmqid.exceptions.ChannelClosedException
+        :raises: rmqid.exceptions.ConnectionClosedException
+
+        """
         if frame_value.name == 'Channel.Close':
             LOGGER.warning('Received remote close for channel %i', channel_id)
             del self._channels[channel_id]
             raise exceptions.ChannelClosedException(channel_id,
                                                     frame_value.reply_code,
                                                     frame_value.reply_text)
-
         elif frame_value.name == 'Connection.Close':
             LOGGER.warning('Received remote close for the connection')
             self._set_state(self.CLOSED)
             raise exceptions.ConnectionClosedException(frame_value.reply_code,
                                                        frame_value.reply_text)
+        else:
+            LOGGER.critical('Unhandled RPC request: %r', frame_value)
 
-        elif frame_value.name == 'Basic.Deliver':
-            self._handle_delivery(channel_id, frame_value)
+    def _process_content_rpc(self, channel_id, frame_value):
+        """Called when a content related RPC command is received.
 
-    def _handle_delivery(self, channel_id, frame_value):
+        :param int channel_id: The channel the message was received on
+        :param pamqp.specification.Frame frame_value: The rpc frame
+        :rtype: rmqid.message.Message
 
+        """
         header_value = self.wait_on_frame('ContentHeader', channel_id)
-        body_value = list()
-        body_received = 0
-        while body_received < header_value.body_size:
+        body_value = str()
+        LOGGER.debug('Getting %i bytes of body content', header_value.body_size)
+        while len(body_value) < header_value.body_size:
             body_part = self.wait_on_frame('ContentBody', channel_id)
-            body_received += len(body_part)
-            body_value.append(body_part)
-        self._deliveries[channel_id].append({'method': frame_value,
-                                             'header': header_value,
-                                             'body': ''.join(body_value)})
+            body_value += body_part.value
+        return self._create_message(channel_id, frame_value,
+                                    header_value, body_value)
+
+    def _read_frame_from_buffer(self):
+        """Read from the buffer and try and get the demarshaled frame.
+
+        :rtype (int, pamqp.specification.Frame): The channel and frame
+
+        """
+        self._buffer, chan_id, value = self._get_frame_from_str(self._buffer)
+        return chan_id, value
+
+    def _read_frame_from_socket(self):
+        """Read from the socket, appending to the buffer, then try and get the
+        frame from the buffer.
+
+        :rtype (int, pamqp.specification.Frame): The channel and frame
+
+        """
+        self._buffer += self._read_socket()
+        if not self._buffer:
+            return None, None
+        return self._read_frame_from_buffer()
 
     def _read_frame(self):
-        """Read in a full frame and return it.
+        """Read in a full frame and return it, trying to read it from the
+        buffer before reading it from the socket.
 
         :return tuple: The channel the frame came in on and the frame
 
         """
-        frame_in = None
-        while not frame_in:
-            try:
-                self._buffer += self._read_socket()
-            except socket.error as error:
-                self._set_state(self.CLOSED)
-                raise exceptions.ConnectionClosedException(-1,
-                                                           'Socket Error: %s' %
-                                                           error)
-            LOGGER.debug('Buffer: %r', self._buffer)
-            bytes_read, channel_id, frame_in = frame.demarshal(self._buffer)
-            LOGGER.debug('Read %i bytes returning %s from channel %i',
-                         bytes_read, frame_in.name, channel_id)
-            self._buffer = self._buffer[bytes_read + 1:]
-            return channel_id, frame_in
+        channel_id, frame_value = self._read_frame_from_buffer()
+        if frame_value:
+            return channel_id, frame_value
+        return self._read_frame_from_socket()
 
     def _read_socket(self):
         """Read the negotiated maximum frame size from the socket. Default
@@ -343,7 +422,17 @@ class Connection(base.StatefulObject):
         :rtype: str
 
         """
-        return self._socket.recv(self.maximum_frame_size)
+        try:
+            value = self._socket.recv(self.maximum_frame_size)
+            return value
+        except socket.timeout:
+            LOGGER.debug('Socket timeout')
+            return str()
+        except socket.error as error:
+            self._set_state(self.CLOSED)
+            raise exceptions.ConnectionClosedException(-1,
+                                                       'Socket Error: %s' %
+                                                       error)
 
     def _validate_connection_start(self, frame_value):
         """Validate the received Connection.Start frame
@@ -352,7 +441,6 @@ class Connection(base.StatefulObject):
         :rtype: bool
 
         """
-        LOGGER.debug('Validating %r', frame_value)
         if (frame_value.version_major,
             frame_value.version_minor) != (specification.VERSION[0],
                                            specification.VERSION[1]):
@@ -383,11 +471,8 @@ class Connection(base.StatefulObject):
         protocol_header = header.ProtocolHeader()
         self.write_frame(protocol_header, self.CHANNEL)
 
-
     def close(self):
-        """Close the connection, including all open channels
-
-        """
+        """Close the connection, including all open channels"""
         if not self.closed:
             LOGGER.debug('Closing the connection')
             self._set_state(self.CLOSING)
@@ -408,53 +493,60 @@ class Connection(base.StatefulObject):
         Connection.DEFAULT_HEARTBEAT_INTERVAL
 
         :param int interval: The heartbeat interval to use
+
         """
         if not self._heartbeat:
             self._heartbeat = interval
 
     def write_frame(self, frame_value, channel_id=CHANNEL):
         """Marshal the frame and write it to the socket.
-
-        :param pamqp.specification.Frame or
-               pamqp.header.ProtocolHeader frame_value: The frame to write
+        :param frame_value: The frame to write
+        :type frame_value: pamqp.specification.Frame|pamqp.header.ProtocolHeader
         :param int channel_id: The channel id to send
+        :rtype: int
 
         """
         frame_data = frame.marshal(frame_value, channel_id)
         bytes_sent = 0
-        LOGGER.debug('Writing %s frame: %r', frame_value.name, frame_data)
         while bytes_sent < len(frame_data):
             bytes_sent += self._write_frame_data(frame_data)
-        LOGGER.debug('Sent %i bytes total writing frame', bytes_sent)
+        return bytes_sent
 
-    def wait_on_frame(self, expectation, channel_id=CHANNEL):
+    def wait_on_frame(self, expectations, channel_id=CHANNEL):
         """Wait for a frame to come in from the broker.
 
-        :param list or class expectation: Class.Method or list of Class.Methods
+        :param list or class expectations: Class.Method or list of Class.Methods
         :param int channel_id: The channel number to wait for the frame on
-        :rtype: pamqp.specification.Frame
+        :rtype: pamqp.specification.Frame | pamqp.message.Message
 
         """
-        expectations = self._normalize_expectation(expectation)
-        LOGGER.debug('Waiting on %r frame(s) on channel %i',
-                     expectations, channel_id)
-        frame_value = self._get_frame_from_buffer(expectations, channel_id)
-
-        if frame_value:
-            LOGGER.debug('Returning %r frame from buffer', frame_value.name)
-            return frame_value
+        expectations = self._normalize_expectations(channel_id, expectations)
+        LOGGER.debug('Waiting on %r', expectations)
 
         while not self.closed:
 
+            # Try and get the value
+            value = self._get_frame_from_stack(expectations)
+            if value is not None:
+                return value
+
+            # Since the value is not on the stack, try and read in the frame
             channel_value, frame_value = self._read_frame()
 
+            # If there is no frame, try again
+            if frame_value is None:
+                continue
+
+            # If the server sent a command, process it
             if self._is_server_rpc(frame_value):
-                return self._process_server_rpc(channel_value, frame_value)
+                self._process_server_rpc(channel_value, frame_value)
 
-            if frame_value.name in expectations and channel_value == channel_id:
-                LOGGER.debug('Returning a direct match for %r', frame_value)
-                return frame_value
+            # If it's a content method, append a Message object for the frame
+            if frame_value.name in self.CONTENT_METHODS:
+                self._add_to_frame_stack(channel_id,
+                                         self._process_content_rpc(channel_id,
+                                                                   frame_value))
+                continue
 
-            LOGGER.debug('Appending %r received on channel %i to the buffer',
-                         frame_value, channel_value)
-            self._frame_buffer.append((channel_value, frame_value))
+            # Is not a content method, just add it to the stack
+            self._add_to_frame_stack(channel_value, frame_value)

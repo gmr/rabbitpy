@@ -65,6 +65,16 @@ class Channel(base.StatefulObject):
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
 
+    def get_message(self):
+        """Try and get a delivered message from the connection's message stack.
+
+        :rtype: rmqid.message.Message
+
+        """
+        return self._connection.wait_on_frame([specification.Basic.Deliver,
+                                               specification.Basic.CancelOk],
+                                              self._channel_id)
+
     def rpc(self, frame_value):
         """Send a RPC command to the remote server.
 
@@ -80,8 +90,8 @@ class Channel(base.StatefulObject):
     def write_frame(self, frame_value):
         """Marshal the frame and write it to the socket.
 
-        :param pamqp.specification.Frame or
-               pamqp.header.ProtocolHeader frame_value: The frame to write
+        :param frame_value: The frame to send
+        :type frame_value: pamqp.specification.Frame
 
         """
         self._connection.write_frame(frame_value, self._channel_id)
