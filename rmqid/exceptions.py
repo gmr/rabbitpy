@@ -3,6 +3,11 @@ rmqid Specific Exceptions
 
 """
 
+class ActionException(Exception):
+    def __repr__(self):
+        return self.args[0]
+
+
 class ChannelClosedException(Exception):
     def __repr__(self):
         return 'Channel %i was closed by the remote server (%i): %s' % \
