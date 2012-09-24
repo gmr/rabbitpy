@@ -46,16 +46,13 @@ Example Publisher
 
 Example Consumer
 ----------------
-    import datetime
     import logging
     import rmqid
-    import uuid
 
     logging.basicConfig(level=logging.DEBUG)
     conn = rmqid.Connection('localhost', 5672, '/', 'guest', 'guest')
     channel = conn.channel()
     queue = rmqid.Queue(channel, 'test_queue')
-    channel.rpc(specification.Basic.Qos(prefetch_count=1))
 
     try:
         # Consume the message
