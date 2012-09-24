@@ -28,7 +28,7 @@ Example Publisher
     queue.declare()
 
     # Bind the queue
-    queue.bind(exchange, 'routing-key-test')
+    queue.bind(exchange, 'test-routing-key')
 
     # Create the message
     message = rmqid.Message(channel,
@@ -39,7 +39,7 @@ Example Publisher
                              'type': 'Lorem ipsum'})
 
     # Send the message
-    message.publish(exchange, 'test')
+    message.publish(exchange, 'test-routing-key')
 
     # Close the channels and connection
     conn.close()
