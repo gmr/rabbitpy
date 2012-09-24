@@ -28,6 +28,8 @@ class Queue(base.AMQPClass):
 
         """
         super(Queue, self).__init__(channel, name)
+        self._consuming = False
+        self._consumer_tag = 'rmqid.%s' % id(self)
         self._passive = passive
         self._durable = durable
         self._exclusive = exclusive
@@ -80,14 +82,32 @@ class Queue(base.AMQPClass):
                                           exchange=exchange,
                                           routing_key=routing_key or self.name))
 
+    def cancel(self):
+        """Cancel consuming messages from the RabbitMQ broker"""
+        self.rpc(specification.Basic.Cancel(consumer_tag=self._consumer_tag))
+        self._consuming = False
+
     def consume(self):
         """Generator
 
         """
-        pass
+        self.rpc(specification.Basic.Consume(queue=self.name,
+                                             consumer_tag=self._consumer_tag))
+        self._consuming = True
 
-    def get(self):
+        # Block until a message is received
+        while self._consuming:
+            value = self.channel.get_message()
+            if value:
+                yield value
+
+
+    def get(self, no_ack=False):
         """Return the results of a Basic.Get
 
+        :param bool no_ack: Broker should not expect a Basic.Ack,
+                            Basic.Reject or Basic.Nack
+        :rtype: rmqid.message.Message
+
         """
-        pass
+        return self.rpc(specification.Basic.Get(queue=self.name, no_ack=no_ack))
