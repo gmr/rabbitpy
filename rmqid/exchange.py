@@ -54,7 +54,7 @@ class Exchange(base.AMQPClass):
 
         """
         self.rpc(specification.Exchange.Declare(exchange=self.name,
-                                                type=self._type,
+                                                exchange_type=self._type,
                                                 durable=self._durable,
                                                 passive=self._passive,
                                                 auto_delete=self._auto_delete))

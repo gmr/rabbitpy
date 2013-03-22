@@ -3,6 +3,7 @@ Queue is a class that encompasses and returns the methods of the
 Specification.Queue class
 
 """
+import contextlib
 import logging
 from pamqp import specification
 
@@ -28,8 +29,8 @@ class Queue(base.AMQPClass):
 
         """
         super(Queue, self).__init__(channel, name)
-        self._consuming = False
-        self._consumer_tag = 'rmqid.%s' % id(self)
+        self.consumer_tag = 'rmqid.%i.%s' % (self.channel.id, id(self))
+        self.consuming = False
         self._passive = passive
         self._durable = durable
         self._exclusive = exclusive
@@ -48,6 +49,22 @@ class Queue(base.AMQPClass):
         self.rpc(specification.Queue.Bind(queue=self.name,
                                           exchange=exchange,
                                           routing_key=routing_key or self.name))
+
+    @contextlib.contextmanager
+    def consume(self, no_ack=False, prefetch=None):
+        """Generator
+
+        """
+        self.consuming = True
+        if prefetch:
+            self.channel.prefetch(prefetch)
+        self.rpc(specification.Basic.Consume(queue=self.name,
+                                             consumer_tag=self.consumer_tag,
+                                             no_ack=no_ack))
+
+        yield ConsumeGenerator(self)
+        self.consuming = False
+        self.rpc(specification.Basic.Cancel(consumer_tag=self.consumer_tag))
 
     def declare(self):
         """Declare the queue"""
@@ -68,6 +85,16 @@ class Queue(base.AMQPClass):
                                             if_unused=if_unused,
                                             if_empty=if_empty))
 
+    def get(self, no_ack=False):
+        """Return the results of a Basic.Get
+
+        :param bool no_ack: Broker should not expect a Basic.Ack,
+                            Basic.Reject or Basic.Nack
+        :rtype: rmqid.message.Message
+
+        """
+        return self.rpc(specification.Basic.Get(queue=self.name, no_ack=no_ack))
+
     def unbind(self, exchange, routing_key=None):
         """Unbind queue from the specified exchange where it is bound the
         routing key. If routing key is None, use the queue name.
@@ -82,32 +109,14 @@ class Queue(base.AMQPClass):
                                           exchange=exchange,
                                           routing_key=routing_key or self.name))
 
-    def cancel(self):
-        """Cancel consuming messages from the RabbitMQ broker"""
-        self.rpc(specification.Basic.Cancel(consumer_tag=self._consumer_tag))
-        self._consuming = False
 
-    def consume(self):
-        """Generator
+class ConsumeGenerator(object):
 
-        """
-        self.rpc(specification.Basic.Consume(queue=self.name,
-                                             consumer_tag=self._consumer_tag))
-        self._consuming = True
+    def __init__(self, queue):
+        self.queue = queue
 
-        # Block until a message is received
-        while self._consuming:
-            value = self.channel.get_message()
+    def next_message(self):
+        while self.queue.consuming:
+            value = self.queue.channel._get_message()
             if value:
                 yield value
-
-
-    def get(self, no_ack=False):
-        """Return the results of a Basic.Get
-
-        :param bool no_ack: Broker should not expect a Basic.Ack,
-                            Basic.Reject or Basic.Nack
-        :rtype: rmqid.message.Message
-
-        """
-        return self.rpc(specification.Basic.Get(queue=self.name, no_ack=no_ack))

@@ -17,12 +17,16 @@ from rmqid import exceptions
 LOGGER = logging.getLogger(__name__)
 
 
+class Properties(specification.Basic.Properties):
+    pass
+
+
 class Message(base.AMQPClass):
     """Represent a message for delivery and receipt from RabbitMQ"""
     method = None
     name = 'Message'
 
-    def __init__(self, channel, body_value, properties, auto_id=False):
+    def __init__(self, channel, body_value, properties=None, auto_id=True):
         """Create a new instance of the Message object.
 
         :param rmqid.channel.Channel channel: The channel object for the message
@@ -36,10 +40,16 @@ class Message(base.AMQPClass):
         self.properties = properties or self._base_properties
         if auto_id and 'message_id' not in self.properties:
             self._add_auto_message_id()
+        if 'timestamp' not in self._base_properties:
+            self._add_timestamp()
 
     def _add_auto_message_id(self):
         """Set the message_id property to a new UUID."""
         self.properties['message_id'] = str(uuid.uuid4())
+
+    def _add_timestamp(self):
+        """Add the timestamp to the properties"""
+        self.properties['timestamp'] = datetime.datetime.now()
 
     @property
     def _base_properties(self):
@@ -49,7 +59,8 @@ class Message(base.AMQPClass):
         :rtype: dict
 
         """
-        return {"timestamp": datetime.datetime.now()}
+        return {"message_id": str(uuid.uuid4()),
+                "timestamp": datetime.datetime.now()}
 
     @property
     def _properties(self):
@@ -74,7 +85,7 @@ class Message(base.AMQPClass):
             LOGGER.warning('Removing invalid property "%s"', key)
             del self.properties[key]
 
-    def ack(self):
+    def ack(self, all_previous=False):
         """Acknowledge receipt of the message to RabbitMQ. Will raise an
         ActionException if the message was not received from a broker.
 
@@ -84,12 +95,11 @@ class Message(base.AMQPClass):
         if not self.method:
             raise exceptions.ActionException('Can not ack non-received '
                                              'message')
-        LOGGER.debug('Acknowledging delivery tag %s', self.method.delivery_tag)
-        basic_ack = specification.Basic.Ack(self.method.delivery_tag)
-        LOGGER.debug('Basic.Ack delivery-tag: %s', basic_ack.delivery_tag)
-        self.channel.write_frame(basic_ack)
+        basic_ack = specification.Basic.Ack(self.method.delivery_tag,
+                                            multiple=all_previous)
+        self.channel._write_frame(basic_ack)
 
-    def nack(self):
+    def nack(self, all_previous=False):
         """Negatively acknowledge receipt of the message to RabbitMQ. Will raise
         an ActionException if the message was not received from a broker.
 
@@ -99,8 +109,9 @@ class Message(base.AMQPClass):
         if not self.method:
             raise exceptions.ActionException('Can not nack non-received '
                                              'message')
-        basic_nack = specification.Basic.Ack(self.method.delivery_tag)
-        self.channel.write_frame(basic_nack)
+        basic_nack = specification.Basic.Ack(self.method.delivery_tag,
+                                             multiple=all_previous)
+        self.channel._write_frame(basic_nack)
 
     def publish(self, exchange, routing_key=''):
         """Publish the message to the exchange with the specified routing
@@ -114,10 +125,10 @@ class Message(base.AMQPClass):
             exchange = exchange.name
         method_frame = specification.Basic.Publish(exchange=exchange,
                                                    routing_key=routing_key)
-        self.channel.write_frame(method_frame)
+        self.channel._write_frame(method_frame)
         header_frame = header.ContentHeader(body_size=len(self.body),
                                             properties=self._properties)
-        self.channel.write_frame(header_frame)
+        self.channel._write_frame(header_frame)
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
         for offset in xrange(0, pieces):
@@ -125,8 +136,7 @@ class Message(base.AMQPClass):
             end = start + self.channel.maximum_frame_size
             if end > len(self.body):
                 end = len(self.body)
-            self.channel.write_frame(body.ContentBody(self.body[start:end]))
-
+            self.channel._write_frame(body.ContentBody(self.body[start:end]))
 
     def reject(self):
         """Reject receipt of the message to RabbitMQ. Will raise
@@ -139,4 +149,4 @@ class Message(base.AMQPClass):
             raise exceptions.ActionException('Can not reject non-received '
                                              'message')
         basic_reject = specification.Basic.Reject(self.method.delivery_tag)
-        self.channel.write_frame(basic_reject)
+        self.channel._write_frame(basic_reject)

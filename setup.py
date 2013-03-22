@@ -1,12 +1,13 @@
 from setuptools import setup
 
 setup(name='rmqid',
-      version='0.0.1',
+      version='0.0.2',
       description='Minimalistic and Python RabbitMQ Focused AMQP library',
       author='Gavin M. Roy',
       author_email='gavinmroy@gmail.com',
       url='http://github.com/gmr/rmqid',
       packages=['rmqid'],
+      install_requires=['pamqp'],
       tests_require=['mock', 'unittest2', 'pylint', 'pep8'],
       test_suite = "nose.collector",
       license='BSD',
