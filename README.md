@@ -8,10 +8,8 @@ Requirements
 
 Example Publisher
 -----------------
-    import datetime
     import logging
     import rmqid
-    import uuid
 
     logging.basicConfig(level=logging.DEBUG)
 
