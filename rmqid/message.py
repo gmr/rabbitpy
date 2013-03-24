@@ -113,18 +113,22 @@ class Message(base.AMQPClass):
                                             multiple=all_previous)
         self.channel._write_frame(basic_ack)
 
-    def nack(self, all_previous=False):
+    def nack(self, requeue=False, all_previous=False):
         """Negatively acknowledge receipt of the message to RabbitMQ. Will raise
         an ActionException if the message was not received from a broker.
 
+        :param bool requeue: Requeue the message
+        :param bool all_previous: Nack all previous unacked messages up to and
+                                  including this one
         :raises: ActionException
 
         """
         if not self.method:
             raise exceptions.ActionException('Can not nack non-received '
                                              'message')
-        basic_nack = specification.Basic.Ack(self.method.delivery_tag,
-                                             multiple=all_previous)
+        basic_nack = specification.Basic.Nack(self.method.delivery_tag,
+                                              requeue=requeue,
+                                              multiple=all_previous)
         self.channel._write_frame(basic_nack)
 
     def publish(self, exchange, routing_key=''):
@@ -152,15 +156,17 @@ class Message(base.AMQPClass):
                 end = len(self.body)
             self.channel._write_frame(body.ContentBody(self.body[start:end]))
 
-    def reject(self):
+    def reject(self, requeue=False):
         """Reject receipt of the message to RabbitMQ. Will raise
         an ActionException if the message was not received from a broker.
 
+        :param bool requeue: Requeue the message
         :raises: ActionException
 
         """
         if not self.method:
             raise exceptions.ActionException('Can not reject non-received '
                                              'message')
-        basic_reject = specification.Basic.Reject(self.method.delivery_tag)
+        basic_reject = specification.Basic.Reject(self.method.delivery_tag,
+                                                  requeue=requeue)
         self.channel._write_frame(basic_reject)
