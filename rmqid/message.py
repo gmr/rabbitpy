@@ -38,9 +38,9 @@ class Message(base.AMQPClass):
         super(Message, self).__init__(channel, 'Message')
         self.body = body_value
         self.properties = properties or self._base_properties
-        if auto_id and 'message_id' not in self.properties:
+        if auto_id and 'message_id' not in properties:
             self._add_auto_message_id()
-        if 'timestamp' not in self._base_properties:
+        if 'timestamp' not in properties:
             self._add_timestamp()
 
     def _add_auto_message_id(self):
