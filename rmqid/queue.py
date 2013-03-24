@@ -65,7 +65,9 @@ class Queue(base.AMQPClass):
         """Consumer message context manager, returns a consumer message
         generator.
 
-        :rtype: ConsumeGenerator
+        :param bool no_ack: Do not require acknowledgements
+        :param int prefetch: Set a prefetch count for the channel
+        :rtype: Consumer
 
         """
         self.consuming = True
@@ -75,7 +77,7 @@ class Queue(base.AMQPClass):
                                              consumer_tag=self.consumer_tag,
                                              no_ack=no_ack))
 
-        yield ConsumeGenerator(self)
+        yield Consumer(self)
         self.consuming = False
         self.rpc(specification.Basic.Cancel(consumer_tag=self.consumer_tag))
 
@@ -132,7 +134,7 @@ class Queue(base.AMQPClass):
                                            auto_delete=self._auto_delete)
 
 
-class ConsumeGenerator(object):
+class Consumer(object):
 
     def __init__(self, queue):
         self.queue = queue
