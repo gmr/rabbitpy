@@ -13,3 +13,5 @@ while len(queue) > 0:
     print ' Time: %s' % message.properties['timestamp'].isoformat()
     print ' Body: %s' % message.body
     message.ack()
+
+    print 'There are %i more messages in the queue' % len(queue)
