@@ -1,6 +1,10 @@
 rmqid
 =====
-A pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library.
+A pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3.
+
+Version
+-------
+The current released alpha version is 0.2.0
 
 Installation
 ------------
@@ -11,6 +15,10 @@ rmqid may be installed via the Python package index with the tool of your choice
 Requirements
 ------------
   - pamqp - https://github.com/pika/pamqp
+
+Python3 Caveats
+---------------
+ - Message bodies must use the bytes data type while most other values are strings.
 
 Example Publisher
 -----------------

@@ -5,11 +5,11 @@ with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
     with conn.channel() as channel:
 
         # Create the exchange
-        exchange = rmqid.Exchange(channel, 'test_exchange')
+        exchange = rmqid.Exchange(channel, 'example_exchange')
         exchange.declare()
 
         # Create the queue
-        queue = rmqid.Queue(channel, 'test_queue')
+        queue = rmqid.Queue(channel, 'example')
         queue.declare()
 
         # Bind the queue
@@ -24,7 +24,7 @@ with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
                                 'Lorem ipsum dolor sit amet, consectetur '
                                 'adipiscing elit.',
                                 {'content_type': 'text/plain',
-                                 'type': 'Lorem ipsum'})
+                                 'message_type': 'Lorem ipsum'})
 
         # Publish the message
         message.publish(exchange, 'test-routing-key')

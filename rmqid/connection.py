@@ -10,18 +10,19 @@ try:
     import ssl
 except ImportError:
     ssl = None
-import urllib
-import urlparse
+
 
 from pamqp import frame
 from pamqp import header
 from pamqp import exceptions as pamqp_exceptions
 from pamqp import specification
+from pamqp import PYTHON3
 
 from rmqid import base
 from rmqid import channel
 from rmqid import exceptions
 from rmqid import message
+from rmqid import utils
 from rmqid import __version__
 
 LOGGER = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class Connection(base.StatefulObject):
         """
         super(Connection, self).__init__()
         self._args = self._process_url(url)
-        self._buffer = str()
+        self._buffer = bytes() if PYTHON3 else str()
         self._channels = dict()
         self._messages = dict()
         self._stack = list()
@@ -178,9 +179,10 @@ class Connection(base.StatefulObject):
         """Close all the channels that are currently open."""
         if not self._channels:
             return
-        LOGGER.debug('Closing %i channel%s', len(self._channels.keys()),
-                     's' if len(self._channels.keys()) > 1 else '')
-        for channel_id in self._channels.keys():
+        channels = list(self._channels.keys())
+        LOGGER.debug('Closing %i channel%s', len(channels),
+                     's' if len(channels) > 1 else '')
+        for channel_id in channels:
             if not self._channels[channel_id].closed:
                 self._channels[channel_id].close()
             del self._channels[channel_id]
@@ -355,9 +357,9 @@ class Connection(base.StatefulObject):
         """
         if not self._channels:
             return 1
-        if len(self._channels.keys()) == self._maximum_channels:
+        if len(list(self._channels.keys())) == self._maximum_channels:
             raise exceptions.TooManyChannelsError
-        return max(self._channels.keys())
+        return max(list(self._channels.keys()))
 
     def _is_server_rpc(self, frame_value):
         """Returns True if the frame received is a server sent RPC command.
@@ -385,7 +387,7 @@ class Connection(base.StatefulObject):
                 else:
                     output.append('%i:%s' % (channel_id, value.name))
             return output
-        elif isinstance(expectations, basestring):
+        elif utils.is_string(expectations):
             return ['%i:%s' % (channel_id, expectations)]
         return ['%i:%s' % (channel_id, expectations.name)]
 
@@ -398,7 +400,7 @@ class Connection(base.StatefulObject):
 
         """
         header_value = self._wait_on_frame('ContentHeader', channel_id)
-        body_value = str()
+        body_value = bytes() if PYTHON3 else str()
         while len(body_value) < header_value.body_size:
             body_part = self._wait_on_frame('ContentBody', channel_id)
             body_value += body_part.value
@@ -455,10 +457,10 @@ class Connection(base.StatefulObject):
         :raises: ValueError
 
         """
-        parsed = urlparse.urlparse(url)
+        parsed = utils.urlparse(url)
 
         # Ensure the protocol scheme is what is expected
-        if parsed.scheme not in self.PORTS.keys():
+        if parsed.scheme not in list(self.PORTS.keys()):
             raise ValueError('Unsupported protocol: %s' % parsed.scheme)
 
         # Toggle the SSL flag based upon the URL scheme
@@ -483,9 +485,9 @@ class Connection(base.StatefulObject):
         # Return the configuration dictionary to use when connecting
         return {'host': parsed.hostname,
                 'port': port,
-                'virtual_host': urllib.unquote(vhost),
+                'virtual_host': utils.unquote(vhost),
                 'username': parsed.username or self.GUEST,
-                'password': parsed.password  or self.GUEST,
+                'password': parsed.password or self.GUEST,
                 'ssl': use_ssl}
 
     def _read_frame(self):
@@ -533,12 +535,12 @@ class Connection(base.StatefulObject):
             return value
         except socket.timeout:
             LOGGER.debug('Socket timeout')
-            return str()
+            return bytes() if PYTHON3 else str()
         except socket.error as error:
             self._set_state(self.CLOSED)
-            raise exceptions.ConnectionClosedException(-1,
-                                                       'Socket Error: %s' %
-                                                       error)
+            raise exceptions.RemoteClosedException(-1,
+                                                   'Socket Error: %s' %
+                                                   error)
 
     def _validate_connection_start(self, frame_value):
         """Validate the received Connection.Start frame

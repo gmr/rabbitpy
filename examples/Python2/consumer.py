@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import rmqid
 
 with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:

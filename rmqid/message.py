@@ -145,7 +145,7 @@ class Message(base.AMQPClass):
         self.channel._write_frame(header_frame)
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
-        for offset in xrange(0, pieces):
+        for offset in range(0, pieces):
             start = self.channel.maximum_frame_size * offset
             end = start + self.channel.maximum_frame_size
             if end > len(self.body):

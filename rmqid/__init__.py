@@ -1,7 +1,7 @@
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
-from connection import Connection
-from exchange import Exchange
-from message import Message
-from queue import Queue
-from tx import TX
+from rmqid.connection import Connection
+from rmqid.exchange import Exchange
+from rmqid.message import Message
+from rmqid.queue import Queue
+from rmqid.tx import TX

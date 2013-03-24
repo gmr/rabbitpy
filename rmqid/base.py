@@ -61,7 +61,7 @@ class StatefulObject(object):
         :param int value: The new state value
         :raises: ValueError
         """
-        if value not in self.STATES.keys():
+        if value not in list(self.STATES.keys()):
             raise ValueError('Invalid state value: %r', value)
         LOGGER.debug('Setting state to %r', self.STATES[value])
         self._state = value
