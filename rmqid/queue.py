@@ -36,6 +36,16 @@ class Queue(base.AMQPClass):
         self._exclusive = exclusive
         self._auto_delete = auto_delete
 
+    def __len__(self):
+        """Return the pending number of messages in the queue by doing a passive
+        Queue declare.
+
+        :rtype: int
+
+        """
+        response = self.rpc(self._declare(True))
+        return response.message_count
+
     def bind(self, exchange, routing_key=None):
         """Bind the queue to the specified exchange or routing key.
         If routing key is None, use the queue name.
@@ -68,11 +78,7 @@ class Queue(base.AMQPClass):
 
     def declare(self):
         """Declare the queue"""
-        self.rpc(specification.Queue.Declare(queue=self.name,
-                                             durable=self._durable,
-                                             passive=self._passive,
-                                             exclusive=self._exclusive,
-                                             auto_delete=self._auto_delete))
+        self.rpc(self._declare())
 
     def delete(self, if_unused=False, if_empty=False):
         """Delete the queue
@@ -108,6 +114,19 @@ class Queue(base.AMQPClass):
         self.rpc(specification.Queue.Bind(queue=self.name,
                                           exchange=exchange,
                                           routing_key=routing_key or self.name))
+
+    def _declare(self, passive=None):
+        """Return a specification.Queue.Declare class pre-composed for the rpc
+        method since this can be called multiple times.
+
+        :rtype: pamqp.specification.Queue.Declare
+
+        """
+        return specification.Queue.Declare(queue=self.name,
+                                           durable=self._durable,
+                                           passive=passive or self._passive,
+                                           exclusive=self._exclusive,
+                                           auto_delete=self._auto_delete)
 
 
 class ConsumeGenerator(object):
