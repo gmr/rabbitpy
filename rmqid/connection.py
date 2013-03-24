@@ -407,29 +407,29 @@ class Connection(base.StatefulObject):
         return self._create_message(channel_id, frame_value,
                                     header_value, body_value)
 
-    def _process_server_rpc(self, channel_id, frame_value):
+    def _process_server_rpc(self, channel_id, value):
         """Process a RPC frame received from the server
 
         :param int channel_id: The channel number
-        :param pamqp.message.Message frame_value: The message value
+        :param pamqp.message.Message value: The message value
         :rtype: rmqid.message.Message
         :raises: rmqid.exceptions.ChannelClosedException
         :raises: rmqid.exceptions.ConnectionClosedException
 
         """
-        if frame_value.name == 'Channel.Close':
+        if value.name == 'Channel.Close':
             LOGGER.warning('Received remote close for channel %i', channel_id)
-            del self._channels[channel_id]
-            raise exceptions.ChannelClosedException(channel_id,
-                                                    frame_value.reply_code,
-                                                    frame_value.reply_text)
-        elif frame_value.name == 'Connection.Close':
+            self._channels[channel_id]._remote_close()
+            raise exceptions.RemoteClosedChannelException(channel_id,
+                                                          value.reply_code,
+                                                          value.reply_text)
+        elif value.name == 'Connection.Close':
             LOGGER.warning('Received remote close for the connection')
             self._set_state(self.CLOSED)
-            raise exceptions.ConnectionClosedException(frame_value.reply_code,
-                                                       frame_value.reply_text)
+            raise exceptions.RemoteClosedException(value.reply_code,
+                                                   value.reply_text)
         else:
-            LOGGER.critical('Unhandled RPC request: %r', frame_value)
+            LOGGER.critical('Unhandled RPC request: %r', value)
 
     def _process_url(self, url):
         """Parse the AMQP URL passed in and return the configuration information

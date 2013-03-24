@@ -4,7 +4,10 @@ Base rmqid classes
 """
 import logging
 
+from rmqid import exceptions
+
 LOGGER = logging.getLogger(__name__)
+
 
 class AMQPClass(object):
     """Base Class object for wrapping the specification.Frame classes
@@ -27,6 +30,8 @@ class AMQPClass(object):
         :rtype: pamqp.specification.Frame | pamqp.message.Message
 
         """
+        if self.channel.closed:
+            raise exceptions.ChannelClosedException()
         return self.channel.rpc(frame_value)
 
 

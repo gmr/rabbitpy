@@ -10,17 +10,34 @@ class ActionException(Exception):
 
 class ChannelClosedException(Exception):
     def __repr__(self):
+        return 'Can not perform RPC requests on a closed channel, you must ' \
+               'create a new channel'
+
+
+class RemoteClosedChannelException(Exception):
+    def __repr__(self):
         return 'Channel %i was closed by the remote server (%i): %s' % \
                (self.args[0], self.args[1], self.args[2])
 
 
-class ConnectionClosedException(Exception):
+class RemoteClosedException(Exception):
     def __repr__(self):
         return 'Connection was closed by the remote server (%i): %s' % \
                (self.args[0], self.args[1])
+
+
+class NoActiveTransactionError(Exception):
+    def __repr__(self):
+        return 'No active transaction for the request, channel closed'
 
 
 class TooManyChannelsError(Exception):
     def __repr__(self):
         return 'The maximum amount of negotiated channels has been reached'
 
+
+
+class UnexpectedResponseError(Exception):
+    def __repr__(self):
+        return 'Received an expected response, expected %s, received %s' % \
+               (self.args[0], self.args[1])

@@ -6,6 +6,7 @@ import logging
 from pamqp import specification
 
 from rmqid import base
+from rmqid import exceptions
 
 
 LOGGER = logging.getLogger(__name__)
@@ -76,6 +77,9 @@ class Channel(base.StatefulObject):
         :rtype: pamqp.specification.Frame or None
 
         """
+        if self.closed:
+            raise exceptions.ChannelClosedException()
+
         self._write_frame(frame_value)
         if frame_value.synchronous:
             return self._connection._wait_on_frame(frame_value.valid_responses,
@@ -116,6 +120,10 @@ class Channel(base.StatefulObject):
                                         self._channel_id)
         self._set_state(self.OPEN)
         LOGGER.debug('Channel #%i open', self._channel_id)
+
+
+    def _remote_close(self):
+        self._set_state(self.CLOSED)
 
     def _write_frame(self, frame_value):
         """Marshal the frame and write it to the socket.
