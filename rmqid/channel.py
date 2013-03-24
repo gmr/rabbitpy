@@ -35,6 +35,8 @@ class Channel(base.StatefulObject):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
+            LOGGER.exception('Channel context manager closed on exception',
+                             exc_tb)
             raise exc_type(exc_val)
         LOGGER.info('Closing channel')
         self.close()
@@ -63,10 +65,26 @@ class Channel(base.StatefulObject):
         return self._channel_id
 
     def prefetch_count(self, value, all_channels=False):
+        """Set a prefetch count for the channel (or all channels on the same
+        connection).
+
+        :param int value: The prefetch count to set
+        :param bool all_channels: Set the prefetch count on all channels on the
+                                  same connection
+
+        """
         self.rpc(specification.Basic.Qos(prefetch_count=value,
                                          global_=all_channels))
 
     def prefetch_size(self, value, all_channels=False):
+        """Set a prefetch size in bytes for the channel (or all channels on the
+        same connection).
+
+        :param int value: The prefetch size to set
+        :param bool all_channels: Set the prefetch size on all channels on the
+                                  same connection
+
+        """
         self.rpc(specification.Basic.Qos(prefetch_count=value,
                                          global_=all_channels))
 
@@ -123,6 +141,10 @@ class Channel(base.StatefulObject):
 
 
     def _remote_close(self):
+        """Invoked by rmqid.connection.Connection when a remote channel close
+        is issued.
+
+        """
         self._set_state(self.CLOSED)
 
     def _write_frame(self, frame_value):

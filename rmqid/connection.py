@@ -11,7 +11,6 @@ try:
 except ImportError:
     ssl = None
 
-
 from pamqp import frame
 from pamqp import header
 from pamqp import exceptions as pamqp_exceptions
@@ -69,6 +68,8 @@ class Connection(base.StatefulObject):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
+            LOGGER.exception('Connection context manager closed on exception',
+                             exc_tb)
             raise exc_type(exc_val)
         LOGGER.debug('Closing connection')
         self.close()

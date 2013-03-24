@@ -70,7 +70,8 @@ class TX(base.AMQPClass):
         automatically redelivered by rollback; if that is required an explicit
         recover call should be issued.
 
-        :rtype: bool
+        :raises: rmqid.exceptions.NoActiveTransactionError
+        :raises: rmqid.exceptions.UnexpectedResponseError
 
         """
         try:

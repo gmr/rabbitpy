@@ -1,8 +1,8 @@
-"""
-File Description
+"""Utilities to make Python 3 support easier, providing wrapper methods which
+can call the appropriate method for either Python 2 or Python 3 but creating
+a single API point for rmqid to use.
 
 """
-
 __since__ = '2013-03-24'
 
 from pamqp import PYTHON3
@@ -12,8 +12,10 @@ if PYTHON3:
 else:
     import urlparse as parse
 
+
 def urlparse(url):
     return parse.urlparse(url)
+
 
 def unquote(value):
     return parse.unquote(value)
