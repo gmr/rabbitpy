@@ -61,8 +61,11 @@ class Queue(base.AMQPClass):
                                           routing_key=routing_key or self.name))
 
     @contextlib.contextmanager
-    def consume(self, no_ack=False, prefetch=None):
-        """Generator
+    def consumer(self, no_ack=False, prefetch=None):
+        """Consumer message context manager, returns a consumer message
+        generator.
+
+        :rtype: ConsumeGenerator
 
         """
         self.consuming = True

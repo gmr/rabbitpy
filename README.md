@@ -2,16 +2,22 @@ rmqid
 =====
 A pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library.
 
+Installation
+------------
+rmqid may be installed via the Python package index with the tool of your choice. I prefer pip:
+
+    pip install rmqid
+
 Requirements
 ------------
   - pamqp - https://github.com/pika/pamqp
 
 Example Publisher
 -----------------
-    import logging
-    import rmqid
+In this example, messages are being published while using the connection and
+channel as context managers.
 
-    logging.basicConfig(level=logging.DEBUG)
+    import rmqid
 
     with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
         with conn.channel() as channel:
@@ -37,28 +43,49 @@ Example Publisher
             # Send the message
             message.publish(exchange, 'test-routing-key')
 
-Example Consumer
-----------------
-    import logging
+Example "Get" based consumer
+----------------------------
+In this example, the python application will connect to RabbitMQ and get
+messages as long as there are any in the queue, acking them after printing
+information about them.
+
     import rmqid
 
-    logging.basicConfig(level=logging.DEBUG)
+    url = 'amqp://guest:guest@localhost:5672/%2F'
+    connection = rmqid.Connection(url)
+    channel = connection.channel()
+    queue = rmqid.Queue(channel, 'example')
+
+    # Using len on the Queue object will return the # of pending msgs in the queue
+    while len(queue) > 0:
+        message = queue.get()
+        print 'Message:'
+        print ' ID: %s' % message.properties['message_id']
+        print ' Time: %s' % message.properties['timestamp'].isoformat()
+        print ' Body: %s' % message.body
+        message.ack()
+
+
+Example Consumer
+----------------
+In this example, connections and channels are used as context managers along
+with a queue consumer. A queue consumer is a generator that will handle
+subscribing and cancelling subscriptions on a queue.
+
+    import rmqid
 
     with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
         with conn.channel() as channel:
-            queue = rmqid.Queue(channel, 'test_queue')
+            queue = rmqid.Queue(channel, 'example')
 
+            # Exit on CTRL-C
             try:
+
                 # Consume the message
-                for message in queue.consume():
-                    logging.debug('Message body: %s', message.body)
-                    logging.debug('Message sent at: %s',
-                                  message.properties.timestamp.isoformat())
-                    logging.debug('Delivery tag: %i', message.method.delivery_tag)
+                with queue.consumer() as consumer:
+                    for message in consumer.next_message():
+                        print 'Message body: %s' % message.body
+                        message.ack()
 
-                    # Ack the delivery
-                    message.ack()
-
-            # Handle CTRL-C and send a Basic.Cancel, canceling the consumer
             except KeyboardInterrupt:
-                queue.cancel()
+                print 'Exited consumer'

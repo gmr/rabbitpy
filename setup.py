@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='rmqid',
-      version='0.0.2',
+      version='0.1.0',
       description='Minimalistic and Python RabbitMQ Focused AMQP library',
       author='Gavin M. Roy',
       author_email='gavinmroy@gmail.com',
