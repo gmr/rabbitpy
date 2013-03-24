@@ -3,6 +3,7 @@ The Message class represents a message that is sent or received
 
 """
 import datetime
+import json
 import logging
 import math
 import time
@@ -37,11 +38,18 @@ class Message(base.AMQPClass):
 
         """
         super(Message, self).__init__(channel, 'Message')
+
+        if isinstance(body_value, dict) or isinstance(body_value, list):
+            body_value = json.dumps(body_value, ensure_ascii=False)
+            if properties is None:
+                properties = {'content_type': 'application/json'}
+            else:
+                properties['content_type'] = 'application/json'
         self.body = body_value
         self.properties = properties or self._base_properties
-        if auto_id and 'message_id' not in properties:
+        if auto_id and 'message_id' not in self.properties:
             self._add_auto_message_id()
-        if 'timestamp' not in properties:
+        if 'timestamp' not in self.properties:
             self._add_timestamp()
         if isinstance(self.properties['timestamp'], time.struct_time):
             self.properties['timestamp'] = self._timestamp_from_struct_time()
