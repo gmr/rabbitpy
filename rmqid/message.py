@@ -5,6 +5,7 @@ The Message class represents a message that is sent or received
 import datetime
 import logging
 import math
+import time
 import uuid
 
 from pamqp import body
@@ -42,6 +43,8 @@ class Message(base.AMQPClass):
             self._add_auto_message_id()
         if 'timestamp' not in properties:
             self._add_timestamp()
+        if isinstance(self.properties['timestamp'], time.struct_time):
+            self.properties['timestamp'] = self._timestamp_from_struct_time()
 
     def _add_auto_message_id(self):
         """Set the message_id property to a new UUID."""
@@ -50,6 +53,9 @@ class Message(base.AMQPClass):
     def _add_timestamp(self):
         """Add the timestamp to the properties"""
         self.properties['timestamp'] = datetime.datetime.now()
+
+    def _timestamp_from_struct_time(self):
+        return datetime.datetime(*self.properties['timestamp'][:6])
 
     @property
     def _base_properties(self):
