@@ -29,6 +29,7 @@ class Channel(base.StatefulObject):
         self._connection = connection
         self.maximum_frame_size = connection.maximum_frame_size
         self._open()
+        self._publisher_confirms = False
 
     def __enter__(self):
         return self
@@ -54,6 +55,15 @@ class Channel(base.StatefulObject):
     @property
     def closed(self):
         return self._state == self.CLOSED
+
+    def enable_publisher_confirms(self):
+        """Turn on Publisher Confirms. If confirms are turned on, the
+        Message.publish command will return a bool indicating if a message has
+        been successfully published.
+
+        """
+        self.rpc(specification.Confirm.Select())
+        self._publisher_confirms = True
 
     @property
     def id(self):
@@ -88,6 +98,15 @@ class Channel(base.StatefulObject):
         self.rpc(specification.Basic.Qos(prefetch_count=value,
                                          global_=all_channels))
 
+    @property
+    def publisher_confirms(self):
+        """Returns True if publisher confirms are enabled.
+
+        :rtype: bool
+
+        """
+        return self._publisher_confirms
+
     def rpc(self, frame_value):
         """Send a RPC command to the remote server.
 
@@ -97,9 +116,10 @@ class Channel(base.StatefulObject):
         """
         if self.closed:
             raise exceptions.ChannelClosedException()
-
+        LOGGER.debug('Sending %r', frame_value)
         self._write_frame(frame_value)
         if frame_value.synchronous:
+            LOGGER.debug('Waiting on %r', frame_value.valid_responses)
             return self._connection._wait_on_frame(frame_value.valid_responses,
                                                    self._channel_id)
 
@@ -146,6 +166,17 @@ class Channel(base.StatefulObject):
 
         """
         self._set_state(self.CLOSED)
+
+    def _wait_for_confirmation(self):
+        """Used by the Message.publish method when publisher confirmations are
+        enabled.
+
+        :rtype: pamqp.frame.Frame
+
+        """
+        return self._connection._wait_on_frame([specification.Basic.Ack,
+                                                specification.Basic.Nack],
+                                               self._channel_id)
 
     def _write_frame(self, frame_value):
         """Marshal the frame and write it to the socket.

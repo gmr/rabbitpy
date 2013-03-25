@@ -131,30 +131,46 @@ class Message(base.AMQPClass):
                                               multiple=all_previous)
         self.channel._write_frame(basic_nack)
 
-    def publish(self, exchange, routing_key=''):
+    def publish(self, exchange, routing_key='', mandatory=False):
         """Publish the message to the exchange with the specified routing
         key.
 
         :param str | rmqid.base.AMQPClass exchange: The exchange to bind to
         :param str routing_key: The routing key to use
+        :param bool mandatory: Requires the message is published
+        :return: bool | None
+        :raises: rmqid.exceptions.MessageReturnedException
 
         """
         if isinstance(exchange, base.AMQPClass):
             exchange = exchange.name
         method_frame = specification.Basic.Publish(exchange=exchange,
-                                                   routing_key=routing_key)
+                                                   routing_key=routing_key,
+                                                   mandatory=mandatory)
         self.channel._write_frame(method_frame)
         header_frame = header.ContentHeader(body_size=len(self.body),
                                             properties=self._properties)
         self.channel._write_frame(header_frame)
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
+
+        # Send the message
         for offset in range(0, pieces):
             start = self.channel.maximum_frame_size * offset
             end = start + self.channel.maximum_frame_size
             if end > len(self.body):
                 end = len(self.body)
             self.channel._write_frame(body.ContentBody(self.body[start:end]))
+
+        # If publisher confirmations are enabled, wait for the response
+        if self.channel.publisher_confirms:
+            response = self.channel._wait_for_confirmation()
+            if isinstance(response, specification.Basic.Ack):
+                return True
+            elif isinstance(response, specification.Basic.Nack):
+                return False
+            else:
+                raise exceptions.UnexpectedResponseError(response)
 
     def reject(self, requeue=False):
         """Reject receipt of the message to RabbitMQ. Will raise
