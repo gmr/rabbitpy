@@ -51,6 +51,45 @@ channel as context managers.
             # Send the message
             message.publish(exchange, 'test-routing-key')
 
+Example using Publisher Confirms
+--------------------------------
+
+    import rmqid
+    from rmqid import exceptions
+
+    url = 'amqp://guest:guest@localhost:5672/%2f'
+    with rmqid.Connection(url) as connection:
+        with connection.channel() as channel:
+            channel.enable_publisher_confirms()
+            message = rmqid.Message(channel,
+                                    'Sample message',
+                                    {'content_type': 'text/plain'})
+            if message.publish('test_exchange', 'server-metrics'):
+                print 'RabbitMQ confirmed the publish'
+
+Example using mandatory publishing
+----------------------------------
+
+    >>> import rmqid
+    >>> from rmqid import exceptions
+    >>>
+    >>> url = 'amqp://guest:guest@localhost:5672/%2f'
+    >>> with rmqid.Connection(url) as connection:
+    ...     with connection.channel() as channel:
+    ...         message = rmqid.Message(channel,
+    ...                                 'Sample message',
+    ...                                 {'content_type': 'text/plain'})
+    ...         message.publish('test_exchange', 'server-metrics',
+    ...                         mandatory=True)
+    ...
+    ...
+    Traceback (most recent call last):
+      File "<stdin>", line 7, in <module>
+      File "rmqid/connection.py", line 73, in __exit__
+        raise exc_type(exc_val)
+    rmqid.exceptions.MessageReturnedException: ('a56d84a8-dc71-4c47-9d89-d36b05b58249', 312, 'NO_ROUTE')
+
+
 Example "Get" based consumer
 ----------------------------
 In this example, the python application will connect to RabbitMQ and get
