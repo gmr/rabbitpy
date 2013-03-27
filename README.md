@@ -29,9 +29,6 @@ channel as context managers.
     ...     with conn.channel() as channel:
     ...         message = rmqid.Message(channel, 'Test message')
     ...         message.publish('test', 'test-routing-key')
-    ...
-    ...
-    >>>
 
 Example using Publisher Confirms
 --------------------------------
@@ -44,8 +41,6 @@ Example using Publisher Confirms
     ...         if message.publish('test_exchange', 'server-metrics',
     ...                            mandatory=True)
     ...             print 'RabbitMQ confirmed the publish'
-    ...
-    ...
 
 Example using mandatory publishing
 ----------------------------------
@@ -79,8 +74,6 @@ information about them.
     ...                 message = queue.get()
     ...                 print 'Message: %r' % message.body
     ...                 message.ack()
-    ...
-    ...
 
 
 Example Consumer
