@@ -18,7 +18,7 @@ class Queue(base.AMQPClass):
 
     """
     def __init__(self, channel, name, passive=False, durable=True,
-                 exclusive=False, auto_delete=False):
+                 exclusive=False, auto_delete=False, arguments=None):
         """Create a new instance of the queue object.
 
         :param rmqid.channel.Channel: The channel object to work with
@@ -35,6 +35,7 @@ class Queue(base.AMQPClass):
         self._durable = durable
         self._exclusive = exclusive
         self._auto_delete = auto_delete
+        self._arguments = arguments or {}
 
     def __len__(self):
         """Return the pending number of messages in the queue by doing a passive
@@ -131,7 +132,8 @@ class Queue(base.AMQPClass):
                                            durable=self._durable,
                                            passive=passive or self._passive,
                                            exclusive=self._exclusive,
-                                           auto_delete=self._auto_delete)
+                                           auto_delete=self._auto_delete,
+                                           arguments=self._arguments)
 
 
 class Consumer(object):

@@ -17,7 +17,8 @@ class Exchange(base.AMQPClass):
 
     """
     def __init__(self, channel, name, exchange_type='direct',
-                 passive=False, durable=True, auto_delete=False):
+                 passive=False, durable=True, auto_delete=False,
+                 arguments=None):
         """Create a new instance of the queue object.
 
         :param rmqid.channel.Channel: The channel object to work with
@@ -26,6 +27,7 @@ class Exchange(base.AMQPClass):
         :param bool passive: Do not create exchange
         :param bool durable: Request a durable exchange
         :param bool auto_delete: Automatically delete when not in use
+        :param dict arguments: Optional key/value arguments
 
         """
         super(Exchange, self).__init__(channel, name)
@@ -33,6 +35,7 @@ class Exchange(base.AMQPClass):
         self._passive = passive
         self._durable = durable
         self._auto_delete = auto_delete
+        self._arguments = arguments or dict()
 
     def bind(self, exchange, routing_key=None):
         """Bind the exchange to another exchange with the routing key.
@@ -57,7 +60,8 @@ class Exchange(base.AMQPClass):
                                                 exchange_type=self._type,
                                                 durable=self._durable,
                                                 passive=self._passive,
-                                                auto_delete=self._auto_delete))
+                                                auto_delete=self._auto_delete,
+                                                arguments=self._arguments))
 
     def delete(self, if_unused=False):
         """Return the Exchange.Delete frame
