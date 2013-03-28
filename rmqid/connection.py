@@ -43,14 +43,14 @@ class Connection(base.StatefulObject):
     GUEST = 'guest'
     PORTS = {'amqp': 5672, 'amqps': 5671}
 
-    def __init__(self, url=DEFAULT_URL):
+    def __init__(self, url=None):
         """Create a new instance of the Connection object
 
         :param str url: The AMQP connection URL
 
         """
         super(Connection, self).__init__()
-        self._args = self._process_url(url)
+        self._args = self._process_url(url or self.DEFAULT_URL)
         self._buffer = bytes() if PYTHON3 else str()
         self._channels = dict()
         self._messages = dict()
