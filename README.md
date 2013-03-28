@@ -20,8 +20,40 @@ Python3 Caveats
 ---------------
  - Message bodies must use the bytes data type while most other values are strings.
 
-Example Publisher
------------------
+Examples
+========
+
+Simple Publisher
+----------------
+The simple publisher is ideal for sending one off messages:
+
+    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
+                      exchange='test',
+                      routing_key='example',
+                      body='This is my test message')
+
+If you want to add properties:
+
+    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
+                      exchange='test',
+                      routing_key='example',
+                      body='This is my test message',
+                      properties={'content_type': 'text/plain'})
+
+With publisher confirms:
+
+    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
+                      exchange='test',
+                      routing_key='example',
+                      body='This is my test message',
+                      properties={'content_type': 'text/plain'},
+                      confirm=True)
+    True
+    >>>
+
+
+More complex example publisher
+------------------------------
 In this example, messages are being published while using the connection and
 channel as context managers.
 

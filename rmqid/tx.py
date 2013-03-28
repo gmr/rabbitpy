@@ -1,6 +1,6 @@
 """
-TX is a class that encompasses and returns the methods of the
-Specification.TX class
+The TX or transaction class implements transactional functionality in RabbitMQ
+and allows for any AMQP command to be issued, then committed or rolled back.
 
 """
 from pamqp import specification as spec
@@ -22,6 +22,9 @@ class TX(base.AMQPClass):
     Further, the behaviour of transactions with respect to the immediate and
     mandatory flags on Basic.Publish methods is not defined.
 
+    :param channel: The channel object to start the transaction on
+    :type channel: :py:class:`rmqid.channel.Channel`
+
     """
     def __init__(self, channel):
         super(TX, self).__init__(channel, 'TX')
@@ -36,7 +39,7 @@ class TX(base.AMQPClass):
         :raises: rmqid.exceptions.UnexpectedResponseError
 
         """
-        response = self.rpc(spec.Tx.Select())
+        response = self._rpc(spec.Tx.Select())
         if not isinstance(response, spec.Tx.SelectOk):
             raise exceptions.UnexpectedResponseError(spec.Tx.SelectOk,
                                                      response)
@@ -53,7 +56,7 @@ class TX(base.AMQPClass):
 
         """
         try:
-            response = self.rpc(spec.Tx.Commit())
+            response = self._rpc(spec.Tx.Commit())
         except exceptions.ChannelClosedException:
             raise exceptions.NoActiveTransactionError()
 
@@ -75,7 +78,7 @@ class TX(base.AMQPClass):
 
         """
         try:
-            response = self.rpc(spec.Tx.Rollback())
+            response = self._rpc(spec.Tx.Rollback())
         except exceptions.ChannelClosedException:
             raise exceptions.NoActiveTransactionError()
         if not isinstance(response, spec.Tx.RollbackOk):

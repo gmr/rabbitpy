@@ -23,7 +23,7 @@ class AMQPClass(object):
         self.name = name
         self.channel = channel
 
-    def rpc(self, frame_value):
+    def _rpc(self, frame_value):
         """Execute the RPC command for the frame.
 
         :param pamqp.specification.Frame frame_value: The frame to send

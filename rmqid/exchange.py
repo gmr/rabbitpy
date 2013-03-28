@@ -1,6 +1,11 @@
 """
-Exchange is a class that encompasses and returns the methods of the
-Specification.Exchange class
+The :py:class:`Exchange` class is used to create and manage exchanges in
+RabbitMQ and provides four classes as wrappers:
+
+* :py:class:`DirectExchange`
+* :py:class:`FanoutExchange`
+* :py:class:`HeadersExchange`
+* :py:class:`TopicExchange`
 
 """
 import logging
@@ -12,24 +17,22 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Exchange(base.AMQPClass):
-    """Exchange class that with methods that return the specification class
-    method frames.
+    """Exchange class for interacting with an exchange in RabbitMQ including
+    declaration, binding and deletion.
+
+    :param channel: The channel object to communicate on
+    :type channel: :py:class:`rmqid.channel.Channel`
+    :param str name: The name of the exchange
+    :param str exchange_type: The exchange type
+    :param bool durable: Request a durable exchange
+    :param bool auto_delete: Automatically delete when not in use
+    :param dict arguments: Optional key/value arguments
 
     """
     def __init__(self, channel, name, exchange_type='direct',
-                 passive=False, durable=True, auto_delete=False,
+                 durable=True, auto_delete=False,
                  arguments=None):
-        """Create a new instance of the queue object.
-
-        :param rmqid.channel.Channel: The channel object to work with
-        :param str name: The name of the queue
-        :param str exchange_type: The exchange type
-        :param bool passive: Do not create exchange
-        :param bool durable: Request a durable exchange
-        :param bool auto_delete: Automatically delete when not in use
-        :param dict arguments: Optional key/value arguments
-
-        """
+        """Create a new instance of the exchange object."""
         super(Exchange, self).__init__(channel, name)
         self._type = exchange_type
         self._passive = passive
@@ -37,52 +40,130 @@ class Exchange(base.AMQPClass):
         self._auto_delete = auto_delete
         self._arguments = arguments or dict()
 
-    def bind(self, exchange, routing_key=None):
-        """Bind the exchange to another exchange with the routing key.
+    def bind(self, source, routing_key=None):
+        """Bind to another exchange with the routing key.
 
-        :param str exchange: The exchange to bind to
+        :param source: The exchange to bind to
+        :type source: str or :py:class:`Exchange`
         :param str routing_key: The routing key to use
 
         """
-        if isinstance(exchange, base.AMQPClass):
-            exchange = exchange.name
-        self.rpc(specification.Exchange.Bind(destination=self.name,
-                                             source=exchange,
-                                             routing_key=routing_key))
+        if isinstance(source, base.AMQPClass):
+            source = source.name
+        self._rpc(specification.Exchange.Bind(destination=self.name,
+                                              source=source,
+                                              routing_key=routing_key))
 
-    def declare(self):
-        """Return the Exchange.Declare frame
+    def declare(self, passive=False):
+        """Declare the exchange with RabbitMQ. If passive is True and the
+        command arguments do not match, the channel will be closed.
 
-        :rtype: pamqp.specification.Exchange.Declare
+        :param bool passive: Do not actually create the exchange
 
         """
-        self.rpc(specification.Exchange.Declare(exchange=self.name,
-                                                exchange_type=self._type,
-                                                durable=self._durable,
-                                                passive=self._passive,
-                                                auto_delete=self._auto_delete,
-                                                arguments=self._arguments))
+        self._rpc(specification.Exchange.Declare(exchange=self.name,
+                                                 exchange_type=self._type,
+                                                 durable=self._durable,
+                                                 passive=passive,
+                                                 auto_delete=self._auto_delete,
+                                                 arguments=self._arguments))
 
     def delete(self, if_unused=False):
-        """Return the Exchange.Delete frame
+        """Delete the exchange from RabbitMQ.
 
         :param bool if_unused: Delete only if unused
-        :rtype: pamqp.specification.Exchange.Declare
 
         """
-        self.rpc(specification.Exchange.Delete(exchange=self.name,
-                                               if_unused=if_unused))
+        self._rpc(specification.Exchange.Delete(exchange=self.name,
+                                                if_unused=if_unused))
 
-    def unbind(self, exchange, routing_key=None):
-        """Return the Exchange.Unbind the queue from the specified exchange with
-        the routing key. If routing key is None, use the queue name.
+    def unbind(self, source, routing_key=None):
+        """Unbind the exchange from the source exchange with the
+        routing key. If routing key is None, use the queue or exchange name.
 
-        :param str exchange: The exchange to unbind from
+        :param source: The exchange to unbind from
+        :type source: str or :py:class:`Exchange`
         :param str routing_key: The routing key that binds them
 
         """
-        if isinstance(exchange, base.AMQPClass):
-            exchange = exchange.name
-        self.rpc(specification.Exchange.Bind(destination=self.name,
-                                             source=exchange,
-                                             routing_key=routing_key))
+        if isinstance(source, base.AMQPClass):
+            source = source.name
+        self._rpc(specification.Exchange.Bind(destination=self.name,
+                                              source=source,
+                                              routing_key=routing_key))
+
+
+class DirectExchange(Exchange):
+    """The DirectExchange class is used for interacting with direct exchanges
+    only.
+
+    :param channel: The channel object to communicate on
+    :type channel: :py:class:`rmqid.channel.Channel`
+    :param str name: The name of the exchange
+    :param bool durable: Request a durable exchange
+    :param bool auto_delete: Automatically delete when not in use
+    :param dict arguments: Optional key/value arguments
+
+    """
+    def __init__(self, channel, name, durable=True, auto_delete=False,
+                 arguments=None):
+        """Create a new instance of the exchange object."""
+        super(DirectExchange, self).__init__(channel, name, 'direct', durable,
+                                            auto_delete, arguments)
+
+
+class FanoutExchange(Exchange):
+    """The FanoutExchange class is used for interacting with fanout exchanges
+    only.
+
+    :param channel: The channel object to communicate on
+    :type channel: :py:class:`rmqid.channel.Channel`
+    :param str name: The name of the exchange
+    :param bool durable: Request a durable exchange
+    :param bool auto_delete: Automatically delete when not in use
+    :param dict arguments: Optional key/value arguments
+
+    """
+    def __init__(self, channel, name, durable=True, auto_delete=False,
+                 arguments=None):
+        """Create a new instance of the exchange object."""
+        super(FanoutExchange, self).__init__(channel, name, 'fanout', durable,
+                                            auto_delete, arguments)
+
+
+class HeadersExchange(Exchange):
+    """The HeadersExchange class is used for interacting with direct exchanges
+    only.
+
+    :param channel: The channel object to communicate on
+    :type channel: :py:class:`rmqid.channel.Channel`
+    :param str name: The name of the exchange
+    :param bool durable: Request a durable exchange
+    :param bool auto_delete: Automatically delete when not in use
+    :param dict arguments: Optional key/value arguments
+
+    """
+    def __init__(self, channel, name, durable=True, auto_delete=False,
+                 arguments=None):
+        """Create a new instance of the exchange object."""
+        super(HeadersExchange, self).__init__(channel, name, 'headers', durable,
+                                              auto_delete, arguments)
+
+
+class TopicExchange(Exchange):
+    """The TopicExchange class is used for interacting with topic exchanges
+    only.
+
+    :param channel: The channel object to communicate on
+    :type channel: :py:class:`rmqid.channel.Channel`
+    :param str name: The name of the exchange
+    :param bool durable: Request a durable exchange
+    :param bool auto_delete: Automatically delete when not in use
+    :param dict arguments: Optional key/value arguments
+
+    """
+    def __init__(self, channel, name, durable=True, auto_delete=False,
+                 arguments=None):
+        """Create a new instance of the exchange object."""
+        super(TopicExchange, self).__init__(channel, name, 'topic', durable,
+                                            auto_delete, arguments)

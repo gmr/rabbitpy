@@ -1,5 +1,8 @@
 """
-The Message class represents a message that is sent or received
+The Message class represents a message that is sent or received and contains
+methods for publishing the message, or in the case that the message was
+delivered by RabbitMQ, acknowledging it, rejecting it or negatively
+acknowledging it.
 
 """
 import datetime
@@ -20,23 +23,63 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Properties(specification.Basic.Properties):
+    """Proxy class for :py:class:`pamqp.specification.Basic.Properties`"""
     pass
 
 
 class Message(base.AMQPClass):
-    """Represent a message for delivery and receipt from RabbitMQ"""
+    """Created by both rmqid internally when a message is delivered or returned
+    from RabbitMQ and by implementing applications, the Message class is used
+    to publish a message to and access and respond to a message from RabbitMQ.
+
+    When specifying properties for a message, pass in a dict of key value items
+    that match the AMQP Basic.Properties specification with a small caveat.
+
+    Due to an overlap in the AMQP specification and the Python keyword
+    :code:`type`, the :code:`type` property is referred to as
+    :code:`message_type`.
+
+    The following is a list of the available properties:
+
+    * app_id
+    * content_type
+    * content_encoding
+    * correlation_id
+    * delivery_node
+    * expiration
+    * headers
+    * message_id
+    * message_type
+    * priority
+    * reply_to
+    * timestamp
+    * user_id
+
+    **Automated features**
+
+    When passing in the body value, if it is a dict or list, it will
+    automatically be JSON serialized and the content type "application/json"
+    will be set on the message properties.
+
+    When publishing a message to RabbitMQ, if the auto_id value is True and no
+    message_id value was passed in as a property, a UUID will be generated and
+    specified as a property of the message.
+
+    If a timestamp is not specified when passing in properties, the current
+    Unix epoch value will be set in the message properties.
+
+    :param channel: The channel object for the message object to act upon
+    :type channel: :py:class:`rmqid.channel.Channel`
+    :param str or dict or list body_value: The message body
+    :param dict properties: A dictionary of message properties
+    :param bool auto_id: Add a message id if no properties were passed in.
+
+    """
     method = None
     name = 'Message'
 
     def __init__(self, channel, body_value, properties=None, auto_id=True):
-        """Create a new instance of the Message object.
-
-        :param rmqid.channel.Channel channel: The channel object for the message
-        :param str body_value: The message body
-        :param dict properties: A dictionary of message properties
-        :param bool auto_id: Add a message id if no properties were passed in.
-
-        """
+        """Create a new instance of the Message object."""
         super(Message, self).__init__(channel, 'Message')
 
         if isinstance(body_value, dict) or isinstance(body_value, list):
