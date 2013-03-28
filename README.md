@@ -65,6 +65,7 @@ Simple Consumer
     ...     for message in c.next_message():
     ...         print message.properties['message_id']
     ...         print message.body
+    ...         message.ack()
     ...
     856dfdc7-5ee3-4fc1-9635-977bf0043a9f
     {"foo": "bar"}
