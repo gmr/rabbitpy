@@ -1,5 +1,6 @@
 """
-Wrapper for easy access to simple operations, making them simpler
+Wrapper methods for easy access to common operations, making them both less
+complex and less verbose for one off or simple use cases.
 
 """
 from rmqid import connection
@@ -8,8 +9,6 @@ from rmqid import exceptions
 from rmqid import queue
 from rmqid import message
 
-__since__ = '2013-03-27'
-
 
 @contextlib.contextmanager
 def consumer(uri=None, queue_name=None):
@@ -17,7 +16,10 @@ def consumer(uri=None, queue_name=None):
     generator class that you can retrieve messages from using
     :py:class:`rmqid.queue.Consumer.next_message`
 
+    Invoke directly as rmqid.consumer()
+
     :rtype: :py:class:`rmqid.queue.Consumer`
+    :raises: :py:class:`rmqid.exceptions.EmptyQueueNameError`
 
     """
     if not queue_name:
@@ -34,9 +36,13 @@ def get(uri=None, queue_name=None):
     """Get a message from RabbitMQ, auto-acknowledging with RabbitMQ if one
     is returned.
 
+    Invoke directly as rmqid.get()
+
+
     :param str uri: AMQP URI to connect to
     :param str queue_name: The queue name to get the message from
     :rtype: py:class:`rmqid.message.Message` or None
+    :raises: :py:class:`rmqid.exceptions.EmptyQueueNameError`
 
     """
     if not queue_name:
@@ -53,6 +59,15 @@ def publish(uri=None, exchange=None, routing_key=None,
     """Publish a message to RabbitMQ. This should only be used for one-off
     publishing, as you will suffer a performance penality if you use it
     repeatedly instead creating a connection and channel and publishing on that
+
+    :param str uri: AMQP URI to connect to
+    :param str exchange: The exchange to publish to
+    :param str routing_key: The routing_key to publish with
+    :param str or unicode or bytes or dict or list: The message body
+    :param dict properties: Dict representation of Basic.Properties
+    :param bool confirm: Confirm this delivery with Publisher Confirms
+    :rtype: bool or None
+    :raises: :py:class:`rmqid.exceptions.EmptyExchangeNameError`
 
 
     """

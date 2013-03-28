@@ -55,20 +55,20 @@ class Queue(base.AMQPClass):
         response = self._rpc(self._declare(True))
         return response.message_count
 
-    def bind(self, exchange, routing_key=None, arguments=None):
+    def bind(self, source, routing_key=None, arguments=None):
         """Bind the queue to the specified exchange or routing key.
         If routing key is None, use the queue name.
 
-        :type exchange: str or :py:class:`rmqid.exchange.Exchange` exchange
-        :param exchange: The exchange to bind to
+        :type source: str or :py:class:`rmqid.exchange.Exchange` exchange
+        :param source: The exchange to bind to
         :param str routing_key: The routing key to use
         :param dict arguments: Optional arguments for for RabbitMQ
 
         """
-        if isinstance(exchange, base.AMQPClass):
-            exchange = exchange.name
+        if hasattr(source, 'name'):
+            source = source.name
         self._rpc(specification.Queue.Bind(queue=self.name,
-                                           exchange=exchange,
+                                           exchange=source,
                                            routing_key=routing_key or self.name,
                                            arguments=arguments))
 
@@ -158,19 +158,19 @@ class Queue(base.AMQPClass):
         """Purge the queue of all of its messages."""
         self._rpc(specification.Queue.Purge())
 
-    def unbind(self, exchange, routing_key=None):
+    def unbind(self, source, routing_key=None):
         """Unbind queue from the specified exchange where it is bound the
         routing key. If routing key is None, use the queue name.
 
-        :type exchange: str or :py:class:`rmqid.exchange.Exchange` exchange
-        :param exchange: The exchange to unbind from
+        :type source: str or :py:class:`rmqid.exchange.Exchange` exchange
+        :param source: The exchange to unbind from
         :param str routing_key: The routing key that binds them
 
         """
-        if isinstance(exchange, base.AMQPClass):
-            exchange = exchange.name
+        if hasattr(source, 'name'):
+            source = source.name
         self._rpc(specification.Queue.Bind(queue=self.name,
-                                           exchange=exchange,
+                                           exchange=source,
                                            routing_key=routing_key or
                                                        self.name))
 
@@ -195,15 +195,15 @@ class Consumer(object):
     """The Consumer class implements an interator that will retrieve the next
     message from the stack of messages RabbitMQ has delivered until the client
     exists the iterator. It should be used with the
-    :py:meth:`Queue.consumer() <rmqid.queue.Queue.consumer>` method which returns a
-    context manager for consuming.
+    :py:meth:`Queue.consumer() <rmqid.queue.Queue.consumer>` method which
+    returns a context manager for consuming.
 
     """
     def __init__(self, queue):
         self.queue = queue
 
     def next_message(self):
-        """Retrieve the nest message from the queue as an interator, blocking
+        """Retrieve the nest message from the queue as an iterator, blocking
         until the next message is available.
 
         :rtype: :py:class:`rmqid.message.Message`

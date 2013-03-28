@@ -29,7 +29,25 @@ LOGGER = logging.getLogger(__name__)
 
 class Connection(base.StatefulObject):
     """The Connection object is responsible for negotiating a connection and
-    managing its state.
+    managing its state. When creating a new instance of the Connection object,
+    if no URL is passed in, it uses the default connection parameters of
+    localhost port 5672, virtual host / with the guest/guest username/password
+    combination. Represented as a AMQP URL the connection information is:
+
+        :code:`amqp://guest:guest@localhost:5672/%2F`
+
+    To use a different connection, pass in a AMQP URL that follows the standard
+    format:
+
+        :code:`[scheme]://[username]:[password]@[host]:[port]/[virtual_host]`
+
+    The following example connects to the test virtual host on a RabbitMQ server
+    running at 192.168.1.200 port 5672 as the user "www" and the password
+    rabbitmq:
+
+        :code:`amqp://admin192.168.1.200:5672/test`
+
+    :param str url: The AMQP connection URL
 
     """
     CANCEL_METHOD = ['Basic.Cancel']
@@ -44,11 +62,7 @@ class Connection(base.StatefulObject):
     PORTS = {'amqp': 5672, 'amqps': 5671}
 
     def __init__(self, url=None):
-        """Create a new instance of the Connection object
-
-        :param str url: The AMQP connection URL
-
-        """
+        """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
         self._args = self._process_url(url or self.DEFAULT_URL)
         self._buffer = bytes() if PYTHON3 else str()
@@ -68,9 +82,8 @@ class Connection(base.StatefulObject):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
-            LOGGER.exception('Connection context manager closed on exception',
-                             exc_tb)
-            raise exc_type(exc_val)
+            LOGGER.exception('Context manager closed on exception', exc_tb)
+            raise
         LOGGER.debug('Closing connection')
         self.close()
 

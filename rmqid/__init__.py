@@ -4,8 +4,8 @@ from rmqid.connection import Connection
 from rmqid.exchange import Exchange
 from rmqid.message import Message
 from rmqid.queue import Queue
-from rmqid.tx import TX
+from rmqid.tx import Tx
 
-from rmqid.wrapper import consumer
-from rmqid.wrapper import get
-from rmqid.wrapper import publish
+from rmqid.simple import consumer
+from rmqid.simple import get
+from rmqid.simple import publish

@@ -19,8 +19,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Channel(base.StatefulObject):
-    """The Connection object is responsible for negotiating a connection and
-    managing its state.
+    """The Channel class implements the channel communication layer on top of
+    the Connection object, which is responsible for creating new channels.
+
+    To create a new channel, invoke
+    py:meth:`rmqid.connection.Connection.channel`
 
     """
     def __init__(self, channel_id, connection):
@@ -44,7 +47,7 @@ class Channel(base.StatefulObject):
         if exc_type:
             LOGGER.exception('Channel context manager closed on exception',
                              exc_tb)
-            raise exc_type(exc_val)
+            raise
         LOGGER.info('Closing channel')
         self.close()
 

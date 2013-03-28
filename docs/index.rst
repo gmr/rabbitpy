@@ -66,6 +66,7 @@ API Documentation
 .. toctree::
    :maxdepth: 2
 
+   rmqid
    connection
    channel
    exchange

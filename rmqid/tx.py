@@ -9,7 +9,7 @@ from rmqid import base
 from rmqid import exceptions
 
 
-class TX(base.AMQPClass):
+class Tx(base.AMQPClass):
     """Work with transactions
 
     The Tx class allows publish and ack operations to be batched into atomic
@@ -27,7 +27,7 @@ class TX(base.AMQPClass):
 
     """
     def __init__(self, channel):
-        super(TX, self).__init__(channel, 'TX')
+        super(Tx, self).__init__(channel, 'Tx')
 
     def select(self):
         """Select standard transaction mode

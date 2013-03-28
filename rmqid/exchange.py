@@ -35,7 +35,6 @@ class Exchange(base.AMQPClass):
         """Create a new instance of the exchange object."""
         super(Exchange, self).__init__(channel, name)
         self._type = exchange_type
-        self._passive = passive
         self._durable = durable
         self._auto_delete = auto_delete
         self._arguments = arguments or dict()
@@ -48,7 +47,7 @@ class Exchange(base.AMQPClass):
         :param str routing_key: The routing key to use
 
         """
-        if isinstance(source, base.AMQPClass):
+        if hasattr(source, 'name'):
             source = source.name
         self._rpc(specification.Exchange.Bind(destination=self.name,
                                               source=source,
@@ -86,7 +85,7 @@ class Exchange(base.AMQPClass):
         :param str routing_key: The routing key that binds them
 
         """
-        if isinstance(source, base.AMQPClass):
+        if hasattr(source, 'name'):
             source = source.name
         self._rpc(specification.Exchange.Bind(destination=self.name,
                                               source=source,
