@@ -156,6 +156,14 @@ class Message(base.AMQPClass):
                                             multiple=all_previous)
         self.channel._write_frame(basic_ack)
 
+    def json(self):
+        """Deserialize the message body if it is JSON, returning the value.
+
+        :rtype: any
+
+        """
+        return json.loads(self.body)
+
     def nack(self, requeue=False, all_previous=False):
         """Negatively acknowledge receipt of the message to RabbitMQ. Will raise
         an ActionException if the message was not received from a broker.

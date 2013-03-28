@@ -128,8 +128,11 @@ class Queue(base.AMQPClass):
         :rtype: rmqid.message.Message or None
 
         """
-        return self._rpc(specification.Basic.Get(queue=self.name,
-                                                 no_ack=not acknowledge))
+        response = self._rpc(specification.Basic.Get(queue=self.name,
+                                                     no_ack=not acknowledge))
+        if response.name == 'Basic.GetEmpty':
+            return None
+        return response
 
     def ha_declare(self, nodes=None):
         """Declare a the queue as highly available, passing in a list of nodes

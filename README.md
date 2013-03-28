@@ -51,9 +51,15 @@ With publisher confirms:
     True
     >>>
 
+Simple Getter
+-------------
 
-More complex example publisher
-------------------------------
+    >>> m = rmqid.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+Normal publisher
+----------------
 In this example, messages are being published while using the connection and
 channel as context managers.
 
