@@ -3,11 +3,27 @@ Wrapper for easy access to simple operations, making them simpler
 
 """
 from rmqid import connection
+import contextlib
 from rmqid import queue
-from rmqid import exchange
 from rmqid import message
 
 __since__ = '2013-03-27'
+
+
+@contextlib.contextmanager
+def consumer(uri, queue_name):
+    """Create a queue consumer, returning a :py:class:`rmqid.queue.Consumer`
+    generator class that you can retrieve messages from using
+    :py:class:`rmqid.queue.Consumer.next_message`
+
+    :rtype: :py:class:`rmqid.queue.Consumer`
+
+    """
+    with connection.Connection(uri) as conn:
+        with conn.channel() as channel:
+            q = queue.Queue(channel, queue_name)
+            with q.consumer() as consumer:
+                yield consumer
 
 
 def get(uri, queue_name):

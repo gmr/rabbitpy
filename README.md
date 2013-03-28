@@ -1,5 +1,5 @@
-rmqid
-=====
+rmqid - rabbitmq simplified
+===========================
 A pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3.
 
 Version
@@ -57,6 +57,17 @@ Simple Getter
     >>> m = rmqid.get('amqp://guest:guest@localhost:5672/%2f', 'test')
     >>> m.json()
     {u'foo': u'bar'}
+
+Simple Consumer
+---------------
+
+    >>> with rmqid.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
 
 Normal publisher
 ----------------

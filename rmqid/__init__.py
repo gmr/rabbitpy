@@ -6,5 +6,6 @@ from rmqid.message import Message
 from rmqid.queue import Queue
 from rmqid.tx import TX
 
+from rmqid.wrapper import consumer
 from rmqid.wrapper import get
 from rmqid.wrapper import publish
