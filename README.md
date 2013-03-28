@@ -12,6 +12,11 @@ rmqid may be installed via the Python package index with the tool of your choice
 
     pip install rmqid
 
+Documentation
+-------------
+
+https://rmqid.readthedocs.org
+
 Requirements
 ------------
   - pamqp - https://github.com/pika/pamqp
