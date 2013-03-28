@@ -4,6 +4,7 @@ Wrapper for easy access to simple operations, making them simpler
 """
 from rmqid import connection
 import contextlib
+from rmqid import exceptions
 from rmqid import queue
 from rmqid import message
 
@@ -11,7 +12,7 @@ __since__ = '2013-03-27'
 
 
 @contextlib.contextmanager
-def consumer(uri, queue_name):
+def consumer(uri=None, queue_name=None):
     """Create a queue consumer, returning a :py:class:`rmqid.queue.Consumer`
     generator class that you can retrieve messages from using
     :py:class:`rmqid.queue.Consumer.next_message`
@@ -19,6 +20,9 @@ def consumer(uri, queue_name):
     :rtype: :py:class:`rmqid.queue.Consumer`
 
     """
+    if not queue_name:
+        raise exceptions.EmptyQueueNameError()
+
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
             q = queue.Queue(channel, queue_name)
@@ -26,7 +30,7 @@ def consumer(uri, queue_name):
                 yield consumer
 
 
-def get(uri, queue_name):
+def get(uri=None, queue_name=None):
     """Get a message from RabbitMQ, auto-acknowledging with RabbitMQ if one
     is returned.
 
@@ -35,13 +39,16 @@ def get(uri, queue_name):
     :rtype: py:class:`rmqid.message.Message` or None
 
     """
+    if not queue_name:
+        raise exceptions.EmptyQueueNameError()
+
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
             q = queue.Queue(channel, queue_name)
             return q.get(False)
 
 
-def publish(uri, exchange, routing_key=None,
+def publish(uri=None, exchange=None, routing_key=None,
             body=None, properties=None, confirm=False):
     """Publish a message to RabbitMQ. This should only be used for one-off
     publishing, as you will suffer a performance penality if you use it
@@ -49,6 +56,9 @@ def publish(uri, exchange, routing_key=None,
 
 
     """
+    if not exchange:
+        raise exceptions.EmptyExceptionNameError()
+
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
             msg = message.Message(channel, body or '', properties or dict())

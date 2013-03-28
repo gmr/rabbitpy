@@ -14,6 +14,16 @@ class ChannelClosedException(Exception):
                'create a new channel'
 
 
+class EmptyExceptionNameError(Exception):
+    def __repr__(self):
+        return 'You must specify a Queue name'
+
+
+class EmptyQueueNameError(Exception):
+    def __repr__(self):
+        return 'You must specify a Queue name'
+
+
 class RemoteClosedChannelException(Exception):
     def __repr__(self):
         return 'Channel %i was closed by the remote server (%i): %s' % \
