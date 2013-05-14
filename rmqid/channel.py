@@ -116,6 +116,15 @@ class Channel(base.StatefulObject):
         """
         return self._publisher_confirms
 
+    def recover(self, requeue=False):
+        """Recover all unacknowledged messages that are associated with this
+        channel.
+
+        :param bool requeue: Requeue the message
+
+        """
+        self.rpc(specification.Basic.Recover(requeue=requeue))
+
     def rpc(self, frame_value):
         """Send a RPC command to the remote server.
 
@@ -125,10 +134,8 @@ class Channel(base.StatefulObject):
         """
         if self.closed:
             raise exceptions.ChannelClosedException()
-        LOGGER.debug('Sending %r', frame_value)
         self._write_frame(frame_value)
         if frame_value.synchronous:
-            LOGGER.debug('Waiting on %r', frame_value.valid_responses)
             return self._connection._wait_on_frame(frame_value.valid_responses,
                                                    self._channel_id)
 
