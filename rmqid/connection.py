@@ -59,12 +59,13 @@ class Connection(base.StatefulObject):
     DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
     DEFAULT_VHOST = '%2F'
     GUEST = 'guest'
-    PORTS = {'amqp': 5672, 'amqps': 5671}
+    PORTS = {'amqp': 5672, 'amqps': 5671, 'api': 15672}
 
     def __init__(self, url=None):
         """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
         self._args = self._process_url(url or self.DEFAULT_URL)
+        self._api_port = self.PORTS['api']
         self._buffer = bytes() if PYTHON3 else str()
         self._channels = dict()
         self._messages = dict()
@@ -74,6 +75,7 @@ class Connection(base.StatefulObject):
         self.maximum_frame_size = specification.FRAME_MAX_SIZE
         self.minimum_frame_size = specification.FRAME_MIN_SIZE
         self._properties = dict()
+        self._remote_name = None
         self._socket = None
         self._connect()
 
@@ -87,6 +89,13 @@ class Connection(base.StatefulObject):
         LOGGER.debug('Closing connection')
         self.close()
 
+    def channel(self):
+        """Create a new channel"""
+        LOGGER.debug('Creating a new channel')
+        channel_id = self._get_next_channel_id()
+        self._channels[channel_id] = channel.Channel(channel_id, self)
+        return self._channels[channel_id]
+
     def close(self):
         """Close the connection, including all open channels"""
         if not self.closed:
@@ -96,17 +105,22 @@ class Connection(base.StatefulObject):
             self._write_frame(self._build_close_frame())
             self._wait_on_frame(specification.Connection.CloseOk)
             self._set_state(self.CLOSED)
+            self._remote_name = None
 
     @property
     def closed(self):
         return self._state == self.CLOSED
 
-    def channel(self):
-        """Create a new channel"""
-        LOGGER.debug('Creating a new channel')
-        channel_id = self._get_next_channel_id()
-        self._channels[channel_id] = channel.Channel(channel_id, self)
-        return self._channels[channel_id]
+    @property
+    def name(self):
+        """Return the name of the connection as RabbitMQ internally holds it
+        for use when trying to get the state of the connection or channel from
+        the RabbitMQ API.
+
+        :rtype: str
+
+        """
+        return self._remote_name
 
     def enable_heartbeats(self, interval=DEFAULT_HEARTBEAT_INTERVAL):
         """Turn on heartbeat sending, defaulting to the
@@ -117,6 +131,14 @@ class Connection(base.StatefulObject):
         """
         if not self._heartbeat:
             self._heartbeat = interval
+
+    def set_api_port(self, port):
+        """Change the default API port from 15672 to the specified value.
+
+        :param int port: The API port value
+
+        """
+        self._api_port = port
 
     def _add_to_frame_stack(self, channel_id, frame_value):
         """Add the frame to the stack by creating the key value used in
@@ -146,6 +168,24 @@ class Connection(base.StatefulObject):
         if key not in self._messages:
             self._messages[key] = list()
         self._messages[key].append(message)
+
+    @property
+    def _api_base_url(self):
+        """Return the base API URL
+
+        :rtype: str
+
+        """
+        return 'http://%s:%s/api' % (self._args['host'], self._api_port)
+
+    @property
+    def _api_credentials(self):
+        """Return the auth credentials as a tuple
+
+        @rtype: tuple
+
+        """
+        return self._args['username'], self._args['password']
 
     def _build_close_frame(self):
         """Build and return the Connection.Close frame.
@@ -224,6 +264,13 @@ class Connection(base.StatefulObject):
         self._set_state(self.OPENING)
         self._socket = self._create_socket(self._args['ssl'])
         self._connect_socket(self._args['host'], self._args['port'])
+
+        address, port = self._socket.getsockname()
+        peer_address, peer_port = self._socket.getpeername()
+
+        self._remote_name = '%s:%s -> %s:%s' % (address, port,
+                                                peer_address, peer_port)
+
         self._write_protocol_header()
         if not self._connection_start():
             return

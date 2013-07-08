@@ -9,7 +9,9 @@ manager, allowing for quick shorthand use:
 
 """
 import logging
+import requests
 from pamqp import specification
+import urllib
 
 from rmqid import base
 from rmqid import exceptions
@@ -51,6 +53,15 @@ class Channel(base.StatefulObject):
         LOGGER.info('Closing channel')
         self.close()
 
+    def blocked(self):
+        """Poll the remote API to see if the channel is blocked.
+
+        :rtype: bool
+
+        """
+        response = self._get_status()
+        return response.get('client_flow_blocked', False)
+
     def close(self):
         """Close the channel"""
         self._set_state(self.CLOSING)
@@ -82,6 +93,17 @@ class Channel(base.StatefulObject):
 
         """
         return self._channel_id
+
+    @property
+    def name(self):
+        """Return the name of the connection as RabbitMQ internally holds it
+        for use when trying to get the state of the channel from the
+        RabbitMQ API.
+
+        :rtype: str
+
+        """
+        return '%s (%i)' % (self._connection.name, self._channel_id)
 
     def prefetch_count(self, value, all_channels=False):
         """Set a prefetch count for the channel (or all channels on the same
@@ -164,6 +186,21 @@ class Channel(base.StatefulObject):
         return self._connection._wait_on_frame([specification.Basic.Deliver,
                                                 specification.Basic.CancelOk],
                                                self._channel_id)
+
+    def _get_status(self):
+        """Polls the RabbitMQ management API for the status of the channel.
+
+        :rtype: dict
+
+        """
+        url = '%s/channels/%s' % (self._connection._api_base_url,
+                                  urllib.quote(self.name))
+        response = requests.get(url, auth=self._connection._api_credentials)
+        if response.status_code == 200:
+            return response.json()
+        LOGGER.error('Remote API error (%s): %s',
+                     response.status_code, response.content)
+        return None
 
     def _open(self):
         """Open the channel"""
