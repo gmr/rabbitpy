@@ -140,30 +140,12 @@ class Connection(base.StatefulObject):
         """
         # If it's a basic return, process it elsewhere
         if frame_value.name == 'Basic.Return':
-            return self._process_basic_return(channel_id,
-                                              frame_value,
-                                              message)
-
+            return self._channels[channel_id]._process_basic_return(frame_value,
+                                                                    message)
         key = '%i:%s' % (channel_id, frame_value.name)
         if key not in self._messages:
             self._messages[key] = list()
         self._messages[key].append(message)
-
-    def _process_basic_return(self, channel_id, frame_value, message):
-        """Raise a MessageReturnedException so the publisher can handle returned
-        messages.
-
-        :param int channel_id: The channel id the frame was received on
-        :param pamqp.specification.Basic.Return frame_value: Method frame
-        :param pmqid.message.message message: The message to add
-        :raises: rmqid.exceptions.MessageReturnedException
-
-        """
-        LOGGER.warning('Basic.Return received on channel %i', channel_id)
-        message_id = message.properties.get('message_id', 'Unknown')
-        raise exceptions.MessageReturnedException(message_id,
-                                                  frame_value.reply_code,
-                                                  frame_value.reply_text)
 
     def _build_close_frame(self):
         """Build and return the Connection.Close frame.
@@ -189,9 +171,9 @@ class Connection(base.StatefulObject):
         """
         version = sys.version_info
         properties = {'product': 'rmqid',
-                      'platform': 'Python %s.%s.%s' % (version.major,
-                                                       version.minor,
-                                                       version.micro),
+                      'platform': 'Python %s.%s.%s' % (version[0],
+                                                       version[1],
+                                                       version[2]),
                       'capabilities': {'basic.nack': True,
                                        'consumer_cancel_notify': True,
                                        'publisher_confirms': True},

@@ -176,6 +176,22 @@ class Channel(base.StatefulObject):
         LOGGER.debug('Channel #%i open', self._channel_id)
 
 
+    def _process_basic_return(self, frame_value, message):
+        """Raise a MessageReturnedException so the publisher can handle returned
+        messages.
+
+        :param int channel_id: The channel id the frame was received on
+        :param pamqp.specification.Basic.Return frame_value: Method frame
+        :param pmqid.message.message message: The message to add
+        :raises: rmqid.exceptions.MessageReturnedException
+
+        """
+        LOGGER.warning('Basic.Return received on channel %i', self._channel_id)
+        message_id = message.properties.get('message_id', 'Unknown')
+        raise exceptions.MessageReturnedException(message_id,
+                                                  frame_value.reply_code,
+                                                  frame_value.reply_text)
+
     def _remote_close(self):
         """Invoked by rmqid.connection.Connection when a remote channel close
         is issued.
