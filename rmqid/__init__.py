@@ -9,3 +9,15 @@ from rmqid.tx import Tx
 from rmqid.simple import consumer
 from rmqid.simple import get
 from rmqid.simple import publish
+
+import logging
+
+try:
+    from logging import NullHandler
+except ImportError:
+    # Python 2.6 does not have a NullHandler
+    class NullHandler(logging.Handler):
+        def emit(self, record):
+            pass
+
+logging.getLogger().addHandler(NullHandler())
