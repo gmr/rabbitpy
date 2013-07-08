@@ -59,6 +59,10 @@ class Channel(base.StatefulObject):
         :rtype: bool
 
         """
+        # Don't do the extra work if the connection is blocked
+        if self._connection.blocked:
+            return True
+
         response = self._get_status()
         return response.get('client_flow_blocked', False)
 

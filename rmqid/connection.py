@@ -66,6 +66,7 @@ class Connection(base.StatefulObject):
         super(Connection, self).__init__()
         self._args = self._process_url(url or self.DEFAULT_URL)
         self._api_port = self.PORTS['api']
+        self._blocked = False
         self._buffer = bytes() if PYTHON3 else str()
         self._channels = dict()
         self._messages = dict()
@@ -88,6 +89,18 @@ class Connection(base.StatefulObject):
             raise
         LOGGER.debug('Closing connection')
         self.close()
+
+    @property
+    def blocked(self):
+        """Indicates if the connection is blocked from publishing by RabbitMQ.
+        This flag indicates communication from RabbitMQ that the connection is
+        blocked using the Connection.Blocked RPC notification from RabbitMQ
+        slated to be added in 3.2.
+
+        :rtype: bool
+
+        """
+        return self._blocked
 
     def channel(self):
         """Create a new channel"""
@@ -495,6 +508,14 @@ class Connection(base.StatefulObject):
             self._set_state(self.CLOSED)
             raise exceptions.RemoteClosedException(value.reply_code,
                                                    value.reply_text)
+        elif value.name == 'Connection.Blocked':
+            LOGGER.warning('RabbitMQ has blocked the connection: %s',
+                           value.reason)
+            self._blocked = True
+
+        elif value.name == 'Connection.Unblocked':
+            LOGGER.warning('Connection is no longer blocked')
+            self._blocked = False
         else:
             LOGGER.critical('Unhandled RPC request: %r', value)
 
