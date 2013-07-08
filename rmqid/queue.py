@@ -63,14 +63,17 @@ class Queue(base.AMQPClass):
         :param source: The exchange to bind to
         :param str routing_key: The routing key to use
         :param dict arguments: Optional arguments for for RabbitMQ
+        :return: bool
 
         """
         if hasattr(source, 'name'):
             source = source.name
-        self._rpc(specification.Queue.Bind(queue=self.name,
-                                           exchange=source,
-                                           routing_key=routing_key or self.name,
-                                           arguments=arguments))
+        response = self._rpc(specification.Queue.Bind(queue=self.name,
+                                                      exchange=source,
+                                                      routing_key=routing_key or
+                                                                  self.name,
+                                                      arguments=arguments))
+        return isinstance(response, specification.Queue.BindOk)
 
     @contextlib.contextmanager
     def consumer(self, no_ack=False, prefetch=None):
