@@ -3,10 +3,13 @@ The TX or transaction class implements transactional functionality in RabbitMQ
 and allows for any AMQP command to be issued, then committed or rolled back.
 
 """
+import logging
 from pamqp import specification as spec
 
 from rmqid import base
 from rmqid import exceptions
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Tx(base.AMQPClass):
@@ -36,13 +39,11 @@ class Tx(base.AMQPClass):
         must use this method at least once on a channel before using the Commit
         or Rollback methods.
 
-        :raises: rmqid.exceptions.UnexpectedResponseError
+        :rtype: bool
 
         """
         response = self._rpc(spec.Tx.Select())
-        if not isinstance(response, spec.Tx.SelectOk):
-            raise exceptions.UnexpectedResponseError(spec.Tx.SelectOk,
-                                                     response)
+        return isinstance(response, spec.Tx.SelectOk)
 
     def commit(self):
         """Commit the current transaction
@@ -52,17 +53,16 @@ class Tx(base.AMQPClass):
         immediately after a commit.
 
         :raises: rmqid.exceptions.NoActiveTransactionError
-        :raises: rmqid.exceptions.UnexpectedResponseError
+        :rtype: bool
 
         """
         try:
             response = self._rpc(spec.Tx.Commit())
-        except exceptions.ChannelClosedException:
+        except exceptions.ChannelClosedException as error:
+            LOGGER.warning('Error committing transaction: %s', error)
             raise exceptions.NoActiveTransactionError()
 
-        if not isinstance(response, spec.Tx.CommitOk):
-            raise exceptions.UnexpectedResponseError(spec.Tx.CommitOk,
-                                                     response)
+        return isinstance(response, spec.Tx.CommitOk)
 
     def rollback(self):
         """Abandon the current transaction
@@ -74,13 +74,12 @@ class Tx(base.AMQPClass):
         recover call should be issued.
 
         :raises: rmqid.exceptions.NoActiveTransactionError
-        :raises: rmqid.exceptions.UnexpectedResponseError
+        :rtype: bool
 
         """
         try:
             response = self._rpc(spec.Tx.Rollback())
-        except exceptions.ChannelClosedException:
+        except exceptions.ChannelClosedException as error:
+            LOGGER.warning('Error rolling back transaction: %s', error)
             raise exceptions.NoActiveTransactionError()
-        if not isinstance(response, spec.Tx.RollbackOk):
-            raise exceptions.UnexpectedResponseError(spec.Tx.RollbackOk,
-                                                     response)
+        return isinstance(response, spec.Tx.RollbackOk)
