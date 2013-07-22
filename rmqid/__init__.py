@@ -20,4 +20,4 @@ except ImportError:
         def emit(self, record):
             pass
 
-logging.getLogger().addHandler(NullHandler())
+logging.getLogger('rmqid').addHandler(NullHandler())
