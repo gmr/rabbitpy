@@ -85,7 +85,8 @@ class Connection(base.StatefulObject):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
-            LOGGER.exception('Context manager closed on exception', exc_tb)
+            LOGGER.exception('Context manager closed on exception: %s',
+                             exc_val)
             raise
         LOGGER.debug('Closing connection')
         self.close()

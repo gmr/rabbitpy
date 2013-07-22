@@ -47,8 +47,8 @@ class Channel(base.StatefulObject):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
-            LOGGER.exception('Channel context manager closed on exception',
-                             exc_tb)
+            LOGGER.exception('Channel context manager closed on exception: %s',
+                             exc_val)
             raise
         LOGGER.info('Closing channel')
         self.close()
