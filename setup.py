@@ -8,7 +8,7 @@ if sys.version_info < (2, 7, 0):
 desc = 'A minimalistic & pythonic AMQP library focused on supporting RabbitMQ'
 
 setup(name='rmqid',
-      version='0.4.2',
+      version='0.4.3',
       description=desc,
       author='Gavin M. Roy',
       author_email='gavinmroy@gmail.com',

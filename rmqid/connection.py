@@ -229,9 +229,10 @@ class Connection(base.StatefulObject):
                                                        version[1],
                                                        version[2]),
                       'capabilities': {'basic.nack': True,
+                                       'connection.blocked': True,
                                        'consumer_cancel_notify': True,
                                        'publisher_confirms': True},
-                      'information': 'See http://github.com/gmr/rmqid',
+                      'information': 'See https://github.com/gmr/rmqid',
                       'version': __version__}
         return specification.Connection.StartOk(client_properties=properties,
                                                 response=self._credentials,
@@ -318,6 +319,13 @@ class Connection(base.StatefulObject):
             self._disconnect_socket()
             return False
         self._properties = frame_value.server_properties
+        for key in self._properties:
+            if key == 'capabilities':
+                for capability in self._properties[key]:
+                    LOGGER.debug('Server supports %s: %r',
+                                 capability, self._properties[key][capability])
+            else:
+                LOGGER.debug('Server %s: %r', key, self._properties[key])
         self._write_frame(self._build_start_ok_frame())
         return True
 
