@@ -1,6 +1,9 @@
 __author__ = 'gmr'
 import logging
-import Queue as queue
+try:
+    import queue
+except ImportError:
+    import Queue as queue
 import socket
 import ssl
 import threading
