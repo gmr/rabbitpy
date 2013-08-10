@@ -3,7 +3,10 @@ The Connection class negotiates and manages the connection state.
 
 """
 import logging
-import Queue as queue
+try:
+    import queue
+except ImportError:
+    import Queue as queue
 try:
     import ssl
 except ImportError:
@@ -65,26 +68,55 @@ class Connection(base.StatefulObject):
     GUEST = 'guest'
     PORTS = {'amqp': 5672, 'amqps': 5671, 'api': 15672}
 
+
+
     def __init__(self, url=None):
         """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
-        self._args = self._process_url(url or self.DEFAULT_URL)
-        self._channel0 = None
-        self._channels = dict()
-        self._io = None
-        self._write_queue = None
 
         # Create a name for the connection
         self._name = 'c-%x' % id(self)
 
+        # Extract parts of connection URL for use later
+        self._args = self._process_url(url or self.DEFAULT_URL)
+
+        # General events and queues shared across threads
+        self._events = self._create_event_objects()
+
+        # Instead of directly raising, add exceptions to this queue
+        self._exceptions = queue.Queue()
+
+        # One condition when we need to ensure everything stops
+        self._shutdown = threading.Condition()
+
+        # One queue for writing frames, regardless of the channel sending them
+        self._write_queue = queue.Queue()
+
+        # Attributes for core object threads
+        self._channel0 = None
+        self._channels = dict()
+        self._io = None
+
         # Connect to RabbitMQ
         self._connect()
 
+
     def __enter__(self):
+        """For use as a context manager, return a handle to this object
+        instance.
+
+        :rtype: Connection
+
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """When leaving the context, examine why the context is leaving, if it's
+         an exception or what.
+
+        """
         if exc_type:
+            # Should do something there?
             LOGGER.exception('Context manager closed on exception: %s',
                              exc_val)
             raise
