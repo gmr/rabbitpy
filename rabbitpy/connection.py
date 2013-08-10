@@ -22,6 +22,17 @@ from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
+if ssl:
+    SSL_CERT_MAP = {'ignore': ssl.CERT_NONE,
+                    'optional': ssl.CERT_OPTIONAL,
+                    'required': ssl.CERT_REQUIRED}
+    SSL_VERSION_MAP = {'SSLv2': ssl.PROTOCOL_SSLv2,
+                       'SSLv3': ssl.PROTOCOL_SSLv3,
+                       'SSLv23': ssl.PROTOCOL_SSLv23,
+                       'TLSv1': ssl.PROTOCOL_TLSv1}
+else:
+    SSL_CERT_MAP, SSL_VERSION_MAP = dict(), dict()
+
 
 class Connection(base.StatefulObject):
     """The Connection object is responsible for negotiating a connection and
@@ -53,14 +64,6 @@ class Connection(base.StatefulObject):
     DEFAULT_VHOST = '%2F'
     GUEST = 'guest'
     PORTS = {'amqp': 5672, 'amqps': 5671, 'api': 15672}
-
-    SSL_CERT_MAP = {'ignore': ssl.CERT_NONE,
-                    'optional': ssl.CERT_OPTIONAL,
-                    'required': ssl.CERT_REQUIRED}
-    SSL_VERSION_MAP = {'SSLv2': ssl.PROTOCOL_SSLv2,
-                       'SSLv3': ssl.PROTOCOL_SSLv3,
-                       'SSLv23': ssl.PROTOCOL_SSLv23,
-                       'TLSv1': ssl.PROTOCOL_TLSv1}
 
     def __init__(self, url=None):
         """Create a new instance of the Connection object"""
@@ -276,8 +279,9 @@ class Connection(base.StatefulObject):
         """
         if not self._channels:
             return 1
-        if len(list(self._channels.keys())) == self.channel0[0].maximum_channels:
-            raise exceptions.TooManyChannelsError
+        #if len(list(self._channels.keys())) ==
+        # self._channel0[0].maximum_channels:
+        #    raise exceptions.TooManyChannelsError
         return max(list(self._channels.keys()))
 
     def _get_ssl_validation(self, values):
@@ -291,10 +295,10 @@ class Connection(base.StatefulObject):
         """
         if values.get('ssl_validation') is None:
             return None
-        if values.get('ssl_validation') not in self.SSL_CERT_MAP:
+        if values.get('ssl_validation') not in SSL_CERT_MAP:
             raise ValueError('Unsupported server cert validation option: %s',
                              values['ssl_version'])
-        return self.SSL_VERSION_MAP[values['ssl_version']]
+        return SSL_VERSION_MAP[values['ssl_version']]
 
     def _get_ssl_version(self, values):
         """Return the value mapped from the string value in the query string
@@ -306,10 +310,10 @@ class Connection(base.StatefulObject):
         """
         if values.get('ssl_version') is None:
             return None
-        if values.get('ssl_version') not in self.SSL_VERSION_MAP:
+        if values.get('ssl_version') not in SSL_VERSION_MAP:
             raise ValueError('Unuspported SSL version: %s' %
                              values['ssl_version'])
-        return self.SSL_VERSION_MAP[values['ssl_version']]
+        return SSL_VERSION_MAP[values['ssl_version']]
 
     def _normalize_expectations(self, channel_id, expectations):
         """Turn a class or list of classes into a list of class names.
