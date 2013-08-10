@@ -8,21 +8,21 @@ __since__ = '2013-03-24'
 from pamqp import PYTHON3
 
 if PYTHON3:
-    from urllib import urllib
+    from urllib import parse as urlparse
 else:
-    import urlparse as urllib
+    import urlparse
 
 
 def parse_qs(query_string):
-    return urllib.parse_qs(query_string)
+    return urlparse.parse_qs(query_string)
 
 
 def urlparse(url):
-    return urllib.urlparse(url)
+    return urlparse.urlparse(url)
 
 
 def unquote(value):
-    return urllib.unquote(value)
+    return urlparse.unquote(value)
 
 
 def is_string(value):
