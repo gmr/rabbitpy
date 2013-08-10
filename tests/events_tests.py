@@ -3,7 +3,6 @@ Test the rabbitpy events class
 
 """
 import mock
-from pamqp import PYTHON3
 import threading
 try:
     import unittest2 as unittest
