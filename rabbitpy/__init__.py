@@ -3,7 +3,7 @@ __version__ = '0.5.0p1'
 from rabbitpy.connection import Connection
 from rabbitpy.exchange import Exchange
 from rabbitpy.message import Message
-from rabbitpy.queue import Queue
+from rabbitpy.amqp_queue import Queue
 from rabbitpy.tx import Tx
 
 from rabbitpy.simple import consumer

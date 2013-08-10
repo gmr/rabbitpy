@@ -1,5 +1,5 @@
 """
-The rmqid.queue module contains two classes :py:class:`Queue` and
+The rabbitpy.queue module contains two classes :py:class:`Queue` and
 :py:class:`Consumer`. The :py:class:`Queue` class is an object that is used
 create and work with queues on a RabbitMQ server. The :py:class:`Consumer`
 contains a generator method, :py:meth:`next_message <Consumer.next_message>`
@@ -8,7 +8,7 @@ should not be invoked directly, but rather by the
 :py:meth:`Queue.consumer() <Queue.consumer>` method::
 
     with conn.channel() as channel:
-        queue = rmqid.Queue(channel, 'example')
+        queue = rabbitpy.Queue(channel, 'example')
             with queue.consumer() as consumer:
                 for message in consumer.next_message():
                     print 'Message: %r' % message
