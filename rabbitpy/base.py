@@ -1,9 +1,8 @@
 """
-Base rmqid classes
+Base classes for various parts of rabbitpy
 
 """
 import logging
-
 from pamqp import specification
 
 from rabbitpy import exceptions
@@ -69,6 +68,42 @@ class StatefulObject(object):
         self._state = value
 
     @property
+    def closed(self):
+        """Returns True if in the CLOSED runtime state
+
+        :rtype: bool
+
+        """
+        return self._state == self.CLOSED
+
+    @property
+    def closing(self):
+        """Returns True if in the CLOSING runtime state
+
+        :rtype: bool
+
+        """
+        return self._state == self.CLOSING
+
+    @property
+    def open(self):
+        """Returns True if in the OPEN runtime state
+
+        :rtype: bool
+
+        """
+        return self._state == self.OPEN
+
+    @property
+    def opening(self):
+        """Returns True if in the OPENING runtime state
+
+        :rtype: bool
+
+        """
+        return self._state == self.OPENING
+
+    @property
     def state(self):
         """Return the runtime state value
 
@@ -86,23 +121,6 @@ class StatefulObject(object):
         """
         return self.STATES[self._state]
 
-    @property
-    def open(self):
-        """Returns True if in the OPEN runtime state
-
-        :rtype: bool
-
-        """
-        return self._state == self.OPEN
-
-    @property
-    def closed(self):
-        """Returns True if in the CLOSED runtime state
-
-        :rtype: bool
-
-        """
-        return self._state == self.CLOSED
 
 
 class AMQPChannel(StatefulObject):
