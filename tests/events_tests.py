@@ -3,6 +3,7 @@ Test the rabbitpy events class
 
 """
 import mock
+from pamqp import PYTHON3
 import threading
 try:
     import unittest2 as unittest
@@ -37,8 +38,12 @@ class EventClearTests(BaseEventsTest):
 class EventInitTests(BaseEventsTest):
 
     def test_all_events_created(self):
+        try:
+            cls = threading._Event
+        except AttributeError:
+            cls = threading.Event
         for event in events.DESCRIPTIONS.keys():
-            self.assertIsInstance(self._events._events[event], threading._Event,
+            self.assertIsInstance(self._events._events[event], cls,
                                   type(self._events._events[event]))
 
 
@@ -74,11 +79,19 @@ class EventWaitTests(BaseEventsTest):
         self.assertIsNone(self._events.wait(0))
 
     def test_blocking_wait_returns_true(self):
-        with mock.patch.object(threading._Event, 'wait') as mock_method:
+        try:
+            cls = threading._Event
+        except AttributeError:
+            cls = threading.Event
+        with mock.patch.object(cls, 'wait') as mock_method:
             mock_method.return_value = True
             self.assertTrue(self._events.wait(events.CHANNEL0_CLOSED))
 
     def test_blocking_wait_returns_false(self):
-        with mock.patch.object(threading._Event, 'wait') as mock_method:
+        try:
+            cls = threading._Event
+        except AttributeError:
+            cls = threading.Event
+        with mock.patch.object(cls, 'wait') as mock_method:
             mock_method.return_value = False
             self.assertFalse(self._events.wait(events.CHANNEL0_CLOSED, 1))
