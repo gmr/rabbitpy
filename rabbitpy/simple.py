@@ -6,7 +6,7 @@ complex and less verbose for one off or simple use cases.
 from rabbitpy import connection
 import contextlib
 from rabbitpy import exceptions
-from rabbitpy import queue
+from rabbitpy import amqp_queue
 from rabbitpy import message
 
 
@@ -27,7 +27,7 @@ def consumer(uri=None, queue_name=None):
 
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
-            q = queue.Queue(channel, queue_name)
+            q = amqp_queue.Queue(channel, queue_name)
             with q.consumer() as consumer:
                 yield consumer
 
@@ -50,7 +50,7 @@ def get(uri=None, queue_name=None):
 
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
-            q = queue.Queue(channel, queue_name)
+            q = amqp_queue.Queue(channel, queue_name)
             return q.get(False)
 
 
