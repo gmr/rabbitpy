@@ -19,7 +19,7 @@ import contextlib
 import logging
 from pamqp import specification
 
-from rmqid import base
+from rabbitpy import base
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class Queue(base.AMQPClass):
     """Create and manage RabbitMQ queues.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the queue
     :param durable: Indicates if the queue should survive a RabbitMQ is restart
     :type durable: bool
@@ -38,7 +38,7 @@ class Queue(base.AMQPClass):
     def __init__(self, channel, name, durable=True, exclusive=False,
                  auto_delete=False, arguments=None):
         super(Queue, self).__init__(channel, name)
-        self.consumer_tag = 'rmqid.%i.%s' % (self.channel.id, id(self))
+        self.consumer_tag = 'rabbitpy.%i.%s' % (self.channel.id, id(self))
         self.consuming = False
         self._durable = durable
         self._exclusive = exclusive
@@ -59,7 +59,7 @@ class Queue(base.AMQPClass):
         """Bind the queue to the specified exchange or routing key.
         If routing key is None, use the queue name.
 
-        :type source: str or :py:class:`rmqid.exchange.Exchange` exchange
+        :type source: str or :py:class:`rabbitpy.exchange.Exchange` exchange
         :param source: The exchange to bind to
         :param str routing_key: The routing key to use
         :param dict arguments: Optional arguments for for RabbitMQ
@@ -82,7 +82,7 @@ class Queue(base.AMQPClass):
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
-        :rtype: :py:class:`Consumer <rmqid.queue.Consumer>`
+        :rtype: :py:class:`Consumer <rabbitpy.queue.Consumer>`
 
         """
         self.consuming = True
@@ -128,7 +128,7 @@ class Queue(base.AMQPClass):
         :param bool acknowledge: Let RabbitMQ know if you will manually
                                  acknowledge or negatively acknowledge the
                                  message after each get.
-        :rtype: rmqid.message.Message or None
+        :rtype: rabbitpy.message.Message or None
 
         """
         response = self._rpc(specification.Basic.Get(queue=self.name,
@@ -165,7 +165,7 @@ class Queue(base.AMQPClass):
         """Unbind queue from the specified exchange where it is bound the
         routing key. If routing key is None, use the queue name.
 
-        :type source: str or :py:class:`rmqid.exchange.Exchange` exchange
+        :type source: str or :py:class:`rabbitpy.exchange.Exchange` exchange
         :param source: The exchange to unbind from
         :param str routing_key: The routing key that binds them
 
@@ -198,7 +198,7 @@ class Consumer(object):
     """The Consumer class implements an interator that will retrieve the next
     message from the stack of messages RabbitMQ has delivered until the client
     exists the iterator. It should be used with the
-    :py:meth:`Queue.consumer() <rmqid.queue.Queue.consumer>` method which
+    :py:meth:`Queue.consumer() <rabbitpy.queue.Queue.consumer>` method which
     returns a context manager for consuming.
 
     """
@@ -209,7 +209,7 @@ class Consumer(object):
         """Retrieve the nest message from the queue as an iterator, blocking
         until the next message is available.
 
-        :rtype: :py:class:`rmqid.message.Message`
+        :rtype: :py:class:`rabbitpy.message.Message`
 
         """
         while self.queue.consuming:

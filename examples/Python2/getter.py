@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-import rmqid
+import rabbitpy
 
 url = 'amqp://guest:guest@localhost:5672/%2F'
-connection = rmqid.Connection(url)
+connection = rabbitpy.Connection(url)
 channel = connection.channel()
-queue = rmqid.Queue(channel, 'example')
+queue = rabbitpy.Queue(channel, 'example')
 
 while len(queue) > 0:
     message = queue.get()

@@ -1,4 +1,4 @@
 connection
 ==========
-.. automodule:: rmqid.connection
+.. automodule:: rabbitpy.connection
     :members:

@@ -1,25 +1,25 @@
-rmqid - rabbitmq simplified
+rabbitpy - rabbitmq simplified
 ===========================
 A pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3.
 
 Version
 -------
-The current released alpha version is 0.3.0
+The current released alpha version is 0.4.3
 
 Installation
 ------------
-rmqid may be installed via the Python package index with the tool of your choice. I prefer pip:
+rabbitpy may be installed via the Python package index with the tool of your choice. I prefer pip:
 
-    pip install rmqid
+    pip install rabbitpy
 
 But there's always easy_install:
 
-    easy_install rmqid
+    easy_install rabbitpy
 
 Documentation
 -------------
 
-https://rmqid.readthedocs.org
+https://rabbitpy.readthedocs.org
 
 Requirements
 ------------
@@ -36,42 +36,42 @@ Simple Publisher
 ----------------
 The simple publisher is ideal for sending one off messages:
 
-    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
-                      exchange='test',
-                      routing_key='example',
-                      body='This is my test message')
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+                         exchange='test',
+                         routing_key='example',
+                         body='This is my test message')
 
 If you want to add properties:
 
-    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
-                      exchange='test',
-                      routing_key='example',
-                      body='This is my test message',
-                      properties={'content_type': 'text/plain'})
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+                         exchange='test',
+                         routing_key='example',
+                         body='This is my test message',
+                         properties={'content_type': 'text/plain'})
 
 And publisher confirms:
 
-    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
-                      exchange='test',
-                      routing_key='example',
-                      body='This is my test message',
-                      properties={'content_type': 'text/plain'},
-                      confirm=True)
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+                         exchange='test',
+                         routing_key='example',
+                         body='This is my test message',
+                         properties={'content_type': 'text/plain'},
+                         confirm=True)
     True
     >>>
 
 Simple Getter
 -------------
 
-    >>> m = rmqid.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
     >>> m.json()
     {u'foo': u'bar'}
 
 Simple Consumer
 ---------------
 
-    >>> with rmqid.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
-    ...     for message in c.next_message():
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ..    for message in c.next_message():
     ...         print message.properties['message_id']
     ...         print message.body
     ...         message.ack()
@@ -79,4 +79,4 @@ Simple Consumer
     856dfdc7-5ee3-4fc1-9635-977bf0043a9f
     {"foo": "bar"}
 
-More complex examples are available at https://rmqid.readthedocs.org
+More complex examples are available at https://rabbitpy.readthedocs.org

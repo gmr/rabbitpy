@@ -6,8 +6,8 @@ and allows for any AMQP command to be issued, then committed or rolled back.
 import logging
 from pamqp import specification as spec
 
-from rmqid import base
-from rmqid import exceptions
+from rabbitpy import base
+from rabbitpy import exceptions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class Tx(base.AMQPClass):
     mandatory flags on Basic.Publish methods is not defined.
 
     :param channel: The channel object to start the transaction on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
 
     """
     def __init__(self, channel):
@@ -52,7 +52,7 @@ class Tx(base.AMQPClass):
         performed in the current transaction.  A new transaction starts
         immediately after a commit.
 
-        :raises: rmqid.exceptions.NoActiveTransactionError
+        :raises: rabbitpy.exceptions.NoActiveTransactionError
         :rtype: bool
 
         """
@@ -73,7 +73,7 @@ class Tx(base.AMQPClass):
         automatically redelivered by rollback; if that is required an explicit
         recover call should be issued.
 
-        :raises: rmqid.exceptions.NoActiveTransactionError
+        :raises: rabbitpy.exceptions.NoActiveTransactionError
         :rtype: bool
 
         """

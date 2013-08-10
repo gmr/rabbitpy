@@ -13,8 +13,8 @@ from pamqp import exceptions
 from pamqp import header
 from pamqp import specification
 
-from rmqid import __version__
-from rmqid import base
+from rabbitpy import __version__
+from rabbitpy import base
 
 LOGGER = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
 
         """
         version = sys.version_info
-        properties = {'product': 'rmqid',
+        properties = {'product': 'rabbitpy',
                       'platform': 'Python %s.%s.%s' % (version[0],
                                                        version[1],
                                                        version[2]),
@@ -100,7 +100,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
                                        'connection.blocked': True,
                                        'consumer_cancel_notify': True,
                                        'publisher_confirms': True},
-                      'information': 'See https://github.com/gmr/rmqid',
+                      'information': 'See https://github.com/gmr/rabbitpy',
                       'version': __version__}
         return specification.Connection.StartOk(client_properties=properties,
                                                 response=self._credentials,
@@ -193,9 +193,9 @@ class Channel0(threading.Thread, base.AMQPChannel):
         """Process a RPC frame received from the server
 
         :param pamqp.message.Message value: The message value
-        :rtype: rmqid.message.Message
-        :raises: rmqid.exceptions.ChannelClosedException
-        :raises: rmqid.exceptions.ConnectionClosedException
+        :rtype: rabbitpy.message.Message
+        :raises: rabbitpy.exceptions.ChannelClosedException
+        :raises: rabbitpy.exceptions.ConnectionClosedException
 
         """
         if value.name == 'Channel.Close':

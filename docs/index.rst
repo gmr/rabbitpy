@@ -1,33 +1,208 @@
-.. rmqid documentation master file, created by
+.. rabbitpy documentation master file, created by
    sphinx-quickstart on Wed Mar 27 18:31:37 2013.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-rmqid: RabbitMQ Simplified
-==========================
-rmqid is a pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3.
+rabbitpy: RabbitMQ Simplified
+=============================
+rabbitpy is a pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3. rabbitpy was previously called `rmqid`.
 
 Installation
 ------------
-rmqid is available from the `Python Package Index <https://pypi.python.org>`_ and can be installed by running :command:`easy_install rmqid` or :command:`pip install rmqid`
+rabbitpy is available from the `Python Package Index <https://pypi.python.org>`_ and can be installed by running :command:`easy_install rabbitpy` or :command:`pip install rabbitpy`
 
-rmqid aims to make it very simple to use RabbitMQ via the AMQP 0-9-1 protocol:
+rabbitpy aims to make it very simple to use RabbitMQ via the AMQP 0-9-1 protocol:
 
-    >>> import rmqid
-    >>> rmqid.publish('amqp://guest:guest@localhost:5672/%2f',
-    ...               exchange='test',
-    ...               routing_key='example',
-    ...               body={'foo': 'bar'})
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
 
 Getting a message is equally simple:
 
-    >>> m = rmqid.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
     >>> m.json()
     {u'foo': u'bar'}
 
 And consuming is almost as simple:
 
-    >>> with rmqid.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    ...     for message in c.next_message():
+    ...         print message.properties['message_id']
+    ...         print message.body
+    ...         message.ack()
+    ...
+    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
+    {"foo": "bar"}
+
+See
+
+    >>> import rabbitpy
+    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
+    ...                  exchange='test',
+    ...                  routing_key='example',
+    ...                  body={'foo': 'bar'})
+
+Getting a message is equally simple:
+
+    >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
+    >>> m.json()
+    {u'foo': u'bar'}
+
+And consuming is almost as simple:
+
+    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
     ...     for message in c.next_message():
     ...         print message.properties['message_id']
     ...         print message.body
@@ -40,7 +215,7 @@ See `examples with other libraries <https://gist.github.com/gmr/5259929>`_
 
 Issues
 ------
-Please report any issues to the Github repo at `https://github.com/gmr/rmqid/issues <https://github.com/gmr/rmqid/issues>`_
+Please report any issues to the Github repo at `https://github.com/gmr/rabbitpy/issues <https://github.com/gmr/rabbitpy/issues>`_
 
 Source
 ------
@@ -66,7 +241,7 @@ API Documentation
 .. toctree::
    :maxdepth: 2
 
-   rmqid
+   rabbitpy
    connection
    channel
    exchange
@@ -77,7 +252,7 @@ API Documentation
 
 Inspiration
 -----------
-rmqid's simple and more pythonic interface is inspired by `Kenneth Reitz's <https://github.com/kennethreitz/>`_ awesome work on `requests <http://docs.python-requests.org/en/latest/>`_.
+rabbitpy's simple and more pythonic interface is inspired by `Kenneth Reitz's <https://github.com/kennethreitz/>`_ awesome work on `requests <http://docs.python-requests.org/en/latest/>`_.
 
 Indices and tables
 ------------------

@@ -12,13 +12,13 @@ import threading
 import time
 
 
-from rmqid import base
-from rmqid import io
-from rmqid import channel
-from rmqid import channel0
-from rmqid import exceptions
-from rmqid import message
-from rmqid import utils
+from rabbitpy import base
+from rabbitpy import io
+from rabbitpy import channel
+from rabbitpy import channel0
+from rabbitpy import exceptions
+from rabbitpy import message
+from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class Connection(base.StatefulObject):
         """Add a channel and queue to the IO object.
 
         :param Queue.Queue channel_queue: Channel inbound msg queue
-        :param rmqid.channel.BaseChannel: The channel to add
+        :param rabbitpy.channel.BaseChannel: The channel to add
 
         """
         self._io[0].add_channel(int(channel), channel_queue)
@@ -220,7 +220,7 @@ class Connection(base.StatefulObject):
         :param pamqp.specification.Frame method_frame: The method frame value
         :param pamqp.header.ContentHeader header_frame: The header frame value
         :param str body: The message body
-        :rtype: rmqid.message.Message
+        :rtype: rabbitpy.message.Message
 
         """
         msg = message.Message(self._channels[channel_id],
@@ -233,7 +233,7 @@ class Connection(base.StatefulObject):
     def _create_channel0(self):
         """Each connection should have a distinct channel0
 
-        :rtype: tuple(threading.Event, Queue.Queue, rmqid.channel0.Channel0)
+        :rtype: tuple(threading.Event, Queue.Queue, rabbitpy.channel0.Channel0)
 
         """
         channel0_frames = queue.Queue()
@@ -253,7 +253,7 @@ class Connection(base.StatefulObject):
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
 
-        :rtype: tuple(threading.Event, rmqid.io.IO)
+        :rtype: tuple(threading.Event, rabbitpy.io.IO)
 
         """
         io_write_queue = queue.Queue()

@@ -11,7 +11,7 @@ RabbitMQ and provides four classes as wrappers:
 import logging
 from pamqp import specification
 
-from rmqid import base
+from rabbitpy import base
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class Exchange(base.AMQPClass):
     declaration, binding and deletion.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the exchange
     :param str exchange_type: The exchange type
     :param bool durable: Request a durable exchange
@@ -97,7 +97,7 @@ class DirectExchange(Exchange):
     only.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the exchange
     :param bool durable: Request a durable exchange
     :param bool auto_delete: Automatically delete when not in use
@@ -116,7 +116,7 @@ class FanoutExchange(Exchange):
     only.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the exchange
     :param bool durable: Request a durable exchange
     :param bool auto_delete: Automatically delete when not in use
@@ -135,7 +135,7 @@ class HeadersExchange(Exchange):
     only.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the exchange
     :param bool durable: Request a durable exchange
     :param bool auto_delete: Automatically delete when not in use
@@ -154,7 +154,7 @@ class TopicExchange(Exchange):
     only.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the exchange
     :param bool durable: Request a durable exchange
     :param bool auto_delete: Automatically delete when not in use

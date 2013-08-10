@@ -3,11 +3,11 @@ Message Consumer
 The following example will subscribe to a queue named "example" and consume messages
 until CTRL-C is pressed::
 
-    import rmqid
+    import rabbitpy
 
-    with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
+    with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
         with conn.channel() as channel:
-            queue = rmqid.Queue(channel, 'example')
+            queue = rabbitpy.Queue(channel, 'example')
 
             # Exit on CTRL-C
             try:

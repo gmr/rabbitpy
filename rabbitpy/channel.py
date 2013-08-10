@@ -14,8 +14,8 @@ from pamqp import specification
 import threading
 import urllib
 
-from rmqid import base
-from rmqid import exceptions
+from rabbitpy import base
+from rabbitpy import exceptions
 
 
 LOGGER = logging.getLogger(__name__)
@@ -26,14 +26,14 @@ class Channel(base.StatefulObject):
     the Connection object, which is responsible for creating new channels.
 
     To create a new channel, invoke
-    py:meth:`rmqid.connection.Connection.channel`
+    py:meth:`rabbitpy.connection.Connection.channel`
 
     """
     def __init__(self, channel_id, connection):
         """Create a new instance of the Channel class
 
         :param int channel_id: The channel id to use for this instance
-        :param rmqid.Connection: The connection to communicate with
+        :param rabbitpy.Connection: The connection to communicate with
 
         """
         super(Channel, self).__init__()
@@ -185,7 +185,7 @@ class Channel(base.StatefulObject):
     def _get_message(self):
         """Try and get a delivered message from the connection's message stack.
 
-        :rtype: rmqid.message.Message
+        :rtype: rabbitpy.message.Message
 
         """
         return self._connection._wait_on_frame([specification.Basic.Deliver,
@@ -225,7 +225,7 @@ class Channel(base.StatefulObject):
         :param int channel_id: The channel id the frame was received on
         :param pamqp.specification.Basic.Return frame_value: Method frame
         :param pmqid.message.message message: The message to add
-        :raises: rmqid.exceptions.MessageReturnedException
+        :raises: rabbitpy.exceptions.MessageReturnedException
 
         """
         LOGGER.warning('Basic.Return received on channel %i', self._channel_id)
@@ -235,7 +235,7 @@ class Channel(base.StatefulObject):
                                                   frame_value.reply_text)
 
     def _remote_close(self):
-        """Invoked by rmqid.connection.Connection when a remote channel close
+        """Invoked by rabbitpy.connection.Connection when a remote channel close
         is issued.
 
         """

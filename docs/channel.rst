@@ -1,4 +1,4 @@
 channel
 =======
-.. automodule:: rmqid.channel
+.. automodule:: rabbitpy.channel
     :members:

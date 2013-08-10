@@ -12,8 +12,8 @@ from pamqp import exceptions as pamqp_exceptions
 from pamqp import specification
 from pamqp import PYTHON3
 
-from rmqid import base
-from rmqid import exceptions
+from rabbitpy import base
+from rabbitpy import exceptions
 
 
 class IO(threading.Thread, base.StatefulObject):

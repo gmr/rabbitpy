@@ -1,4 +1,4 @@
 message
 =======
-.. automodule:: rmqid.message
+.. automodule:: rabbitpy.message
     :members:

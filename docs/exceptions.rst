@@ -1,4 +1,4 @@
 exceptions
 ==========
-.. automodule:: rmqid.exceptions
+.. automodule:: rabbitpy.exceptions
     :members:

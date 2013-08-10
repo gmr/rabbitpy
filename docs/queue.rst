@@ -1,4 +1,4 @@
 queue
 =====
-.. automodule:: rmqid.queue
+.. automodule:: rabbitpy.queue
     :members:

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import rmqid
+import rabbitpy
 
-with rmqid.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
+with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
     with conn.channel() as channel:
-        queue = rmqid.Queue(channel, 'example')
+        queue = rabbitpy.Queue(channel, 'example')
 
         # Exit on CTRL-C
         try:

@@ -16,8 +16,8 @@ from pamqp import body
 from pamqp import header
 from pamqp import specification
 
-from rmqid import base
-from rmqid import exceptions
+from rabbitpy import base
+from rabbitpy import exceptions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class Properties(specification.Basic.Properties):
 
 
 class Message(base.AMQPClass):
-    """Created by both rmqid internally when a message is delivered or returned
+    """Created by both rabbitpy internally when a message is delivered or returned
     from RabbitMQ and by implementing applications, the Message class is used
     to publish a message to and access and respond to a message from RabbitMQ.
 
@@ -69,7 +69,7 @@ class Message(base.AMQPClass):
     Unix epoch value will be set in the message properties.
 
     :param channel: The channel object for the message object to act upon
-    :type channel: :py:class:`rmqid.channel.Channel`
+    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str or dict or list body_value: The message body
     :param dict properties: A dictionary of message properties
     :param bool auto_id: Add a message id if no properties were passed in.
@@ -186,11 +186,11 @@ class Message(base.AMQPClass):
         """Publish the message to the exchange with the specified routing
         key.
 
-        :param str | rmqid.base.AMQPClass exchange: The exchange to bind to
+        :param str | rabbitpy.base.AMQPClass exchange: The exchange to bind to
         :param str routing_key: The routing key to use
         :param bool mandatory: Requires the message is published
         :return: bool | None
-        :raises: rmqid.exceptions.MessageReturnedException
+        :raises: rabbitpy.exceptions.MessageReturnedException
 
         """
         if isinstance(exchange, base.AMQPClass):

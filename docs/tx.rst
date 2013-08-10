@@ -1,4 +1,4 @@
 tx
 ==
-.. automodule:: rmqid.tx
+.. automodule:: rabbitpy.tx
     :members:

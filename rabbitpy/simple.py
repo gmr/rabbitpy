@@ -3,23 +3,23 @@ Wrapper methods for easy access to common operations, making them both less
 complex and less verbose for one off or simple use cases.
 
 """
-from rmqid import connection
+from rabbitpy import connection
 import contextlib
-from rmqid import exceptions
-from rmqid import queue
-from rmqid import message
+from rabbitpy import exceptions
+from rabbitpy import queue
+from rabbitpy import message
 
 
 @contextlib.contextmanager
 def consumer(uri=None, queue_name=None):
-    """Create a queue consumer, returning a :py:class:`rmqid.queue.Consumer`
+    """Create a queue consumer, returning a :py:class:`rabbitpy.queue.Consumer`
     generator class that you can retrieve messages from using
-    :py:class:`rmqid.queue.Consumer.next_message`
+    :py:class:`rabbitpy.queue.Consumer.next_message`
 
-    Invoke directly as rmqid.consumer()
+    Invoke directly as rabbitpy.consumer()
 
-    :rtype: :py:class:`rmqid.queue.Consumer`
-    :raises: :py:class:`rmqid.exceptions.EmptyQueueNameError`
+    :rtype: :py:class:`rabbitpy.queue.Consumer`
+    :raises: :py:class:`rabbitpy.exceptions.EmptyQueueNameError`
 
     """
     if not queue_name:
@@ -36,13 +36,13 @@ def get(uri=None, queue_name=None):
     """Get a message from RabbitMQ, auto-acknowledging with RabbitMQ if one
     is returned.
 
-    Invoke directly as rmqid.get()
+    Invoke directly as rabbitpy.get()
 
 
     :param str uri: AMQP URI to connect to
     :param str queue_name: The queue name to get the message from
-    :rtype: py:class:`rmqid.message.Message` or None
-    :raises: :py:class:`rmqid.exceptions.EmptyQueueNameError`
+    :rtype: py:class:`rabbitpy.message.Message` or None
+    :raises: :py:class:`rabbitpy.exceptions.EmptyQueueNameError`
 
     """
     if not queue_name:
@@ -67,7 +67,7 @@ def publish(uri=None, exchange=None, routing_key=None,
     :param dict properties: Dict representation of Basic.Properties
     :param bool confirm: Confirm this delivery with Publisher Confirms
     :rtype: bool or None
-    :raises: :py:class:`rmqid.exceptions.EmptyExchangeNameError`
+    :raises: :py:class:`rabbitpy.exceptions.EmptyExchangeNameError`
 
 
     """
