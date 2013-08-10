@@ -11,6 +11,7 @@ manager, allowing for quick shorthand use:
 import logging
 import requests
 from pamqp import specification
+import threading
 import urllib
 
 from rmqid import base
