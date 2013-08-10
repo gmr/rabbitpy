@@ -1,6 +1,6 @@
 """Utilities to make Python 3 support easier, providing wrapper methods which
 can call the appropriate method for either Python 2 or Python 3 but creating
-a single API point for rmqid to use.
+a single API point for rabbitpy to use.
 
 """
 __since__ = '2013-03-24'

@@ -1,5 +1,5 @@
 """
-rmqid Specific Exceptions
+rabbitpy Specific Exceptions
 
 """
 

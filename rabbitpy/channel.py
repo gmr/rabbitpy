@@ -1,7 +1,7 @@
 """
 The Channel object is the communications object used by Exchanges, Messages,
 Queues, and Transactions. It is created by invoking the
-:py:meth:`rmqid.connection.Connection.channel` method. It can act as a context
+:py:meth:`rabbitpy.connection.Connection.channel` method. It can act as a context
 manager, allowing for quick shorthand use:
 
     with connection.channel():
