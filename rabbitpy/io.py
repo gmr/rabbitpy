@@ -16,6 +16,7 @@ from pamqp import specification
 from pamqp import PYTHON3
 
 from rabbitpy import base
+from rabbitpy import events
 from rabbitpy import exceptions
 
 
@@ -32,9 +33,8 @@ class IO(threading.Thread, base.StatefulObject):
         super(IO, self).__init__(group, target, name, args, kwargs)
 
         self._args = kwargs['connection_args']
-        self._on_connected = kwargs['connected']
+        self._events = kwargs['events']
         self._write_queue = kwargs['write_queue']
-        self._close_event = kwargs['close']
 
         self._buffer = bytes()
         self._channels = dict()
@@ -65,7 +65,8 @@ class IO(threading.Thread, base.StatefulObject):
         self._remote_name = '%s:%s -> %s:%s' % (address, port,
                                                 peer_address, peer_port)
 
-        while self.open and not self._close_event.is_set():
+        while self.open and not self._events.is_set(events.SOCKET_CLOSED):
+
             try:
                 frame_value = self._write_queue.get(False)
                 self._write_frame(*frame_value)
@@ -76,6 +77,15 @@ class IO(threading.Thread, base.StatefulObject):
             frame_value = self._read_frame()
             if frame_value[0] is not None:
                 self._channels[frame_value[0]].put(frame_value[1])
+
+            if self._events.is_set(events.SOCKET_CLOSE):
+                LOGGER.debug('Closing as requested')
+                return self._close()
+
+            # Close if Channel0 closes
+            if self._events.is_set(events.CHANNEL0_CLOSED):
+                LOGGER.debug('Closing due to closed channel')
+                return self._close()
 
         self._close()
 
@@ -95,6 +105,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._set_state(self.CLOSING)
         self._socket.close()
         self._set_state(self.CLOSED)
+        self._events.set(events.SOCKET_CLOSED)
 
     def _create_socket(self):
         """Create the new socket, optionally with SSL support.
@@ -131,7 +142,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._socket = self._create_socket()
         self._connect_socket()
         self._set_state(self.OPEN)
-        self._on_connected.set()
+        self._events.set(events.SOCKET_OPENED)
 
     def _disconnect_socket(self):
         """Close the existing socket connection"""
@@ -230,4 +241,3 @@ class IO(threading.Thread, base.StatefulObject):
         if self._args['ssl']:
             return self._socket.write(frame_data)
         return self._socket.send(frame_data)
-
