@@ -15,7 +15,7 @@ CONNECTION_EVENT = 0x05
 EXCEPTION_RAISED = 0x06
 SOCKET_CLOSE = 0x07
 SOCKET_CLOSED = 0x08
-SOCKET_CONNECTED = 0x09
+SOCKET_OPENED = 0x09
 
 DESCRIPTIONS = {0x01: 'Channel 0 Close Requested',
                 0x02: 'Channel 0 Closed',
@@ -58,7 +58,7 @@ class Events(object):
                       EXCEPTION_RAISED,
                       SOCKET_CLOSE,
                       SOCKET_CLOSED,
-                      SOCKET_CONNECTED]:
+                      SOCKET_OPENED]:
             events[event] = threading.Event()
         return events
 
