@@ -66,15 +66,9 @@ class Channel0(threading.Thread, base.AMQPChannel):
         self._write_protocol_header()
 
         # If we can negotiate a connection, do so
-        if self._on_connection_start(self._wait_on_frame()):
-            self._write_frame(self._build_start_ok_frame())
-            self._on_connection_tune(self._wait_on_frame())
-            self._write_frame(self._build_open_frame())
-            self._on_connection_openok(self._wait_on_frame())
-
-            # Now fully negotiated, notify connection and set state
-            self._set_state(self.OPEN)
-            self._events.set(events.CHANNEL0_OPENED)
+        if self._connection_start():
+            self._connection_tune()
+            self._connection_open()
 
             # Loop as long as the connection is open, waiting for RPC requests
             while self.open and not self._events.is_set(events.CHANNEL0_CLOSE):
@@ -135,6 +129,51 @@ class Channel0(threading.Thread, base.AMQPChannel):
                                                self.maximum_frame_size,
                                                self._heartbeat)
 
+    def _connection_open(self):
+        """Open the connection, sending the Connection.Open frame. If a
+        connection.OpenOk is received, set the state and notify the connection.
+
+        """
+        self._write_frame(self._build_open_frame())
+        if self._wait_on_frame(specification.Connection.OpenOk):
+            self._set_state(self.OPEN)
+            self._events.set(events.CHANNEL0_OPENED)
+
+    def _connection_start(self):
+        """Negotiate the Connection.Start process, writing out a
+        Connection.StartOk frame when the Connection.Start frame is received.
+
+        :rtype: bool
+
+        """
+        frame_value = self._wait_on_frame(specification.Connection.Start)
+        if not self._validate_connection_start(frame_value):
+            LOGGER.error('Could not negotiate a connection, disconnecting')
+            return False
+        self._properties = frame_value.server_properties
+        for key in self._properties:
+            if key == 'capabilities':
+                for capability in self._properties[key]:
+                    LOGGER.debug('Server supports %s: %r',
+                                 capability, self._properties[key][capability])
+            else:
+                LOGGER.debug('Server %s: %r', key, self._properties[key])
+        self._write_frame(self._build_start_ok_frame())
+        return True
+
+    def _connection_tune(self):
+        """Negotiate the Connection.Tune frames, waiting for the Connection.Tune
+        frame from RabbitMQ and sending the Connection.TuneOk frame.
+
+        """
+        frame_value = self._wait_on_frame(specification.Connection.Tune)
+        self._maximum_channels = frame_value.channel_max
+        if frame_value.frame_max != self.maximum_frame_size:
+            self.maximum_frame_size = frame_value.frame_max
+        if frame_value.heartbeat:
+            self._heartbeat = frame_value.heartbeat
+        self._write_frame(self._build_tune_ok_frame())
+
     @property
     def _credentials(self):
         """Return the marshaled credentials for the AMQP connection.
@@ -154,51 +193,6 @@ class Channel0(threading.Thread, base.AMQPChannel):
         if not self._args['locale']:
             return locale.getdefaultlocale()[0]
         return self._args['locale']
-
-
-    def _on_connection_openok(self, frame_value):
-        """Negotiate the Connection.Start process, writing out a
-        Connection.StartOk frame when the Connection.Start frame is received.
-
-        :param frame_value pamqp.specification.Connection.OpenOk: OpenOk frame
-
-        """
-        self._validate_frame(frame_value, specification.Connection.OpenOk)
-
-    def _on_connection_start(self, frame_value):
-        """Negotiate the Connection.Start process, writing out a
-        Connection.StartOk frame when the Connection.Start frame is received.
-
-        :param frame_value pamqp.specification.Connection.Start: Start frame
-        :rtype: bool
-
-        """
-        if not self._validate_connection_start(frame_value):
-            LOGGER.error('Could not negotiate a connection, disconnecting')
-            return False
-        self._properties = frame_value.server_properties
-        for key in self._properties:
-            if key == 'capabilities':
-                for capability in self._properties[key]:
-                    LOGGER.debug('Server supports %s: %r',
-                                 capability, self._properties[key][capability])
-            else:
-                LOGGER.debug('Server %s: %r', key, self._properties[key])
-        return True
-
-    def _on_connection_tune(self, frame_value):
-        """Negotiate the Connection.Tune frames, waiting for the Connection.Tune
-        frame from RabbitMQ and sending the Connection.TuneOk frame.
-
-        :param frame_value pamqp.specification.Connection.Tune: Tuning frame
-
-        """
-        self._maximum_channels = frame_value.channel_max
-        if frame_value.frame_max != self.maximum_frame_size:
-            self.maximum_frame_size = frame_value.frame_max
-        if frame_value.heartbeat:
-            self._heartbeat = frame_value.heartbeat
-        self._write_frame(self._build_tune_ok_frame())
 
     def _process_server_rpc(self, value):
         """Process a RPC frame received from the server
