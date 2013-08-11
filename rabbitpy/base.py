@@ -64,7 +64,8 @@ class StatefulObject(object):
         """
         if value not in list(self.STATES.keys()):
             raise ValueError('Invalid state value: %r' % value)
-        LOGGER.debug('Setting state to %r', self.STATES[value])
+        LOGGER.debug('%s setting state to %r', self.__class__.__name__,
+                     self.STATES[value])
         self._state = value
 
     @property
