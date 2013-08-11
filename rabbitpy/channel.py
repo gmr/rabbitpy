@@ -75,7 +75,7 @@ class Channel(base.AMQPChannel):
         """Close the channel"""
         self._set_state(self.CLOSING)
         self._write_frame(self._build_close_frame())
-        close_ok = self._wait_on_frame()
+        self._wait_on_frame(specification.Channel.CloseOk)
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
 
@@ -96,17 +96,6 @@ class Channel(base.AMQPChannel):
 
         """
         return self._channel_id
-
-    @property
-    def name(self):
-        """Return the name of the connection as RabbitMQ internally holds it
-        for use when trying to get the state of the channel from the
-        RabbitMQ API.
-
-        :rtype: str
-
-        """
-        return '%s (%i)' % (self._connection.name, self._channel_id)
 
     def prefetch_count(self, value, all_channels=False):
         """Set a prefetch count for the channel (or all channels on the same
@@ -161,7 +150,7 @@ class Channel(base.AMQPChannel):
             raise exceptions.ChannelClosedException()
         self._write_frame(frame_value)
         if frame_value.synchronous:
-            return self._wait_on_frame()
+            return self._wait_on_frame(frame_value.valid_responses)
 
     def _build_close_frame(self):
         """Build and return a channel close frame
@@ -191,8 +180,7 @@ class Channel(base.AMQPChannel):
         """Open the channel"""
         self._set_state(self.OPENING)
         self._write_frame(self._build_open_frame())
-        open_ok = self._wait_on_frame()
-        LOGGER.debug(open_ok)
+        self._wait_on_frame(specification.Channel.OpenOk)
         self._set_state(self.OPEN)
         LOGGER.debug('Channel #%i open', self._channel_id)
 
@@ -226,4 +214,4 @@ class Channel(base.AMQPChannel):
         :rtype: pamqp.frame.Frame
 
         """
-        return self._wait_on_frame()
+        return self._wait_on_frame(specification.Confirm.SelectOk)
