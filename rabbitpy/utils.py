@@ -3,26 +3,24 @@ can call the appropriate method for either Python 2 or Python 3 but creating
 a single API point for rabbitpy to use.
 
 """
-__since__ = '2013-03-24'
-
 from pamqp import PYTHON3
 
-if PYTHON3:
-    from urllib import parse as urlparse
-else:
-    import urlparse
+try:
+    from urllib import parse as _urlparse
+except ImportError:
+    import urlparse as _urlparse
 
 
 def parse_qs(query_string):
-    return urlparse.parse_qs(query_string)
+    return _urlparse.parse_qs(query_string)
 
 
 def urlparse(url):
-    return urlparse.urlparse(url)
+    return _urlparse.urlparse(url)
 
 
 def unquote(value):
-    return urlparse.unquote(value)
+    return _urlparse.unquote(value)
 
 
 def is_string(value):
