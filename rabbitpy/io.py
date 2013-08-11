@@ -82,11 +82,7 @@ class IO(threading.Thread, base.StatefulObject):
                 LOGGER.debug('Closing as requested')
                 return self._close()
 
-            # Close if Channel0 closes
-            if self._events.is_set(events.CHANNEL0_CLOSED):
-                LOGGER.debug('Closing due to closed channel')
-                return self._close()
-
+        # Run the close method if the socket closes unexpectedly
         self._close()
 
     def _add_frame_to_queue(self, channel_id, frame_value):
