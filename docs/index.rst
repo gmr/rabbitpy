@@ -219,7 +219,7 @@ Please report any issues to the Github repo at `https://github.com/gmr/rabbitpy/
 
 Source
 ------
-rabbitpy source is available on Github at  `https://github.com/pika/pamqp <https://github.com/gmr/rabbitpy>`_
+rabbitpy source is available on Github at  `https://github.com/pika/rabbitpy <https://github.com/gmr/rabbitpy>`_
 
 .. image:: https://travis-ci.org/gmr/rabbitpy.png?branch=master   :target: https://travis-ci.org/gmr/rabbitpy
 
