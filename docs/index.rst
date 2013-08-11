@@ -219,11 +219,13 @@ Please report any issues to the Github repo at `https://github.com/gmr/rabbitpy/
 
 Source
 ------
-pamqp source is available on Github at  `https://github.com/pika/pamqp <https://github.com/pika/pamqp>`_
+rabbitpy source is available on Github at  `https://github.com/pika/pamqp <https://github.com/gmr/rabbitpy>`_
+
+.. image:: https://travis-ci.org/gmr/rabbitpy.png?branch=master   :target: https://travis-ci.org/gmr/rabbitpy
 
 Installation
 ------------
-pamqp is available from the `Python Package Index <https://pypi.python.org>`_ but should generally be installed as a dependency from a client library using setup.py.
+rabbitpy is available as a package from the `Python Package Index <https://pypi.python.org>`_.
 
 Examples
 --------

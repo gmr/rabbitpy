@@ -2,9 +2,11 @@ rabbitpy - rabbitmq simplified
 ==============================
 A pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3. Previously named `rmqid`.
 
+[![Build Status](https://travis-ci.org/gmr/rabbitpy.png?branch=master)](https://travis-ci.org/gmr/rabbitpy)
+
 Version
 -------
-The current released alpha version is 0.4.3
+rmqid 0.4.3 is available for testing and use while rabbitpy is being worked on. They will remain API compatible with the exception of the Python package name.
 
 Installation
 ------------
