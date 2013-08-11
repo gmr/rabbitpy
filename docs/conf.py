@@ -87,7 +87,7 @@ pygments_style = 'sphinx'
 # A list of ignored prefixes for module index sorting.
 #modindex_common_prefix = []
 
-intersphinx_mapping = {'pamqp': ('https://pamqp.readthedocs.org/en/1.2.0/',
+intersphinx_mapping = {'pamqp': ('https://pamqp.readthedocs.org/en/latest/',
                                  None)}
 
 # -- Options for HTML output ---------------------------------------------------
