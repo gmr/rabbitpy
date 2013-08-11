@@ -123,7 +123,6 @@ class StatefulObject(object):
         return self.STATES[self._state]
 
 
-
 class AMQPChannel(StatefulObject):
 
     def __init__(self):
@@ -136,16 +135,32 @@ class AMQPChannel(StatefulObject):
     def __int__(self):
         return self._channel_id
 
-    def _validate_frame(self, frame_value, frame_type):
-        if not isinstance(frame_value, frame_type):
-            raise specification.AMQPUnexpectedFrame(frame_value)
+    def _wait_on_frame(self, frame_type=None):
+        """Read from the queue, blocking until a result is returned. An
+        individual frame type or a list of frame types can be passed in to wait
+        for specific frame types. If there is no match on the frame retrieved
+        from the queue, put the frame back in the queue and recursively
+        call the method.
 
-    def _wait_on_frame(self):
-        """Read from the queue, blocking until a result is returned.
-
-        :rtype: AMQPClass
+        :param pamqp.specification.Frame|list frame_type: Type(s) to wait for
+        :rtype: Frame
 
         """
+        if frame_type:
+            value = self._read_queue.get(True)
+
+            # If the frame type is the right kind, return it
+            if isinstance(value, frame_type):
+                return value
+            elif isinstance(frame_type, list):
+                for frame in frame_type:
+                    if isinstance(value, frame):
+                        return value
+
+            # Put the frame at the end of the queue and call this method again
+            self._read_queue.put(value)
+            return self._wait_on_frame(frame_type)
+
         return self._read_queue.get(True)
 
     def _write_frame(self, frame):
