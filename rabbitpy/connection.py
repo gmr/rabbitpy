@@ -30,10 +30,17 @@ if ssl:
     SSL_CERT_MAP = {'ignore': ssl.CERT_NONE,
                     'optional': ssl.CERT_OPTIONAL,
                     'required': ssl.CERT_REQUIRED}
-    SSL_VERSION_MAP = {'SSLv2': ssl.PROTOCOL_SSLv2,
-                       'SSLv3': ssl.PROTOCOL_SSLv3,
-                       'SSLv23': ssl.PROTOCOL_SSLv23,
-                       'TLSv1': ssl.PROTOCOL_TLSv1}
+    SSL_VERSION_MAP = dict()
+    if hasattr(ssl, 'PROTOCOL_SSLv2'):
+        SSL_VERSION_MAP['SSLv2'] = ssl.PROTOCOL_SSLv2
+    if hasattr(ssl, 'PROTOCOL_SSLv3'):
+        SSL_VERSION_MAP['SSLv3'] = ssl.PROTOCOL_SSLv3
+    if hasattr(ssl, 'PROTOCOL_SSLv23'):
+        SSL_VERSION_MAP['SSLv23'] = ssl.PROTOCOL_SSLv23
+    if hasattr(ssl, 'PROTOCOL_TLSv1'):
+        SSL_VERSION_MAP['TLSv1'] = ssl.PROTOCOL_TLSv1
+
+
 else:
     SSL_CERT_MAP, SSL_VERSION_MAP = dict(), dict()
 
