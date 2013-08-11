@@ -9,10 +9,13 @@ manager, allowing for quick shorthand use:
 
 """
 import logging
-import requests
+try:
+    import queue
+except ImportError:
+    import Queue as queue
+import traceback
+
 from pamqp import specification
-import threading
-import urllib
 
 from rabbitpy import base
 from rabbitpy import exceptions
@@ -21,7 +24,7 @@ from rabbitpy import exceptions
 LOGGER = logging.getLogger(__name__)
 
 
-class Channel(base.StatefulObject):
+class Channel(base.AMQPChannel):
     """The Channel class implements the channel communication layer on top of
     the Connection object, which is responsible for creating new channels.
 
@@ -29,57 +32,52 @@ class Channel(base.StatefulObject):
     py:meth:`rabbitpy.connection.Connection.channel`
 
     """
-    def __init__(self, channel_id, connection):
+    def __init__(self, channel_id, events, read_queue, write_queue):
         """Create a new instance of the Channel class
 
-        :param int channel_id: The channel id to use for this instance
-        :param rabbitpy.Connection: The connection to communicate with
+        :param int channel_id: The channel # to use for this instance
+        :param events rabbitpy.Events: Event management object
+        :param queue.Queue read_queue: Queue to read pending frames from
+        :param queue.Queue write_queue: Queue to write pending AMQP objs to
+        :param on_close threading.Event: Event to notify connection the channel
 
         """
         super(Channel, self).__init__()
         self._channel_id = channel_id
-        self._connection = connection
-        self.maximum_frame_size = connection.maximum_frame_size
-        self._open()
+        self._events = events
+        self._read_queue = read_queue
+        self._write_queue = write_queue
         self._publisher_confirms = False
 
     def __enter__(self):
+        """For use as a context manager, return a handle to this object
+        instance.
+
+        :rtype: Channel
+
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """When leaving the context, examine why the context is leaving, if it's
+         an exception or what.
+
+        """
         if exc_type:
+            traceback.print_exception(exc_type, exc_val, exc_tb)
             LOGGER.exception('Channel context manager closed on exception: %s',
                              exc_val)
             raise
         LOGGER.info('Closing channel')
         self.close()
 
-    def blocked(self):
-        """Poll the remote API to see if the channel is blocked.
-
-        :rtype: bool
-
-        """
-        # Don't do the extra work if the connection is blocked
-        if self._connection.blocked:
-            return True
-
-        response = self._get_status()
-        return response.get('client_flow_blocked', False)
-
     def close(self):
         """Close the channel"""
         self._set_state(self.CLOSING)
-        self._connection._write_frame(self._build_close_frame(),
-                                      self._channel_id)
-        self._connection._wait_on_frame(specification.Channel.CloseOk,
-                                        self._channel_id)
+        self._write_frame(self._build_close_frame())
+        close_ok = self._wait_on_frame()
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
-
-    @property
-    def closed(self):
-        return self._state == self.CLOSED
 
     def enable_publisher_confirms(self):
         """Turn on Publisher Confirms. If confirms are turned on, the
@@ -163,8 +161,7 @@ class Channel(base.StatefulObject):
             raise exceptions.ChannelClosedException()
         self._write_frame(frame_value)
         if frame_value.synchronous:
-            return self._connection._wait_on_frame(frame_value.valid_responses,
-                                                   self._channel_id)
+            return self._wait_on_frame()
 
     def _build_close_frame(self):
         """Build and return a channel close frame
@@ -188,35 +185,16 @@ class Channel(base.StatefulObject):
         :rtype: rabbitpy.message.Message
 
         """
-        return self._connection._wait_on_frame([specification.Basic.Deliver,
-                                                specification.Basic.CancelOk],
-                                               self._channel_id)
-
-    def _get_status(self):
-        """Polls the RabbitMQ management API for the status of the channel.
-
-        :rtype: dict
-
-        """
-        url = '%s/channels/%s' % (self._connection._api_base_url,
-                                  urllib.quote(self.name))
-        response = requests.get(url, auth=self._connection._api_credentials)
-        if response.status_code == 200:
-            return response.json()
-        LOGGER.error('Remote API error (%s): %s',
-                     response.status_code, response.content)
-        return None
+        return self._wait_on_frame()
 
     def _open(self):
         """Open the channel"""
         self._set_state(self.OPENING)
-        self._connection._write_frame(self._build_open_frame(),
-                                      self._channel_id)
-        self._connection._wait_on_frame(specification.Channel.OpenOk,
-                                        self._channel_id)
+        self._write_frame(self._build_open_frame())
+        open_ok = self._wait_on_frame()
+        LOGGER.debug(open_ok)
         self._set_state(self.OPEN)
         LOGGER.debug('Channel #%i open', self._channel_id)
-
 
     def _process_basic_return(self, frame_value, message):
         """Raise a MessageReturnedException so the publisher can handle returned
@@ -248,15 +226,4 @@ class Channel(base.StatefulObject):
         :rtype: pamqp.frame.Frame
 
         """
-        return self._connection._wait_on_frame([specification.Basic.Ack,
-                                                specification.Basic.Nack],
-                                               self._channel_id)
-
-    def _write_frame(self, frame_value):
-        """Marshal the frame and write it to the socket.
-
-        :param frame_value: The frame to send
-        :type frame_value: pamqp.specification.Frame
-
-        """
-        self._connection._write_frame(frame_value, self._channel_id)
+        return self._wait_on_frame()

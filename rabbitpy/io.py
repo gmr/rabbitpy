@@ -50,6 +50,7 @@ class IO(threading.Thread, base.StatefulObject):
         :param Queue.Queue write_queue: Queue for sending frames to the channel
 
         """
+        LOGGER.debug('Adding channel')
         self._channels[channel_number] = write_queue
 
     def run(self):
@@ -69,6 +70,7 @@ class IO(threading.Thread, base.StatefulObject):
 
             try:
                 frame_value = self._write_queue.get(False)
+                LOGGER.debug(frame_value)
                 self._write_frame(*frame_value)
             except queue.Empty:
                 pass

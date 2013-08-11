@@ -37,7 +37,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
 
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
         super(Channel0, self).__init__(group, target, name, args, kwargs)
-        self._channel_number = 0
+        self._channel_id = 0
         self._args = kwargs['connection_args']
         self._events = kwargs['events']
         self._read_queue = kwargs['inbound']

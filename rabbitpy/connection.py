@@ -15,12 +15,12 @@ import threading
 import traceback
 import time
 
-
 from rabbitpy import base
 from rabbitpy import io
 from rabbitpy import channel
 from rabbitpy import channel0
 from rabbitpy import events
+from rabbitpy import exceptions
 from rabbitpy import message
 from rabbitpy import utils
 
@@ -85,7 +85,7 @@ class Connection(base.StatefulObject):
         super(Connection, self).__init__()
 
         # Create a name for the connection
-        self._name = 'c-%x' % id(self)
+        self._name = '0x%x' % id(self)
 
         # Extract parts of connection URL for use later
         self._args = self._process_url(url or self.DEFAULT_URL)
@@ -147,32 +147,14 @@ class Connection(base.StatefulObject):
         """Create a new channel"""
         LOGGER.debug('Creating a new channel')
         channel_id = self._get_next_channel_id()
-        return dict()
-        #self._channels[channel_id] = channel.Channel(channel_id, self)
-        #return self._channels[channel_id]
-
-    def _shutdown(self):
-
-        if (self._channel0 and self._channel0.is_alive() and
-                self._events.is_set(events.CHANNEL0_OPENED)):
-            LOGGER.debug('Shutting down connection on unhandled exception')
-            self._events.set(events.CHANNEL0_CLOSE)
-
-            # Loop while Channel 0 closes
-            while (self._channel0.is_alive and
-                   not self._events.is_set(events.CHANNEL0_CLOSED)):
-                time.sleep(0.2)
-
-        if (self._io and self._io.is_alive() and
-                self._events.is_set(events.SOCKET_OPENED)):
-            LOGGER.debug('Closing socket due to unhandled exception')
-            self._events.set(events.SOCKET_CLOSE)
-
-            # Loop while socket closes
-            while (self._io.is_alive and
-                   not self._events.is_set(events.SOCKET_CLOSED)):
-                time.sleep(0.2)
-
+        channel_frames = queue.Queue()
+        self._channels[channel_id] = channel.Channel(channel_id,
+                                                     self._events,
+                                                     channel_frames,
+                                                     self._write_queue)
+        self._add_channel_to_io(channel_frames, self._channels[channel_id])
+        self._channels[channel_id]._open()
+        return self._channels[channel_id]
 
     def close(self):
         """Close the connection, including all open channels"""
@@ -210,9 +192,10 @@ class Connection(base.StatefulObject):
         """Add a channel and queue to the IO object.
 
         :param Queue.Queue channel_queue: Channel inbound msg queue
-        :param rabbitpy.channel.BaseChannel: The channel to add
+        :param rabbitpy.base.AMQPChannel: The channel to add
 
         """
+        LOGGER.info('Adding channel %i to io', int(channel))
         self._io.add_channel(int(channel), channel_queue)
 
     @property
@@ -226,7 +209,9 @@ class Connection(base.StatefulObject):
 
     def _close_channels(self):
         """Close all the channels that are currently open."""
-        pass
+        for channel in self._channels:
+            if self._channels[channel].open:
+                self._channels[channel].close()
 
     def _connect(self):
         """Connect to the RabbitMQ Server
@@ -291,7 +276,7 @@ class Connection(base.StatefulObject):
         channel0_read_queue = queue.Queue()
         return (channel0_read_queue,
                 channel0.Channel0(name='%s-channel0' % self._name,
-                                  kwargs={'channel_number': 0,
+                                  kwargs={'channel_id': 0,
                                           'connection_args': self._args,
                                           'events': self._events,
                                           'inbound': channel0_read_queue,
@@ -316,10 +301,9 @@ class Connection(base.StatefulObject):
         """
         if not self._channels:
             return 1
-        #if len(list(self._channels.keys())) ==
-        # self._channel0.maximum_channels:
-        #    raise exceptions.TooManyChannelsError
-        return max(list(self._channels.keys()))
+        if self._max_channel_id == self._channel0.maximum_channels:
+            raise exceptions.TooManyChannelsError
+        return self._max_channel_id + 1
 
     def _get_ssl_validation(self, values):
         """Return the value mapped from the string value in the query string
@@ -351,6 +335,10 @@ class Connection(base.StatefulObject):
             raise ValueError('Unuspported SSL version: %s' %
                              values['ssl_version'])
         return SSL_VERSION_MAP[values['ssl_version']]
+
+    @property
+    def _max_channel_id(self):
+        return max(list(self._channels.keys()))
 
     def _normalize_expectations(self, channel_id, expectations):
         """Turn a class or list of classes into a list of class names.
@@ -461,3 +449,25 @@ class Connection(base.StatefulObject):
                 'ssl_key': query_values.get('ssl_key'),
                 'ssl_validation': self._get_ssl_validation(query_values),
                 'ssl_version': self._get_ssl_version(query_values)}
+
+    def _shutdown(self):
+
+        if (self._channel0 and self._channel0.is_alive() and
+                self._events.is_set(events.CHANNEL0_OPENED)):
+            LOGGER.debug('Shutting down connection on unhandled exception')
+            self._events.set(events.CHANNEL0_CLOSE)
+
+            # Loop while Channel 0 closes
+            while (self._channel0.is_alive and
+                   not self._events.is_set(events.CHANNEL0_CLOSED)):
+                time.sleep(0.2)
+
+        if (self._io and self._io.is_alive() and
+                self._events.is_set(events.SOCKET_OPENED)):
+            LOGGER.debug('Closing socket due to unhandled exception')
+            self._events.set(events.SOCKET_CLOSE)
+
+            # Loop while socket closes
+            while (self._io.is_alive and
+                   not self._events.is_set(events.SOCKET_CLOSED)):
+                time.sleep(0.2)

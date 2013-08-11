@@ -128,17 +128,13 @@ class AMQPChannel(StatefulObject):
 
     def __init__(self):
         super(AMQPChannel, self).__init__()
-        self._channel_number = None
+        self._channel_id = None
         self._state = self.CLOSED
         self._read_queue = None
         self._write_queue = None
 
     def __int__(self):
-        return self._channel_number
-
-    @property
-    def number(self):
-        return self._channel_number
+        return self._channel_id
 
     def _validate_frame(self, frame_value, frame_type):
         if not isinstance(frame_value, frame_type):
@@ -153,4 +149,4 @@ class AMQPChannel(StatefulObject):
         return self._read_queue.get(True)
 
     def _write_frame(self, frame):
-        self._write_queue.put((self._channel_number, frame))
+        self._write_queue.put((self._channel_id, frame))
