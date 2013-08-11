@@ -12,6 +12,7 @@ try:
 except ImportError:
     ssl = None
 import threading
+import traceback
 import time
 
 
@@ -19,7 +20,7 @@ from rabbitpy import base
 from rabbitpy import io
 from rabbitpy import channel
 from rabbitpy import channel0
-from rabbitpy import exceptions
+from rabbitpy import events
 from rabbitpy import message
 from rabbitpy import utils
 
@@ -68,6 +69,8 @@ class Connection(base.StatefulObject):
     GUEST = 'guest'
     PORTS = {'amqp': 5672, 'amqps': 5671, 'api': 15672}
 
+    QUEUE_WAIT = 0.01
+
 
 
     def __init__(self, url=None):
@@ -81,13 +84,10 @@ class Connection(base.StatefulObject):
         self._args = self._process_url(url or self.DEFAULT_URL)
 
         # General events and queues shared across threads
-        self._events = self._create_event_objects()
+        self._events = events.Events()
 
         # Instead of directly raising, add exceptions to this queue
         self._exceptions = queue.Queue()
-
-        # One condition when we need to ensure everything stops
-        self._shutdown = threading.Condition()
 
         # One queue for writing frames, regardless of the channel sending them
         self._write_queue = queue.Queue()
@@ -99,7 +99,6 @@ class Connection(base.StatefulObject):
 
         # Connect to RabbitMQ
         self._connect()
-
 
     def __enter__(self):
         """For use as a context manager, return a handle to this object
@@ -116,10 +115,12 @@ class Connection(base.StatefulObject):
 
         """
         if exc_type:
-            # Should do something there?
+            traceback.print_exception(exc_type, exc_val, exc_tb)
+            self._shutdown()
             LOGGER.exception('Context manager closed on exception: %s',
-                             exc_val)
-            raise
+                             exc_type)
+            raise exc_type(exc_val)
+
         LOGGER.debug('Closing connection')
         self.close()
 
@@ -133,60 +134,70 @@ class Connection(base.StatefulObject):
         :rtype: bool
 
         """
-        return self._blocked
+        return self._events.is_set(events.CONNECTION_BLOCKED)
 
     def channel(self):
         """Create a new channel"""
         LOGGER.debug('Creating a new channel')
         channel_id = self._get_next_channel_id()
-        self._channels[channel_id] = channel.Channel(channel_id, self)
-        return self._channels[channel_id]
+        return dict()
+        #self._channels[channel_id] = channel.Channel(channel_id, self)
+        #return self._channels[channel_id]
+
+    def _shutdown(self):
+
+        if (self._channel0 and self._channel0.is_alive() and
+                self._events.is_set(events.CHANNEL0_OPENED)):
+            LOGGER.debug('Shutting down connection on unhandled exception')
+            self._events.set(events.CHANNEL0_CLOSE)
+
+            # Loop while Channel 0 closes
+            while (self._channel0.is_alive and
+                   not self._events.is_set(events.CHANNEL0_CLOSED)):
+                time.sleep(0.2)
+
+        if (self._io and self._io.is_alive() and
+                self._events.is_set(events.SOCKET_OPENED)):
+            LOGGER.debug('Closing socket due to unhandled exception')
+            self._events.set(events.SOCKET_CLOSE)
+
+            # Loop while socket closes
+            while (self._io.is_alive and
+                   not self._events.is_set(events.SOCKET_CLOSED)):
+                time.sleep(0.2)
+
 
     def close(self):
         """Close the connection, including all open channels"""
         if not self.closed:
             self._set_state(self.CLOSING)
-            self._close_channels()
-            self._channel0[1].set()
-            while self._channel0[0].is_alive and self._channel0[0].open:
-                time.sleep(0.2)
-            self._io[1].set()
-            while self._io[0].is_alive and self._io[0].open:
-                time.sleep(0.2)
+
+            # Close any channels if they're open
+            if self._channels:
+                self._close_channels()
+
+            # If the connection is still established, close it
+            if self._events.is_set(events.CHANNEL0_OPENED):
+                self._events.set(events.CHANNEL0_CLOSE)
+
+                # Loop while Channel 0 closes
+                LOGGER.debug('Waiting on channel0 to close')
+                while (self._channel0.is_alive and
+                       not self._events.is_set(events.CHANNEL0_CLOSED)):
+                    time.sleep(0.2)
+                LOGGER.debug('channel0 closed')
+
+                # Close the socket
+                if self._events.is_set(events.SOCKET_OPENED):
+                    LOGGER.debug('Requesting IO socket close')
+                    self._events.set(events.SOCKET_CLOSE)
+                    LOGGER.debug('Waiting on socket to close')
+                    while (self._io.is_alive and
+                           not self._events.is_set(events.SOCKET_CLOSED)):
+                        time.sleep(0.2)
+
+            # Set state and clear out remote name
             self._set_state(self.CLOSED)
-            self._remote_name = None
-
-    @property
-    def closed(self):
-        return self._state == self.CLOSED
-
-    @property
-    def name(self):
-        """Return the name of the connection as RabbitMQ internally holds it
-        for use when trying to get the state of the connection or channel from
-        the RabbitMQ API.
-
-        :rtype: str
-
-        """
-        return self._remote_name
-
-    def set_api_port(self, port):
-        """Change the default API port from 15672 to the specified value.
-
-        :param int port: The API port value
-
-        """
-        self._api_port = port
-
-    @property
-    def _api_base_url(self):
-        """Return the base API URL
-
-        :rtype: str
-
-        """
-        return 'http://%s:%s/api' % (self._args['host'], self._api_port)
 
     def _add_channel_to_io(self, channel_queue, channel):
         """Add a channel and queue to the IO object.
@@ -195,7 +206,7 @@ class Connection(base.StatefulObject):
         :param rabbitpy.channel.BaseChannel: The channel to add
 
         """
-        self._io[0].add_channel(int(channel), channel_queue)
+        self._io.add_channel(int(channel), channel_queue)
 
     @property
     def _api_credentials(self):
@@ -208,15 +219,7 @@ class Connection(base.StatefulObject):
 
     def _close_channels(self):
         """Close all the channels that are currently open."""
-        if not self._channels:
-            return
-        channels = list(self._channels.keys())
-        LOGGER.debug('Closing %i channel%s', len(channels),
-                     's' if len(channels) > 1 else '')
-        for channel_id in channels:
-            if not self._channels[channel_id].closed:
-                self._channels[channel_id].close()
-            del self._channels[channel_id]
+        pass
 
     def _connect(self):
         """Connect to the RabbitMQ Server
@@ -227,25 +230,32 @@ class Connection(base.StatefulObject):
         self._set_state(self.OPENING)
 
         # Create and start the IO object that reads, writes & dispatches frames
-        (on_connected, close_event,
-         self._write_queue, obj) = self._create_io_thread()
-        self._io = (obj, close_event)
-        self._io[0].start()
+        self._io = self._create_io_thread()
+        self._io.start()
 
         # Wait for IO to connect to the socket or raise an exception
-        on_connected.wait()
+        while self.opening:
+            if self._events.wait(events.SOCKET_OPENED, self.QUEUE_WAIT):
+                break
+
+        # If the socket could not be opened, return instead of waiting
+        if self.closed:
+            return self.close()
 
         # Create the Channel0 queue and add it to the IO thread
-        (on_connected, close_event,
-         channel0_queue, obj) = self._create_channel0()
-        self._channel0 = (obj, close_event)
-        self._add_channel_to_io(channel0_queue, self._channel0[0])
+        channel0_read_queue, self._channel0 = self._create_channel0()
+        self._add_channel_to_io(channel0_read_queue, self._channel0)
 
         # Start the Channel0 thread, starting the connection process
-        self._channel0[0].start()
+        self._channel0.start()
 
         # Wait for Channel0 to raise an exception or negotiate the connection
-        on_connected.wait()
+        while self.opening:
+            if self._events.wait(events.CHANNEL0_OPENED, self.QUEUE_WAIT):
+                break
+
+        if self.closed:
+            return self.close()
 
     def _create_message(self, channel_id, method_frame, header_frame, body):
         """Create a message instance with the channel it was received on and the
@@ -268,40 +278,28 @@ class Connection(base.StatefulObject):
     def _create_channel0(self):
         """Each connection should have a distinct channel0
 
-        :rtype: tuple(threading.Event, Queue.Queue, rabbitpy.channel0.Channel0)
+        :rtype: tuple(queue.Queue, rabbitpy.channel0.Channel0)
 
         """
-        channel0_frames = queue.Queue()
-        on_connected = threading.Event()
-        close_event = threading.Event()
-        return (on_connected,
-                close_event,
-                channel0_frames,
+        channel0_read_queue = queue.Queue()
+        return (channel0_read_queue,
                 channel0.Channel0(name='%s-channel0' % self._name,
                                   kwargs={'channel_number': 0,
-                                          'close': close_event,
                                           'connection_args': self._args,
-                                          'inbound': channel0_frames,
-                                          'outbound': self._write_queue,
-                                          'connected': on_connected}))
+                                          'events': self._events,
+                                          'inbound': channel0_read_queue,
+                                          'outbound': self._write_queue}))
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
 
-        :rtype: tuple(threading.Event, rabbitpy.io.IO)
+        :rtype: rabbitpy.io.IO
 
         """
-        io_write_queue = queue.Queue()
-        on_connected = threading.Event()
-        close_event = threading.Event()
-        return (on_connected,
-                close_event,
-                io_write_queue,
-                io.IO(name='%s-io' % self._name,
-                      kwargs={'connected': on_connected,
-                              'close': close_event,
-                              'connection_args': self._args,
-                              'write_queue': io_write_queue}))
+        return io.IO(name='%s-io' % self._name,
+                     kwargs={'events': self._events,
+                            'connection_args': self._args,
+                            'write_queue': self._write_queue})
 
     def _get_next_channel_id(self):
         """Return the next channel id
@@ -312,7 +310,7 @@ class Connection(base.StatefulObject):
         if not self._channels:
             return 1
         #if len(list(self._channels.keys())) ==
-        # self._channel0[0].maximum_channels:
+        # self._channel0.maximum_channels:
         #    raise exceptions.TooManyChannelsError
         return max(list(self._channels.keys()))
 
