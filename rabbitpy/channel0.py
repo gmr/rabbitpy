@@ -70,6 +70,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
             self._exceptions.put(exception)
             if self.open:
                 self.close()
+            self._events.set(events.EXCEPTION_RAISED)
 
     def _run(self):
         self._set_state(self.OPENING)
@@ -82,7 +83,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
 
             # Loop as long as the connection is open, waiting for RPC requests
             while self.open and not self._events.is_set(events.CHANNEL0_CLOSE):
-                if not self._exceptions.empty():
+                if self._events.is_set(events.EXCEPTION_RAISED):
                     LOGGER.debug('exiting main loop due to exceptions')
                     sys.exit(1)
                 try:
