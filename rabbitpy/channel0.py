@@ -13,11 +13,13 @@ import sys
 import threading
 
 from pamqp import header
+from pamqp import heartbeat
 from pamqp import specification
 
 from rabbitpy import __version__
 from rabbitpy import base
 from rabbitpy import events
+from rabbitpy import exceptions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
         self._exceptions = kwargs['exceptions']
         self._read_queue = kwargs['inbound']
         self._write_queue = kwargs['outbound']
-        self._heartbeat = 0
+        self._heartbeat = self._args['heartbeat']
         self._maximum_channels = 0
         self._state = self.CLOSED
         self.maximum_frame_size = specification.FRAME_MAX_SIZE
@@ -87,8 +89,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
                     LOGGER.debug('exiting main loop due to exceptions')
                     sys.exit(1)
                 try:
-                    frame_value = self._read_queue.get(True, 0.5)
-                    LOGGER.debug('Received frame: %r', frame_value)
+                    self._process_server_rpc(self._read_queue.get(True, 0.1))
                 except queue.Empty:
                     pass
 
@@ -185,7 +186,10 @@ class Channel0(threading.Thread, base.AMQPChannel):
         if frame_value.frame_max != self.maximum_frame_size:
             self.maximum_frame_size = frame_value.frame_max
         if frame_value.heartbeat:
-            self._heartbeat = frame_value.heartbeat
+            if self._heartbeat is None:
+                self._heartbeat = frame_value.heartbeat
+            elif self._heartbeat > frame_value.heartbeat:
+                self._heartbeat = frame_value.heartbeat
         self._write_frame(self._build_tune_ok_frame())
 
     @property
@@ -218,13 +222,17 @@ class Channel0(threading.Thread, base.AMQPChannel):
             LOGGER.warning('RabbitMQ closed the connection (%s): %s',
                            value.reply_code, value.reply_text)
             self._set_state(self.CLOSED)
-            self._events.set(events.CONNECTION_EVENT)
-
+            self._events.set(events.SOCKET_CLOSE)
+            exception = exceptions.RemoteClosedException(value.reply_code,
+                                                         value.reply_text)
+            self._exceptions.put(exception)
+        elif value.name == 'Heartbeat':
+            LOGGER.debug('Received Heartbeat, sending one back')
+            self._write_frame(heartbeat.Heartbeat())
         elif value.name == 'Connection.Blocked':
             LOGGER.warning('RabbitMQ has blocked the connection: %s',
                            value.reason)
             self._events.set(events.CONNECTION_BLOCKED)
-
         elif value.name == 'Connection.Unblocked':
             LOGGER.info('Connection is no longer blocked')
             self._events.clear(events.CONNECTION_BLOCKED)
