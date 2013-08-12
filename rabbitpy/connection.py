@@ -191,6 +191,16 @@ class Connection(base.StatefulObject):
             # Set state and clear out remote name
             self._set_state(self.CLOSED)
 
+    @property
+    def server_properties(self):
+        """Return the RabbitMQ Server properties from the connection
+        negotiation process.
+
+        :rtype: dict
+
+        """
+        return self._channel0._properties
+
     def _add_channel_to_io(self, channel_queue, channel):
         """Add a channel and queue to the IO object.
 
@@ -198,7 +208,7 @@ class Connection(base.StatefulObject):
         :param rabbitpy.base.AMQPChannel: The channel to add
 
         """
-        LOGGER.info('Adding channel %i to io', int(channel))
+        LOGGER.debug('Adding channel %i to io', int(channel))
         self._io.add_channel(channel, channel_queue)
 
     @property
