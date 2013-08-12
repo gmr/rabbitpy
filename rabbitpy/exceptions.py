@@ -19,9 +19,9 @@ class ConnectionBlockedWarning(Warning):
         return 'Will not write to a connection that RabbitMQ is throttling'
 
 
-class EmptyExceptionNameError(Exception):
+class EmptyExchangeNameError(Exception):
     def __repr__(self):
-        return 'You must specify a Queue name'
+        return 'You must specify an Exchange name'
 
 
 class EmptyQueueNameError(Exception):
