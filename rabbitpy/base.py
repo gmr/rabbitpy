@@ -3,6 +3,11 @@ Base classes for various parts of rabbitpy
 
 """
 import logging
+try:
+    import queue
+except ImportError:
+    import Queue as queue
+
 from pamqp import specification
 
 from rabbitpy import exceptions
@@ -125,15 +130,31 @@ class StatefulObject(object):
 
 class AMQPChannel(StatefulObject):
 
-    def __init__(self):
+    def __init__(self, exceptions):
         super(AMQPChannel, self).__init__()
         self._channel_id = None
+        self._exceptions = exceptions
         self._state = self.CLOSED
         self._read_queue = None
         self._write_queue = None
 
     def __int__(self):
         return self._channel_id
+
+    def _validate_frame_type(self, frame_value, frame_type):
+        if isinstance(frame_type, basestring):
+            if frame_value.name == frame_type:
+                return True
+        elif isinstance(frame_type, list):
+            for frame in frame_type:
+                result = self._validate_frame_type(frame_value, frame)
+                if result:
+                    return True
+            return False
+        elif isinstance(frame_value, frame_type):
+            return True
+        else:
+            raise ValueError('Unknown frame type to wait for: %r', frame_type)
 
     def _wait_on_frame(self, frame_type=None):
         """Read from the queue, blocking until a result is returned. An
@@ -142,26 +163,34 @@ class AMQPChannel(StatefulObject):
         from the queue, put the frame back in the queue and recursively
         call the method.
 
-        :param pamqp.specification.Frame|list frame_type: Type(s) to wait for
+        :param frame_type: The name or list of names of the frame type(s)
+        :type frame_type:  str|list
         :rtype: Frame
 
         """
         if frame_type:
-            value = self._read_queue.get(True)
-
-            # If the frame type is the right kind, return it
-            if isinstance(value, frame_type):
+            LOGGER.debug('Waiting for %r', frame_type)
+            value = self._read_from_queue()
+            if self._validate_frame_type(value, frame_type):
+                LOGGER.debug('Received %r', value)
                 return value
-            elif isinstance(frame_type, list):
-                for frame in frame_type:
-                    if isinstance(value, frame):
-                        return value
 
             # Put the frame at the end of the queue and call this method again
             self._read_queue.put(value)
             return self._wait_on_frame(frame_type)
 
-        return self._read_queue.get(True)
+        return self._read_from_queue()
+
+    def _read_from_queue(self):
+        while self.opening or self.open or self.closing:
+            try:
+                return self._read_queue.get(True, 0.01)
+            except queue.Empty:
+                pass
+            if not self._exceptions.empty():
+                exception = self._exceptions.get()
+                raise exception
 
     def _write_frame(self, frame):
+        LOGGER.debug('Channel %i adding frame: %r', self._channel_id, frame)
         self._write_queue.put((self._channel_id, frame))
