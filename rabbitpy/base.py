@@ -40,6 +40,14 @@ class AMQPClass(object):
             raise exceptions.ChannelClosedException()
         return self.channel.rpc(frame_value)
 
+    def _write_frame(self, frame_value):
+        """Write a frame to the channel's connection
+
+        :param pamqp.specification.Frame frame_value: The frame to send
+
+        """
+        self.channel._write_frame(frame_value)
+
 
 class StatefulObject(object):
     """Base object for rabbitpy classes that need to maintain state such as

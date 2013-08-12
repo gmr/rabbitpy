@@ -131,8 +131,9 @@ class Queue(base.AMQPClass):
         :rtype: rabbitpy.message.Message or None
 
         """
-        response = self._rpc(specification.Basic.Get(queue=self.name,
-                                                     no_ack=not acknowledge))
+        self._write_frame(specification.Basic.Get(queue=self.name,
+                                                  no_ack=not acknowledge))
+        response = self.channel._get_message()
         if response.name == 'Basic.GetEmpty':
             return None
         return response
@@ -213,6 +214,6 @@ class Consumer(object):
 
         """
         while self.queue.consuming:
-            value = self.queue.channel._get_message()
+            value = self.queue.channel._consume_message()
             if value:
                 yield value

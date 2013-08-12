@@ -13,13 +13,13 @@ try:
     import queue
 except ImportError:
     import Queue as queue
-import traceback
 
 from pamqp import specification
+from pamqp import PYTHON3
 
 from rabbitpy import base
 from rabbitpy import exceptions
-
+from rabbitpy import message
 
 LOGGER = logging.getLogger(__name__)
 
@@ -161,6 +161,21 @@ class Channel(base.AMQPChannel):
         if frame_value.synchronous:
             return self._wait_on_frame(frame_value.valid_responses)
 
+    def _create_message(self, method_frame, header_frame, body):
+        """Create a message instance with the channel it was received on and the
+        dictionary of message parts.
+
+        :param pamqp.specification.Frame method_frame: The method frame value
+        :param pamqp.header.ContentHeader header_frame: The header frame value
+        :param str body: The message body
+        :rtype: rabbitpy.message.Message
+
+        """
+        msg = message.Message(self, body, header_frame.properties.to_dict())
+        msg.method = method_frame
+        msg.name = method_frame.name
+        return msg
+
     def _build_close_frame(self):
         """Build and return a channel close frame
 
@@ -177,13 +192,49 @@ class Channel(base.AMQPChannel):
         """
         return specification.Channel.Open()
 
-    def _get_message(self):
+    def _consume_message(self):
         """Try and get a delivered message from the connection's message stack.
 
         :rtype: rabbitpy.message.Message
 
         """
-        return self._wait_on_frame()
+        frame_value = self._wait_on_frame([specification.Basic.Deliver,
+                                           specification.Basic.Return])
+        msg = self._wait_for_content_frames(frame_value)
+        if isinstance(frame_value, specification.Basic.Return):
+            self._process_basic_return(msg)
+        return msg
+
+    def _get_message(self):
+        """Try and get a delivered message from the connection's message stack.
+
+        :rtype: rabbitpy.message.Message or None
+
+        """
+        frame_value = self._wait_on_frame([specification.Basic.GetOk,
+                                           specification.Basic.GetEmpty])
+        if isinstance(frame_value, specification.Basic.GetEmpty):
+            return None
+        return self._wait_for_content_frames(frame_value)
+
+    def _wait_for_content_frames(self, method_frame):
+        """Used by both Channel._get_message and Channel._consume_message for
+        getting a message parts off the queue and returning the fully
+        constructed message.
+
+        :param method_frame: The method frame for the message
+        :type method_frame: Basic.Deliver or Basic.Get or Basic.Return
+        :rtype: rabbitpy.Message
+
+        """
+        header_value = self._wait_on_frame('ContentHeader')
+        body_value = bytes() if PYTHON3 else str()
+        while len(body_value) < header_value.body_size:
+            body_part = self._wait_on_frame('ContentBody')
+            body_value += body_part.value
+            if len(body_value) == header_value.body_size:
+                break
+        return self._create_message(method_frame, header_value, body_value)
 
     def _open(self):
         """Open the channel"""
@@ -193,21 +244,19 @@ class Channel(base.AMQPChannel):
         self._set_state(self.OPEN)
         LOGGER.debug('Channel #%i open', self._channel_id)
 
-    def _process_basic_return(self, frame_value, message):
+    def _process_basic_return(self, msg):
         """Raise a MessageReturnedException so the publisher can handle returned
         messages.
 
-        :param int channel_id: The channel id the frame was received on
-        :param pamqp.specification.Basic.Return frame_value: Method frame
-        :param pmqid.message.message message: The message to add
+        :param pmqid.message.message msg: The message to add
         :raises: rabbitpy.exceptions.MessageReturnedException
 
         """
         LOGGER.warning('Basic.Return received on channel %i', self._channel_id)
-        message_id = message.properties.get('message_id', 'Unknown')
+        message_id = msg.properties.get('message_id', 'Unknown')
         raise exceptions.MessageReturnedException(message_id,
-                                                  frame_value.reply_code,
-                                                  frame_value.reply_text)
+                                                  msg.method.reply_code,
+                                                  msg.method.reply_text)
 
     def _remote_close(self, frame):
         """Invoked by rabbitpy.connection.Connection when a remote channel close
