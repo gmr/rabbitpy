@@ -13,7 +13,7 @@ from rabbitpy import message
 
 
 @contextlib.contextmanager
-def consumer(uri=None, queue_name=None):
+def consume(uri=None, queue_name=None):
     """Create a queue consumer, returning a :py:class:`rabbitpy.queue.Consumer`
     generator class that you can retrieve messages from using
     :py:class:`rabbitpy.queue.Consumer.next_message`
