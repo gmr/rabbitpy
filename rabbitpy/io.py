@@ -85,7 +85,6 @@ class IO(threading.Thread, base.StatefulObject):
         while self.open and not self._events.is_set(events.SOCKET_CLOSED):
             try:
                 value = self._write_queue.get(False)
-                LOGGER.debug('Writing frame: %r', value)
                 self._write_frame(*value)
             except queue.Empty:
                 pass
@@ -102,7 +101,6 @@ class IO(threading.Thread, base.StatefulObject):
                     self._channels[value[0]][1].put(value[1])
 
             if self._events.is_set(events.SOCKET_CLOSE):
-                LOGGER.debug('Closing as requested')
                 return self._close()
 
         # Run the close method if the socket closes unexpectedly
