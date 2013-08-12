@@ -1,4 +1,7 @@
-__author__ = 'gmr'
+"""
+Core IO for rabbitpy
+
+"""
 import logging
 try:
     import queue
@@ -6,7 +9,6 @@ except ImportError:
     import Queue as queue
 import socket
 import ssl
-import sys
 import threading
 
 LOGGER = logging.getLogger(__name__)
@@ -55,7 +57,6 @@ class IO(threading.Thread, base.StatefulObject):
         LOGGER.debug('Adding channel')
         self._channels[int(channel)] = channel, write_queue
 
-
     def run(self):
         try:
             self._run()
@@ -66,6 +67,7 @@ class IO(threading.Thread, base.StatefulObject):
                 self._events.wait(events.CHANNEL0_CLOSED)
             if self.open:
                 self._close()
+            self._events.set(events.EXCEPTION_RAISED)
 
     def _run(self):
         """Start the thread, which will connect to the socket and run the
