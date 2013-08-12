@@ -128,7 +128,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
                                        'connection.blocked': True,
                                        'consumer_cancel_notify': True,
                                        'publisher_confirms': True},
-                      'information': 'See https://github.com/gmr/rabbitpy',
+                      'information': 'See http://rabbitpy.readthedocs.org',
                       'version': __version__}
         return specification.Connection.StartOk(client_properties=properties,
                                                 response=self._credentials,
