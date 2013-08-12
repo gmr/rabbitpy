@@ -30,9 +30,13 @@ class Queue(base.AMQPClass):
     :param channel: The channel object to communicate on
     :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str name: The name of the queue
+    :param exclusive: Queue can only be used by this channel and will
+                      auto-delete once the channel is closed.
+    :type exclusive: bool
     :param durable: Indicates if the queue should survive a RabbitMQ is restart
     :type durable: bool
     :param bool auto_delete: Automatically delete when all consumers disconnect
+    :param dict arguments: Custom arguments for the queue
 
     """
     def __init__(self, channel, name, durable=True, exclusive=False,
