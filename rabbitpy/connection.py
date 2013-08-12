@@ -328,12 +328,13 @@ class Connection(base.StatefulObject):
         :rtype: int
 
         """
-        if values.get('ssl_validation') is None:
+        validation = values.get('ssl_validation', [None])[0]
+        if validation is None:
             return None
-        if values.get('ssl_validation') not in SSL_CERT_MAP:
+        if validation not in SSL_CERT_MAP:
             raise ValueError('Unsupported server cert validation option: %s',
-                             values['ssl_version'])
-        return SSL_VERSION_MAP[values['ssl_version']]
+                             validation)
+        return SSL_VERSION_MAP[validation]
 
     def _get_ssl_version(self, values):
         """Return the value mapped from the string value in the query string
@@ -343,12 +344,12 @@ class Connection(base.StatefulObject):
         :rtype: int
 
         """
-        if values.get('ssl_version') is None:
+        version = values.get('ssl_version', [None])[0]
+        if version is None:
             return None
-        if values.get('ssl_version') not in SSL_VERSION_MAP:
-            raise ValueError('Unuspported SSL version: %s' %
-                             values['ssl_version'])
-        return SSL_VERSION_MAP[values['ssl_version']]
+        if version not in SSL_VERSION_MAP:
+            raise ValueError('Unuspported SSL version: %s' % version)
+        return SSL_VERSION_MAP[version]
 
     @property
     def _max_channel_id(self):
@@ -449,18 +450,23 @@ class Connection(base.StatefulObject):
         # Parse the query string
         query_values = utils.parse_qs(parsed.query)
 
+        # Make sure the heartbeat is an int if it is not None
+        heartbeat = query_values.get('heartbeat_interval', [None])[0]
+        if heartbeat is not None:
+            heartbeat = int(heartbeat)
+
         # Return the configuration dictionary to use when connecting
         return {'host': parsed.hostname,
                 'port': port,
                 'virtual_host': utils.unquote(vhost),
                 'username': parsed.username or self.GUEST,
                 'password': parsed.password or self.GUEST,
-                'heartbeat': query_values.get('heartbeat_interval'),
-                'locale': query_values.get('locale'),
+                'heartbeat': heartbeat,
+                'locale': query_values.get('locale', [None])[0],
                 'ssl': use_ssl,
-                'ssl_cacert': query_values.get('ssl_cacert'),
-                'ssl_cert': query_values.get('ssl_cert'),
-                'ssl_key': query_values.get('ssl_key'),
+                'ssl_cacert': query_values.get('ssl_cacert', [None])[0],
+                'ssl_cert': query_values.get('ssl_cert', [None])[0],
+                'ssl_key': query_values.get('ssl_key', [None])[0],
                 'ssl_validation': self._get_ssl_validation(query_values),
                 'ssl_version': self._get_ssl_version(query_values)}
 
