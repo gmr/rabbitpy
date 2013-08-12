@@ -14,6 +14,11 @@ class ChannelClosedException(Exception):
                'create a new channel'
 
 
+class ConnectionBlockedWarning(Warning):
+    def __repr__(self):
+        return 'Will not write to a connection that RabbitMQ is throttling'
+
+
 class EmptyExceptionNameError(Exception):
     def __repr__(self):
         return 'You must specify a Queue name'

@@ -10,6 +10,7 @@ except ImportError:
 import socket
 import ssl
 import threading
+import warnings
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ from rabbitpy import exceptions
 
 class IO(threading.Thread, base.StatefulObject):
 
-    CONNECTION_TIMEOUT = 0.01
+    CONNECTION_TIMEOUT = 0.005
     CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk', 'Basic.Return']
     READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
 
@@ -83,11 +84,16 @@ class IO(threading.Thread, base.StatefulObject):
                                                 peer_address, peer_port)
 
         while self.open and not self._events.is_set(events.SOCKET_CLOSED):
-            try:
-                value = self._write_queue.get(False)
-                self._write_frame(*value)
-            except queue.Empty:
-                pass
+
+            if not self._events.is_set(events.CONNECTION_BLOCKED):
+                try:
+                    value = self._write_queue.get(False)
+                    self._write_frame(*value)
+                except queue.Empty:
+                    pass
+            else:
+                warnings.warn('%i frames behind' % self._write_queue.qsize(),
+                              exceptions.ConnectionBlockedWarning)
 
             # Read and process data
             value = self._read_frame()
@@ -229,10 +235,21 @@ class IO(threading.Thread, base.StatefulObject):
             return value
         except socket.timeout:
             return bytes() if PYTHON3 else str()
-        except socket.error as error:
-            raise exceptions.RemoteClosedException(-1,
-                                                   'Socket Error: %s' %
-                                                   error)
+        except socket.error as exception:
+            LOGGER.exception('Socket error in reading')
+            self._socket_error(exception)
+
+    def _socket_error(self, exception):
+        """Common functions when a socket error occurs. Make sure to set closed
+        and add the exception, and note an exception event.
+
+        :param socket.error exception: The socket error
+
+        """
+        self._set_state(self.CLOSED)
+        self._exceptions.put(exception)
+        self._events.set(events.SOCKET_CLOSED)
+        self._events.set(events.EXCEPTION_RAISED)
 
     def _write_frame(self, channel_id, frame_value):
         """Marshal the frame and write it to the socket.
@@ -245,7 +262,12 @@ class IO(threading.Thread, base.StatefulObject):
         frame_data = frame.marshal(frame_value, channel_id)
         bytes_sent = 0
         while bytes_sent < len(frame_data):
-            bytes_sent += self._write_frame_data(frame_data)
+            try:
+                bytes_sent += self._write_frame_data(frame_data)
+            except socket.error as exception:
+                LOGGER.exception('Socket error in writing')
+                self._socket_error(exception)
+                bytes_sent = 0
         return bytes_sent
 
     def _write_frame_data(self, frame_data):
