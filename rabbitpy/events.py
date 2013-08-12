@@ -115,7 +115,7 @@ class Events(object):
             self._events[event_id].set()
         return True
 
-    def wait(self, event_id, timeout=None):
+    def wait(self, event_id, timeout=3):
         """Wait for an event to be set for up to `timeout` seconds. If `timeout`
         is None, block until the event is set. If the event is invalid, None
         will be returned, otherwise False is used to indicate the event is still
