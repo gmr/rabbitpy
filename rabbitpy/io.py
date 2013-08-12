@@ -6,6 +6,7 @@ except ImportError:
     import Queue as queue
 import socket
 import ssl
+import sys
 import threading
 
 LOGGER = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         self._args = kwargs['connection_args']
         self._events = kwargs['events']
+        self._exceptions = kwargs['exceptions']
         self._write_queue = kwargs['write_queue']
 
         self._buffer = bytes()
@@ -42,18 +44,30 @@ class IO(threading.Thread, base.StatefulObject):
         self._socket = None
         self._state = None
 
-    def add_channel(self, channel_number, write_queue):
+    def add_channel(self, channel, write_queue):
         """Add a channel to the channel queue dict for dispatching frames
         to the channel.
 
-        :param int channel_number: The channel to write
+        :param rabbitpy.channel.Channel: The channel to add
         :param Queue.Queue write_queue: Queue for sending frames to the channel
 
         """
         LOGGER.debug('Adding channel')
-        self._channels[channel_number] = write_queue
+        self._channels[int(channel)] = channel, write_queue
+
 
     def run(self):
+        try:
+            self._run()
+        except Exception as exception:
+            self._exceptions.put(exception)
+            if self._events.is_set(events.CHANNEL0_OPENED):
+                self._events.set(events.CHANNEL0_CLOSE)
+                self._events.wait(events.CHANNEL0_CLOSED)
+            if self.open:
+                self._close()
+
+    def _run(self):
         """Start the thread, which will connect to the socket and run the
         event loop.
 
@@ -67,18 +81,23 @@ class IO(threading.Thread, base.StatefulObject):
                                                 peer_address, peer_port)
 
         while self.open and not self._events.is_set(events.SOCKET_CLOSED):
-
             try:
-                frame_value = self._write_queue.get(False)
-                LOGGER.debug(frame_value)
-                self._write_frame(*frame_value)
+                value = self._write_queue.get(False)
+                LOGGER.debug('Writing frame: %r', value)
+                self._write_frame(*value)
             except queue.Empty:
                 pass
 
             # Read and process data
-            frame_value = self._read_frame()
-            if frame_value[0] is not None:
-                self._channels[frame_value[0]].put(frame_value[1])
+            value = self._read_frame()
+            if value[0] is not None:
+
+                # When RabbitMQ is closing a channel, remotely close it
+                if isinstance(value[1], specification.Channel.Close):
+                    self._channels[value[0]][0]._remote_close(value[1])
+                else:
+                    # Add the frame to the channel queue
+                    self._channels[value[0]][1].put(value[1])
 
             if self._events.is_set(events.SOCKET_CLOSE):
                 LOGGER.debug('Closing as requested')
