@@ -36,20 +36,22 @@ class Channel(base.AMQPChannel):
     STATES = base.AMQPChannel.STATES
     STATES[0x04] = 'Remotely Closed'
 
-    def __init__(self, channel_id, events, exceptions, read_queue, write_queue):
+    def __init__(self, channel_id, events, exceptions, read_queue, write_queue,
+                 maximum_frame_size):
         """Create a new instance of the Channel class
 
         :param int channel_id: The channel # to use for this instance
         :param events rabbitpy.Events: Event management object
+        :param queue.Queue exceptions: Exception queue
         :param queue.Queue read_queue: Queue to read pending frames from
         :param queue.Queue write_queue: Queue to write pending AMQP objs to
-        :param on_close threading.Event: Event to notify connection the channel
+        :param int maximum_frame_size: The max frame size for msg bodies
 
         """
         super(Channel, self).__init__(exceptions)
         self._channel_id = channel_id
         self._events = events
-        self._exceptions = exceptions
+        self._maximum_frame_size = maximum_frame_size
         self._read_queue = read_queue
         self._write_queue = write_queue
         self._publisher_confirms = False
@@ -99,6 +101,10 @@ class Channel(base.AMQPChannel):
 
         """
         return self._channel_id
+
+    @property
+    def maximum_frame_size(self):
+        return self._maximum_frame_size
 
     def prefetch_count(self, value, all_channels=False):
         """Set a prefetch count for the channel (or all channels on the same
