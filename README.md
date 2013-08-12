@@ -72,7 +72,7 @@ Simple Getter
 Simple Consumer
 ---------------
 
-    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    >>> with rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
     ..    for message in c.next_message():
     ...         print message.properties['message_id']
     ...         print message.body
