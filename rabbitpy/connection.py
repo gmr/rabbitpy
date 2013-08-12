@@ -100,6 +100,9 @@ class Connection(base.StatefulObject):
         self._channels = dict()
         self._io = None
 
+        # Used by Message for breaking up body frames
+        self._maximum_frame_size = None
+
         # Connect to RabbitMQ
         self._connect()
 
@@ -122,7 +125,7 @@ class Connection(base.StatefulObject):
             self._shutdown()
             raise exc_type(exc_val)
 
-        if self._exceptions.not_empty():
+        if not self._exceptions.empty():
             exception = self._exceptions.get()
             raise exception
 
@@ -150,7 +153,8 @@ class Connection(base.StatefulObject):
                                                      self._events,
                                                      self._exceptions,
                                                      channel_frames,
-                                                     self._write_queue)
+                                                     self._write_queue,
+                                                     self._maximum_frame_size)
         self._add_channel_to_io(channel_frames, self._channels[channel_id])
         self._channels[channel_id]._open()
         return self._channels[channel_id]
@@ -253,6 +257,9 @@ class Connection(base.StatefulObject):
 
         if self.closed:
             return self.close()
+
+        # Set the maximum frame size for channel use
+        self._maximum_frame_size = self._channel0.maximum_frame_size
 
     def _create_message(self, channel_id, method_frame, header_frame, body):
         """Create a message instance with the channel it was received on and the
