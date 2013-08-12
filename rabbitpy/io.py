@@ -46,6 +46,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._remote_name = None
         self._socket = None
         self._state = None
+        self._writer = None
 
     def add_channel(self, channel, write_queue):
         """Add a channel to the channel queue dict for dispatching frames
@@ -85,16 +86,6 @@ class IO(threading.Thread, base.StatefulObject):
 
         while self.open and not self._events.is_set(events.SOCKET_CLOSED):
 
-            if not self._events.is_set(events.CONNECTION_BLOCKED):
-                try:
-                    value = self._write_queue.get(False)
-                    self._write_frame(*value)
-                except queue.Empty:
-                    pass
-            else:
-                warnings.warn('%i frames behind' % self._write_queue.qsize(),
-                              exceptions.ConnectionBlockedWarning)
-
             # Read and process data
             value = self._read_frame()
             if value[0] is not None:
@@ -127,8 +118,28 @@ class IO(threading.Thread, base.StatefulObject):
     def _close(self):
         self._set_state(self.CLOSING)
         self._socket.close()
-        self._set_state(self.CLOSED)
+        self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
+        self._set_state(self.CLOSED)
+
+    def _connect_socket(self):
+        """Connect the socket to the specified host and port."""
+        LOGGER.debug('Connecting to %(host)s:%(port)i', self._args)
+        self._socket.connect((self._args['host'], self._args['port']))
+
+    def _connect(self):
+        """Connect to the RabbitMQ Server
+
+        :raises: ConnectionException
+
+        """
+        self._set_state(self.OPENING)
+        self._socket = self._create_socket()
+        self._connect_socket()
+        self._events.set(events.SOCKET_OPENED)
+        self._set_state(self.OPEN)
+        self._writer = self._create_writer()
+        self._writer.start()
 
     def _create_socket(self):
         """Create the new socket, optionally with SSL support.
@@ -150,22 +161,12 @@ class IO(threading.Thread, base.StatefulObject):
                                    self._args['ssl_cacert'])
         return sock
 
-    def _connect_socket(self):
-        """Connect the socket to the specified host and port."""
-        LOGGER.debug('Connecting to %(host)s:%(port)i', self._args)
-        self._socket.connect((self._args['host'], self._args['port']))
-
-    def _connect(self):
-        """Connect to the RabbitMQ Server
-
-        :raises: ConnectionException
-
-        """
-        self._set_state(self.OPENING)
-        self._socket = self._create_socket()
-        self._connect_socket()
-        self._set_state(self.OPEN)
-        self._events.set(events.SOCKET_OPENED)
+    def _create_writer(self):
+        return IOWriter(kwargs={'events': self._events,
+                                'exceptions': self._exceptions,
+                                'socket': self._socket,
+                                'ssl': self._args['ssl'],
+                                'write_queue': self._write_queue})
 
     def _disconnect_socket(self):
         """Close the existing socket connection"""
@@ -248,6 +249,49 @@ class IO(threading.Thread, base.StatefulObject):
         """
         self._set_state(self.CLOSED)
         self._exceptions.put(exception)
+        self._events.clear(events.SOCKET_OPENED)
+        self._events.set(events.SOCKET_CLOSED)
+        self._events.set(events.EXCEPTION_RAISED)
+
+
+class IOWriter(threading.Thread):
+    def __init__(self, group=None, target=None, name=None, args=(),
+                 kwargs=None):
+        if kwargs is None:
+            kwargs = dict()
+        super(IOWriter, self).__init__(group, target, name, args, kwargs)
+        self._write_queue = kwargs['write_queue']
+        self._exceptions = kwargs['exceptions']
+        self._events = kwargs['events']
+        self._socket = kwargs['socket']
+        self._ssl = kwargs['ssl']
+
+    def can_write(self):
+        return (self._events.is_set(events.SOCKET_OPENED) and
+                not self._events.is_set(events.EXCEPTION_RAISED))
+
+    def run(self):
+        while self.can_write():
+            if not self._events.is_set(events.CONNECTION_BLOCKED):
+                try:
+                    value = self._write_queue.get(True, 0.1)
+                    self._write_frame(*value)
+                except queue.Empty:
+                    pass
+            else:
+                warnings.warn('%i frames behind' % self._write_queue.qsize(),
+                              exceptions.ConnectionBlockedWarning)
+        LOGGER.debug('Exiting')
+
+    def _socket_error(self, exception):
+        """Common functions when a socket error occurs. Make sure to set closed
+        and add the exception, and note an exception event.
+
+        :param socket.error exception: The socket error
+
+        """
+        self._exceptions.put(exception)
+        self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
         self._events.set(events.EXCEPTION_RAISED)
 
@@ -261,7 +305,7 @@ class IO(threading.Thread, base.StatefulObject):
         """
         frame_data = frame.marshal(frame_value, channel_id)
         bytes_sent = 0
-        while bytes_sent < len(frame_data):
+        while bytes_sent < len(frame_data) and self.can_write():
             try:
                 bytes_sent += self._write_frame_data(frame_data)
             except socket.error as exception:
@@ -277,6 +321,6 @@ class IO(threading.Thread, base.StatefulObject):
         :return int: bytes written
 
         """
-        if self._args['ssl']:
+        if self._ssl:
             return self._socket.write(frame_data)
         return self._socket.send(frame_data)
