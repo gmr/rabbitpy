@@ -34,12 +34,14 @@ class Channel0(threading.Thread, base.AMQPChannel):
     CHANNEL = 0
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
+    DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
         super(Channel0, self).__init__(group, target, name, args, kwargs)
         self._channel_id = 0
         self._args = kwargs['connection_args']
         self._events = kwargs['events']
+        self._exceptions = kwargs['exceptions']
         self._read_queue = kwargs['inbound']
         self._write_queue = kwargs['outbound']
         self._heartbeat = 0
@@ -62,6 +64,14 @@ class Channel0(threading.Thread, base.AMQPChannel):
         return self._maximum_channels
 
     def run(self):
+        try:
+            self._run()
+        except Exception as exception:
+            self._exceptions.put(exception)
+            if self.open:
+                self.close()
+
+    def _run(self):
         self._set_state(self.OPENING)
         self._write_protocol_header()
 
@@ -72,6 +82,9 @@ class Channel0(threading.Thread, base.AMQPChannel):
 
             # Loop as long as the connection is open, waiting for RPC requests
             while self.open and not self._events.is_set(events.CHANNEL0_CLOSE):
+                if not self._exceptions.empty():
+                    LOGGER.debug('exiting main loop due to exceptions')
+                    sys.exit(1)
                 try:
                     frame_value = self._read_queue.get(True, 0.5)
                     LOGGER.debug('Received frame: %r', frame_value)
@@ -191,39 +204,31 @@ class Channel0(threading.Thread, base.AMQPChannel):
 
         """
         if not self._args['locale']:
-            return locale.getdefaultlocale()[0]
+            return locale.getdefaultlocale()[0] or self.DEFAULT_LOCALE
         return self._args['locale']
 
     def _process_server_rpc(self, value):
         """Process a RPC frame received from the server
 
         :param pamqp.message.Message value: The message value
-        :rtype: rabbitpy.message.Message
-        :raises: rabbitpy.exceptions.ChannelClosedException
-        :raises: rabbitpy.exceptions.ConnectionClosedException
 
-        if value.name == 'Channel.Close':
-            LOGGER.warning('Received remote close for channel %i', channel_id)
-            self._channels[channel_id]._remote_close()
-            raise exceptions.RemoteClosedChannelException(channel_id,
-                                                          value.reply_code,
-                                                          value.reply_text)
-        elif value.name == 'Connection.Close':
-            LOGGER.warning('Received remote close for the connection')
+        """
+        if value.name == 'Connection.Close':
+            LOGGER.warning('RabbitMQ closed the connection (%s): %s',
+                           value.reply_code, value.reply_text)
             self._set_state(self.CLOSED)
-            raise exceptions.RemoteClosedException(value.reply_code,
-                                                   value.reply_text)
+            self._events.set(events.CONNECTION_EVENT)
+
         elif value.name == 'Connection.Blocked':
             LOGGER.warning('RabbitMQ has blocked the connection: %s',
                            value.reason)
-            self._blocked = True
+            self._events.set(events.CONNECTION_BLOCKED)
 
         elif value.name == 'Connection.Unblocked':
-            LOGGER.warning('Connection is no longer blocked')
-            self._blocked = False
+            LOGGER.info('Connection is no longer blocked')
+            self._events.clear(events.CONNECTION_BLOCKED)
         else:
-        """
-        LOGGER.critical('Unhandled RPC request: %r', value)
+            LOGGER.critical('Unhandled RPC request: %r', value)
 
     def _validate_connection_start(self, frame_value):
         """Validate the received Connection.Start frame
