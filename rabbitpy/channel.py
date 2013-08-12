@@ -32,7 +32,11 @@ class Channel(base.AMQPChannel):
     py:meth:`rabbitpy.connection.Connection.channel`
 
     """
-    def __init__(self, channel_id, events, read_queue, write_queue):
+    REMOTE_CLOSED = 0x04
+    STATES = base.AMQPChannel.STATES
+    STATES[0x04] = 'Remotely Closed'
+
+    def __init__(self, channel_id, events, exceptions, read_queue, write_queue):
         """Create a new instance of the Channel class
 
         :param int channel_id: The channel # to use for this instance
@@ -42,9 +46,10 @@ class Channel(base.AMQPChannel):
         :param on_close threading.Event: Event to notify connection the channel
 
         """
-        super(Channel, self).__init__()
+        super(Channel, self).__init__(exceptions)
         self._channel_id = channel_id
         self._events = events
+        self._exceptions = exceptions
         self._read_queue = read_queue
         self._write_queue = write_queue
         self._publisher_confirms = False
@@ -64,10 +69,8 @@ class Channel(base.AMQPChannel):
 
         """
         if exc_type:
-            traceback.print_exception(exc_type, exc_val, exc_tb)
-            LOGGER.exception('Channel context manager closed on exception: %s',
-                             exc_val)
-            raise
+            LOGGER.exception('Channel context manager closed on exception')
+            raise exc_type(exc_val)
         LOGGER.info('Closing channel')
         self.close()
 
@@ -200,12 +203,14 @@ class Channel(base.AMQPChannel):
                                                   frame_value.reply_code,
                                                   frame_value.reply_text)
 
-    def _remote_close(self):
+    def _remote_close(self, frame):
         """Invoked by rabbitpy.connection.Connection when a remote channel close
         is issued.
 
         """
-        self._set_state(self.CLOSED)
+        self._set_state(self.REMOTE_CLOSED)
+        raise exceptions.RemoteClosedChannelException(frame.reply_code,
+                                                      frame.reply_text)
 
     def _wait_for_confirmation(self):
         """Used by the Message.publish method when publisher confirmations are
