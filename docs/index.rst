@@ -27,7 +27,7 @@ Getting a message is equally simple:
 
 And consuming is almost as simple:
 
-    >>> with rabbitpy.consumer('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
+    >>> with rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
     ...     for message in c.next_message():
     ...         print message.properties['message_id']
     ...         print message.body
@@ -36,7 +36,12 @@ And consuming is almost as simple:
     856dfdc7-5ee3-4fc1-9635-977bf0043a9f
     {"foo": "bar"}
 
-See `examples with other libraries <https://gist.github.com/gmr/5259929>`_
+Creating queues and exchanges is just as easy:
+
+>>> rabbitpy.create_queue('amqp://guest:guest@localhost:5672/%2f', 'test-queue')
+>>> rabbitpy.create_topic_exchange('amqp://guest:guest@localhost:5672/%2f', 'my-exchange')
+
+See `examples with other libraries <https://gist.github.com/gmr/5259929>`_ and the rest of :doc:`the simple api <simple>`, but note the simple api **is good for one-off tasks**. For more complex tasks or applications, there is a more complete, :doc:`object oriented API<api>` available for your use.
 
 Issues
 ------
@@ -56,26 +61,21 @@ Examples
 --------
 .. toctree::
    :maxdepth: 2
+   :glob:
 
-   example_publisher_confirms
-   example_transactional_publisher
-   example_consumer
-   example_getter
-   example_ha_queues
+   examples/*
 
 API Documentation
 -----------------
 .. toctree::
+   :glob:
    :maxdepth: 2
 
-   rabbitpy
-   connection
-   channel
-   exchange
-   queue
-   message
-   tx
-   exceptions
+   simple
+   api
+   api/*
+
+
 
 Inspiration
 -----------

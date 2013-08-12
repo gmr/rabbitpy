@@ -1,4 +1,7 @@
 exceptions
 ==========
 .. automodule:: rabbitpy.exceptions
-    :members:
+   :members:
+   :private-members:
+   :undoc-members:
+
