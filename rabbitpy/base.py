@@ -150,7 +150,7 @@ class AMQPChannel(StatefulObject):
         return self._channel_id
 
     def _validate_frame_type(self, frame_value, frame_type):
-        if isinstance(frame_type, basestring):
+        if isinstance(frame_type, str):
             if frame_value.name == frame_type:
                 return True
         elif isinstance(frame_type, list):
