@@ -177,16 +177,13 @@ class AMQPChannel(StatefulObject):
 
         """
         if frame_type:
-            LOGGER.debug('Waiting for %r', frame_type)
             value = self._read_from_queue()
             if self._validate_frame_type(value, frame_type):
-                LOGGER.debug('Received %r', value)
                 return value
 
             # Put the frame at the end of the queue and call this method again
             self._read_queue.put(value)
             return self._wait_on_frame(frame_type)
-
         return self._read_from_queue()
 
     def _read_from_queue(self):
@@ -200,5 +197,4 @@ class AMQPChannel(StatefulObject):
                 raise exception
 
     def _write_frame(self, frame):
-        LOGGER.debug('Channel %i adding frame: %r', self._channel_id, frame)
         self._write_queue.put((self._channel_id, frame))
