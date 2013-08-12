@@ -11,8 +11,6 @@ try:
     import ssl
 except ImportError:
     ssl = None
-import threading
-import traceback
 import time
 
 from rabbitpy import base
@@ -39,8 +37,6 @@ if ssl:
         SSL_VERSION_MAP['SSLv23'] = ssl.PROTOCOL_SSLv23
     if hasattr(ssl, 'PROTOCOL_TLSv1'):
         SSL_VERSION_MAP['TLSv1'] = ssl.PROTOCOL_TLSv1
-
-
 else:
     SSL_CERT_MAP, SSL_VERSION_MAP = dict(), dict()
 
@@ -93,7 +89,7 @@ class Connection(base.StatefulObject):
         # General events and queues shared across threads
         self._events = events.Events()
 
-        # Instead of directly raising, add exceptions to this queue
+        # A queue for the child threads to put exceptions in
         self._exceptions = queue.Queue()
 
         # One queue for writing frames, regardless of the channel sending them
@@ -122,11 +118,13 @@ class Connection(base.StatefulObject):
 
         """
         if exc_type:
-            traceback.print_exception(exc_type, exc_val, exc_tb)
+            LOGGER.exception('Connection context manager closed on exception')
             self._shutdown()
-            LOGGER.exception('Context manager closed on exception: %s',
-                             exc_type)
             raise exc_type(exc_val)
+
+        if self._exceptions.not_empty():
+            exception = self._exceptions.get()
+            raise exception
 
         LOGGER.debug('Closing connection')
         self.close()
@@ -150,6 +148,7 @@ class Connection(base.StatefulObject):
         channel_frames = queue.Queue()
         self._channels[channel_id] = channel.Channel(channel_id,
                                                      self._events,
+                                                     self._exceptions,
                                                      channel_frames,
                                                      self._write_queue)
         self._add_channel_to_io(channel_frames, self._channels[channel_id])
@@ -196,7 +195,7 @@ class Connection(base.StatefulObject):
 
         """
         LOGGER.info('Adding channel %i to io', int(channel))
-        self._io.add_channel(int(channel), channel_queue)
+        self._io.add_channel(channel, channel_queue)
 
     @property
     def _api_credentials(self):
@@ -229,6 +228,9 @@ class Connection(base.StatefulObject):
         while self.opening:
             if self._events.wait(events.SOCKET_OPENED, self.QUEUE_WAIT):
                 break
+            if not self._exceptions.empty():
+                exception = self._exceptions.get()
+                raise exception
 
         # If the socket could not be opened, return instead of waiting
         if self.closed:
@@ -245,6 +247,9 @@ class Connection(base.StatefulObject):
         while self.opening:
             if self._events.wait(events.CHANNEL0_OPENED, self.QUEUE_WAIT):
                 break
+            if not self._exceptions.empty():
+                exception = self._exceptions.get()
+                raise exception
 
         if self.closed:
             return self.close()
@@ -279,6 +284,7 @@ class Connection(base.StatefulObject):
                                   kwargs={'channel_id': 0,
                                           'connection_args': self._args,
                                           'events': self._events,
+                                          'exceptions': self._exceptions,
                                           'inbound': channel0_read_queue,
                                           'outbound': self._write_queue}))
 
@@ -290,8 +296,9 @@ class Connection(base.StatefulObject):
         """
         return io.IO(name='%s-io' % self._name,
                      kwargs={'events': self._events,
-                            'connection_args': self._args,
-                            'write_queue': self._write_queue})
+                             'exceptions': self._exceptions,
+                             'connection_args': self._args,
+                             'write_queue': self._write_queue})
 
     def _get_next_channel_id(self):
         """Return the next channel id
