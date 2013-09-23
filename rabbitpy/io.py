@@ -307,7 +307,7 @@ class IOWriter(threading.Thread):
         bytes_sent = 0
         while bytes_sent < len(frame_data) and self.can_write():
             try:
-                bytes_sent += self._write_frame_data(frame_data)
+                bytes_sent += self._write_frame_data(frame_data[bytes_sent:])
             except socket.timeout:
                 pass
             except socket.error as exception:
