@@ -5,7 +5,7 @@
 
 rabbitpy: RabbitMQ Simplified
 =============================
-rabbitpy is a pure python, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3. rabbitpy was previously called `rmqid`.
+rabbitpy is a pure python, thread-safe, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3. rabbitpy was previously called `rmqid`.
 
 Installation
 ------------

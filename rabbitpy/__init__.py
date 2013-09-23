@@ -1,4 +1,4 @@
-__version__ = '0.5.0p1'
+__version__ = '0.5.0'
 
 from rabbitpy.connection import Connection
 from rabbitpy.exchange import Exchange
