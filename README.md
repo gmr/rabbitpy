@@ -4,9 +4,9 @@ A pure python, thread-safe, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ
 
 [![Build Status](https://travis-ci.org/gmr/rabbitpy.png?branch=master)](https://travis-ci.org/gmr/rabbitpy)
 
-Version
--------
-rmqid 0.4.3 is available for testing and use while rabbitpy is being worked on. They will remain API compatible with the exception of the Python package name.
+Version History
+---------------
+0.5.0 - Bugfix release including low level socket sending fix and connection timeouts.
 
 Installation
 ------------
@@ -17,6 +17,10 @@ rabbitpy may be installed via the Python package index with the tool of your cho
 But there's always easy_install:
 
     easy_install rabbitpy
+
+rmqid Compatibility
+-------------------
+rabbitpy is API compatible with rmqid.
 
 Documentation
 -------------
