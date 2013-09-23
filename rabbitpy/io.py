@@ -26,7 +26,7 @@ from rabbitpy import exceptions
 
 class IO(threading.Thread, base.StatefulObject):
 
-    CONNECTION_TIMEOUT = 0.005
+    CONNECTION_TIMEOUT = 3
     CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk', 'Basic.Return']
     READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
 
