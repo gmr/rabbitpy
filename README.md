@@ -6,6 +6,7 @@ A pure python, thread-safe, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ
 
 Version History
 ---------------
+0.5.1 - Installer/setup fix
 0.5.0 - Bugfix release including low level socket sending fix and connection timeouts.
 
 Installation
