@@ -89,16 +89,25 @@ class Queue(base.AMQPClass):
         :rtype: :py:class:`Consumer <rabbitpy.queue.Consumer>`
 
         """
-        self.consuming = True
         if prefetch:
             self.channel.prefetch(prefetch)
         self._rpc(specification.Basic.Consume(queue=self.name,
                                               consumer_tag=self.consumer_tag,
                                               no_ack=no_ack))
-
         yield Consumer(self)
-        self.consuming = False
-        self._rpc(specification.Basic.Cancel(consumer_tag=self.consumer_tag))
+
+    def consume_messages(self, no_ack=False, prefetch=None):
+        """Consume messages from the queue as an iterator. This wraps the
+        Consumer by calling its own consumer context manager.
+
+        :param bool no_ack: Do not require acknowledgements
+        :param int prefetch: Set a prefetch count for the channel
+        :rtype: :py:class:`rabbitpy.message.Message`
+
+        """
+        with self.consumer(no_ack, prefetch) as consumer:
+            for message in consumer.next_message():
+                yield message
 
     def declare(self, passive=False):
         """Declare the queue on the RabbitMQ channel passed into the
@@ -137,10 +146,7 @@ class Queue(base.AMQPClass):
         """
         self._write_frame(specification.Basic.Get(queue=self.name,
                                                   no_ack=not acknowledge))
-        response = self.channel._get_message()
-        if response.name == 'Basic.GetEmpty':
-            return None
-        return response
+        return self.channel._get_message()
 
     def ha_declare(self, nodes=None):
         """Declare a the queue as highly available, passing in a list of nodes
@@ -209,6 +215,19 @@ class Consumer(object):
     """
     def __init__(self, queue):
         self.queue = queue
+        self.queue.consuming = True
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Called when exiting the consumer iterator
+
+
+        """
+        self.queue._rpc(self._basic_cancel)
+        self.queue.consuming = False
+
+    @property
+    def _basic_cancel(self):
+        return specification.Basic.Cancel(consumer_tag=self.queue.consumer_tag)
 
     def next_message(self):
         """Retrieve the nest message from the queue as an iterator, blocking
