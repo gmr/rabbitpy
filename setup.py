@@ -7,7 +7,8 @@ tests_require = ['nose', 'mock']
 if sys.version_info < (2, 7, 0):
     tests_require.append('unittest2')
 
-desc = 'A minimalistic & pythonic AMQP library focused on supporting RabbitMQ'
+desc = ('A pure python, thread-safe, minimalistic and pythonic RabbitMQ '
+        'client library')
 
 distutils.core.setup(name='rabbitpy',
                      version=__version__,
