@@ -150,19 +150,27 @@ class AMQPChannel(StatefulObject):
         return self._channel_id
 
     def _validate_frame_type(self, frame_value, frame_type):
+        """Validate the frame value against the frame type. The frame type can
+        be an individual frame type or a list of frame types.
+
+        :param pamqp.specification.Frame frame_value: The frame to check
+        :param frame_type: The frame(s) to check against
+        :type frame_type: pamqp.specification.Frame|list
+        :rtype: bool
+
+        """
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
                 return True
         elif isinstance(frame_type, list):
-            for frame in frame_type:
-                result = self._validate_frame_type(frame_value, frame)
+            for frame_t in frame_type:
+                result = self._validate_frame_type(frame_value, frame_t)
                 if result:
                     return True
             return False
         elif isinstance(frame_value, frame_type):
             return True
-        else:
-            raise ValueError('Unknown frame type to wait for: %r', frame_type)
+        return False
 
     def _wait_on_frame(self, frame_type=None):
         """Read from the queue, blocking until a result is returned. An
