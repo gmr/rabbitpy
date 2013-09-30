@@ -11,15 +11,13 @@ until CTRL-C is pressed::
 
             # Exit on CTRL-C
             try:
-
                 # Consume the message
-                with queue.consumer() as consumer:
-                    for message in consumer.next_message():
-                        print 'Message:'
-                        print ' ID: %s' % message.properties['message_id']
-                        print ' Time: %s' % message.properties['timestamp']
-                        print ' Body: %s' % message.body
-                        message.ack()
+                for message in queue.consume_messages():
+                    print 'Message:'
+                    print ' ID: %s' % message.properties['message_id']
+                    print ' Time: %s' % message.properties['timestamp']
+                    print ' Body: %s' % message.body
+                    message.ack()
 
             except KeyboardInterrupt:
                 print 'Exited consumer'
