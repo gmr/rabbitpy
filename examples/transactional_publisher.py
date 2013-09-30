@@ -16,15 +16,15 @@ with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
         queue.bind(exchange, 'test-routing-key')
 
         # Create and start the transaction
-        tx = rabbitpy.TX(channel)
+        tx = rabbitpy.Tx(channel)
         tx.select()
 
         # Create the message
         message = rabbitpy.Message(channel,
-                                'Lorem ipsum dolor sit amet, consectetur '
-                                'adipiscing elit.',
-                                {'content_type': 'text/plain',
-                                 'message_type': 'Lorem ipsum'})
+                                   'Lorem ipsum dolor sit amet, consectetur '
+                                   'adipiscing elit.',
+                                   {'content_type': 'text/plain',
+                                    'message_type': 'Lorem ipsum'})
 
         # Publish the message
         message.publish(exchange, 'test-routing-key')
@@ -32,4 +32,4 @@ with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
         # Commit the message
         tx.commit()
 
-        print 'Message published'
+        print('Message published')

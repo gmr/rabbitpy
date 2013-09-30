@@ -22,11 +22,11 @@ with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
 
         # Create the msg by passing channel, message and properties (as a dict)
         message = rabbitpy.Message(channel,
-                                'Lorem ipsum dolor sit amet, consectetur '
-                                'adipiscing elit.',
-                                {'content_type': 'text/plain',
-                                 'delivery_mode': 1,
-                                 'message_type': 'Lorem ipsum'})
+                                   'Lorem ipsum dolor sit amet, consectetur '
+                                   'adipiscing elit.',
+                                   {'content_type': 'text/plain',
+                                    'delivery_mode': 1,
+                                    'message_type': 'Lorem ipsum'})
 
         # Publish the message
         message.publish(exchange, 'test-routing-key')
