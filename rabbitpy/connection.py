@@ -74,8 +74,6 @@ class Connection(base.StatefulObject):
 
     QUEUE_WAIT = 0.01
 
-
-
     def __init__(self, url=None):
         """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
@@ -156,7 +154,7 @@ class Connection(base.StatefulObject):
                                                      self._write_queue,
                                                      self._maximum_frame_size)
         self._add_channel_to_io(channel_frames, self._channels[channel_id])
-        self._channels[channel_id]._open()
+        self._channels[channel_id].open()
         return self._channels[channel_id]
 
     def close(self):
@@ -199,17 +197,17 @@ class Connection(base.StatefulObject):
         :rtype: dict
 
         """
-        return self._channel0._properties
+        return self._channel0.properties
 
-    def _add_channel_to_io(self, channel_queue, channel):
+    def _add_channel_to_io(self, channel_queue, channel_id):
         """Add a channel and queue to the IO object.
 
         :param Queue.Queue channel_queue: Channel inbound msg queue
         :param rabbitpy.base.AMQPChannel: The channel to add
 
         """
-        LOGGER.debug('Adding channel %i to io', int(channel))
-        self._io.add_channel(channel, channel_queue)
+        LOGGER.debug('Adding channel %s to io', int(channel_id))
+        self._io.add_channel(channel_id, channel_queue)
 
     @property
     def _api_credentials(self):
@@ -222,9 +220,9 @@ class Connection(base.StatefulObject):
 
     def _close_channels(self):
         """Close all the channels that are currently open."""
-        for channel in self._channels:
-            if self._channels[channel].open:
-                self._channels[channel].close()
+        for channel_id in self._channels:
+            if self._channels[channel_id].open:
+                self._channels[channel_id].close()
 
     def _connect(self):
         """Connect to the RabbitMQ Server
@@ -271,24 +269,6 @@ class Connection(base.StatefulObject):
         # Set the maximum frame size for channel use
         self._maximum_frame_size = self._channel0.maximum_frame_size
 
-    def _create_message(self, channel_id, method_frame, header_frame, body):
-        """Create a message instance with the channel it was received on and the
-        dictionary of message parts.
-
-        :param int channel_id: The channel id the message was sent on
-        :param pamqp.specification.Frame method_frame: The method frame value
-        :param pamqp.header.ContentHeader header_frame: The header frame value
-        :param str body: The message body
-        :rtype: rabbitpy.message.Message
-
-        """
-        msg = message.Message(self._channels[channel_id],
-                              body,
-                              header_frame.properties.to_dict())
-        msg.method = method_frame
-        msg.name = method_frame.name
-        return msg
-
     def _create_channel0(self):
         """Each connection should have a distinct channel0
 
@@ -317,6 +297,24 @@ class Connection(base.StatefulObject):
                              'connection_args': self._args,
                              'write_queue': self._write_queue})
 
+    def _create_message(self, channel_id, method_frame, header_frame, body):
+        """Create a message instance with the channel it was received on and the
+        dictionary of message parts.
+
+        :param int channel_id: The channel id the message was sent on
+        :param pamqp.specification.Frame method_frame: The method frame value
+        :param pamqp.header.ContentHeader header_frame: The header frame value
+        :param str body: The message body
+        :rtype: rabbitpy.message.Message
+
+        """
+        msg = message.Message(self._channels[channel_id],
+                              body,
+                              header_frame.properties.to_dict())
+        msg.method = method_frame
+        msg.name = method_frame.name
+        return msg
+
     def _get_next_channel_id(self):
         """Return the next channel id
 
@@ -329,7 +327,8 @@ class Connection(base.StatefulObject):
             raise exceptions.TooManyChannelsError
         return self._max_channel_id + 1
 
-    def _get_ssl_validation(self, values):
+    @staticmethod
+    def _get_ssl_validation(values):
         """Return the value mapped from the string value in the query string
         for the AMQP URL specifying which level of server certificate
         validation is required, if any.
@@ -346,7 +345,8 @@ class Connection(base.StatefulObject):
                              validation)
         return SSL_VERSION_MAP[validation]
 
-    def _get_ssl_version(self, values):
+    @staticmethod
+    def _get_ssl_version(values):
         """Return the value mapped from the string value in the query string
         for the AMQP URL for SSL version.
 
@@ -365,7 +365,8 @@ class Connection(base.StatefulObject):
     def _max_channel_id(self):
         return max(list(self._channels.keys()))
 
-    def _normalize_expectations(self, channel_id, expectations):
+    @staticmethod
+    def _normalize_expectations(channel_id, expectations):
         """Turn a class or list of classes into a list of class names.
 
         :param expectations: List of classes or class name or class obj
