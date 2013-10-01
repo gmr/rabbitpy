@@ -7,8 +7,8 @@ try:
     import queue
 except ImportError:
     import Queue as queue
-
 from pamqp import specification
+import time
 
 from rabbitpy import exceptions
 
@@ -138,16 +138,29 @@ class StatefulObject(object):
 
 class AMQPChannel(StatefulObject):
 
-    def __init__(self, exceptions):
+    def __init__(self, exception_queue):
         super(AMQPChannel, self).__init__()
         self._channel_id = None
-        self._exceptions = exceptions
+        self._exceptions = exception_queue
         self._state = self.CLOSED
         self._read_queue = None
         self._write_queue = None
 
     def __int__(self):
         return self._channel_id
+
+    def _check_for_exceptions(self):
+        if not self._exceptions.empty():
+            exception = self._exceptions.get()
+            raise exception
+
+    def _read_from_queue(self):
+        self._check_for_exceptions()
+        if self.opening or self.open or self.closing:
+            try:
+                return self._read_queue.get(True, 0.01)
+            except queue.Empty:
+                pass
 
     def _validate_frame_type(self, frame_value, frame_type):
         """Validate the frame value against the frame type. The frame type can
@@ -159,6 +172,8 @@ class AMQPChannel(StatefulObject):
         :rtype: bool
 
         """
+        if not frame_value:
+            return False
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
                 return True
@@ -180,29 +195,25 @@ class AMQPChannel(StatefulObject):
         call the method.
 
         :param frame_type: The name or list of names of the frame type(s)
-        :type frame_type:  str|list
+        :type frame_type:  str|list|specification.Frame
         :rtype: Frame
 
         """
+        if self.closing and frame_type not in [specification.Connection.CloseOk,
+                                               specification.Channel.CloseOk]:
+            LOGGER.info('Refusing to wait on %s while closing',
+                        type(frame_type))
+            return
+        LOGGER.debug('Waiting on %s', frame_type)
         if frame_type:
-            value = self._read_from_queue()
-            if self._validate_frame_type(value, frame_type):
-                return value
-
-            # Put the frame at the end of the queue and call this method again
-            self._read_queue.put(value)
-            return self._wait_on_frame(frame_type)
+            while not self.closed:
+                value = self._read_from_queue()
+                if value:
+                    if self._validate_frame_type(value, frame_type):
+                        return value
+                    self._read_queue.put(value)
+            time.sleep(0.01)
         return self._read_from_queue()
-
-    def _read_from_queue(self):
-        while self.opening or self.open or self.closing:
-            try:
-                return self._read_queue.get(True, 0.01)
-            except queue.Empty:
-                pass
-            if not self._exceptions.empty():
-                exception = self._exceptions.get()
-                raise exception
 
     def _write_frame(self, frame):
         self._write_queue.put((self._channel_id, frame))
