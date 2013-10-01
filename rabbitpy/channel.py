@@ -36,19 +36,20 @@ class Channel(base.AMQPChannel):
     STATES = base.AMQPChannel.STATES
     STATES[0x04] = 'Remotely Closed'
 
-    def __init__(self, channel_id, events, exceptions, read_queue, write_queue,
+    def __init__(self, channel_id, events,
+                 exception_queue, read_queue, write_queue,
                  maximum_frame_size):
         """Create a new instance of the Channel class
 
         :param int channel_id: The channel # to use for this instance
         :param events rabbitpy.Events: Event management object
-        :param queue.Queue exceptions: Exception queue
+        :param queue.Queue exception_queue: Exception queue
         :param queue.Queue read_queue: Queue to read pending frames from
         :param queue.Queue write_queue: Queue to write pending AMQP objs to
         :param int maximum_frame_size: The max frame size for msg bodies
 
         """
-        super(Channel, self).__init__(exceptions)
+        super(Channel, self).__init__(exception_queue)
         self._channel_id = channel_id
         self._events = events
         self._maximum_frame_size = maximum_frame_size
@@ -65,7 +66,7 @@ class Channel(base.AMQPChannel):
         """
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, unused_exc_tb):
         """When leaving the context, examine why the context is leaving, if it's
          an exception or what.
 
@@ -78,10 +79,12 @@ class Channel(base.AMQPChannel):
 
     def close(self):
         """Close the channel"""
-        self._set_state(self.CLOSING)
-        self._write_frame(self._build_close_frame())
-        self._wait_on_frame(specification.Channel.CloseOk)
-        self._set_state(self.CLOSED)
+        self._check_for_exceptions()
+        if not self.closing or self.closed:
+            self._set_state(self.CLOSING)
+            self._write_frame(Channel._build_close_frame())
+            self._wait_on_frame(specification.Channel.CloseOk)
+            self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def enable_publisher_confirms(self):
@@ -105,6 +108,39 @@ class Channel(base.AMQPChannel):
     @property
     def maximum_frame_size(self):
         return self._maximum_frame_size
+
+    def on_remote_close(self, frame_value):
+        """Invoked by rabbitpy.connection.Connection when a remote channel close
+        is issued.
+
+        :param frame_value: The Channel.Close method frame
+        :type frame_value: pamqp.specification.Channel.Close
+
+        """
+        self._set_state(self.REMOTE_CLOSED)
+        raise exceptions.RemoteClosedChannelException(frame_value.reply_code,
+                                                      frame_value.reply_text)
+
+    def on_basic_return(self, frame_value):
+        """Invoked by rabbit.py.io._run when a Basic.Return is delivered from
+        RabbitMQ.
+
+        :param frame_value: The Basic.Return method frame
+        :type frame_value: pamqp.specification.Basic.Return
+
+        """
+        msg = self._wait_for_content_frames(frame_value)
+        self._process_basic_return(msg)
+
+    def open(self):
+        """Open the channel, invoked directly upon creation by the Connection
+
+        """
+        self._set_state(self.OPENING)
+        self._write_frame(self._build_open_frame())
+        self._wait_on_frame(specification.Channel.OpenOk)
+        self._set_state(self.OPEN)
+        LOGGER.debug('Channel #%i open', self._channel_id)
 
     def prefetch_count(self, value, all_channels=False):
         """Set a prefetch count for the channel (or all channels on the same
@@ -161,22 +197,8 @@ class Channel(base.AMQPChannel):
         if frame_value.synchronous:
             return self._wait_on_frame(frame_value.valid_responses)
 
-    def _create_message(self, method_frame, header_frame, body):
-        """Create a message instance with the channel it was received on and the
-        dictionary of message parts.
-
-        :param pamqp.specification.Frame method_frame: The method frame value
-        :param pamqp.header.ContentHeader header_frame: The header frame value
-        :param str body: The message body
-        :rtype: rabbitpy.message.Message
-
-        """
-        msg = message.Message(self, body, header_frame.properties.to_dict())
-        msg.method = method_frame
-        msg.name = method_frame.name
-        return msg
-
-    def _build_close_frame(self):
+    @staticmethod
+    def _build_close_frame():
         """Build and return a channel close frame
 
         :rtype: pamqp.specification.Channel.Close
@@ -184,7 +206,8 @@ class Channel(base.AMQPChannel):
         """
         return specification.Channel.Close(200, 'Normal Shutdown')
 
-    def _build_open_frame(self):
+    @staticmethod
+    def _build_open_frame():
         """Build and return a channel open frame
 
         :rtype: pamqp.specification.Channel.Open
@@ -205,6 +228,24 @@ class Channel(base.AMQPChannel):
             self._process_basic_return(msg)
         return msg
 
+    def _create_message(self, method_frame, header_frame, body):
+        """Create a message instance with the channel it was received on and the
+        dictionary of message parts.
+
+        :param pamqp.specification.Frame method_frame: The method frame value
+        :param pamqp.header.ContentHeader|None header_frame: Header frame value
+        :param str|None body: The message body
+        :rtype: rabbitpy.message.Message
+
+        """
+        if not header_frame:
+            LOGGER.debug('Malformed header frame: %r', header_frame)
+        props = header_frame.properties.to_dict() if header_frame else dict()
+        msg = message.Message(self, body, props)
+        msg.method = method_frame
+        msg.name = method_frame.name
+        return msg
+
     def _get_message(self):
         """Try and get a delivered message from the connection's message stack.
 
@@ -216,33 +257,6 @@ class Channel(base.AMQPChannel):
         if isinstance(frame_value, specification.Basic.GetEmpty):
             return None
         return self._wait_for_content_frames(frame_value)
-
-    def _wait_for_content_frames(self, method_frame):
-        """Used by both Channel._get_message and Channel._consume_message for
-        getting a message parts off the queue and returning the fully
-        constructed message.
-
-        :param method_frame: The method frame for the message
-        :type method_frame: Basic.Deliver or Basic.Get or Basic.Return
-        :rtype: rabbitpy.Message
-
-        """
-        header_value = self._wait_on_frame('ContentHeader')
-        body_value = bytes() if PYTHON3 else str()
-        while len(body_value) < header_value.body_size:
-            body_part = self._wait_on_frame('ContentBody')
-            body_value += body_part.value
-            if len(body_value) == header_value.body_size:
-                break
-        return self._create_message(method_frame, header_value, body_value)
-
-    def _open(self):
-        """Open the channel"""
-        self._set_state(self.OPENING)
-        self._write_frame(self._build_open_frame())
-        self._wait_on_frame(specification.Channel.OpenOk)
-        self._set_state(self.OPEN)
-        LOGGER.debug('Channel #%i open', self._channel_id)
 
     def _process_basic_return(self, msg):
         """Raise a MessageReturnedException so the publisher can handle returned
@@ -258,15 +272,6 @@ class Channel(base.AMQPChannel):
                                                   msg.method.reply_code,
                                                   msg.method.reply_text)
 
-    def _remote_close(self, frame):
-        """Invoked by rabbitpy.connection.Connection when a remote channel close
-        is issued.
-
-        """
-        self._set_state(self.REMOTE_CLOSED)
-        raise exceptions.RemoteClosedChannelException(frame.reply_code,
-                                                      frame.reply_text)
-
     def _wait_for_confirmation(self):
         """Used by the Message.publish method when publisher confirmations are
         enabled.
@@ -275,3 +280,26 @@ class Channel(base.AMQPChannel):
 
         """
         return self._wait_on_frame(specification.Confirm.SelectOk)
+
+    def _wait_for_content_frames(self, method_frame):
+        """Used by both Channel._get_message and Channel._consume_message for
+        getting a message parts off the queue and returning the fully
+        constructed message.
+
+        :param method_frame: The method frame for the message
+        :type method_frame: Basic.Deliver or Basic.Get or Basic.Return
+        :rtype: rabbitpy.Message
+
+        """
+        header_value = self._wait_on_frame('ContentHeader')
+        if not header_value:
+            return self._create_message(method_frame, None, None)
+        body_value = bytes() if PYTHON3 else str()
+        while len(body_value) < header_value.body_size:
+            body_part = self._wait_on_frame('ContentBody')
+            if not body_part:
+                break
+            body_value += body_part.value
+            if len(body_value) == header_value.body_size:
+                break
+        return self._create_message(method_frame, header_value, body_value)
