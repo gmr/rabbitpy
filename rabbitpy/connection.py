@@ -121,8 +121,6 @@ class Connection(base.StatefulObject):
         if exc_type:
             LOGGER.exception('Connection context manager closed on %s '
                              'exception', exc_type)
-            import traceback
-            traceback.print_exception(exc_type, exc_val, exc_tb)
             self._shutdown()
             raise exc_type(exc_val)
 
@@ -183,7 +181,6 @@ class Connection(base.StatefulObject):
                     LOGGER.debug('Waiting on socket to close')
                     self._events.wait(events.SOCKET_CLOSED, 10)
                     while self._io.is_alive():
-                        print 'IO is still alive'
                         time.sleep(1)
 
             # Set state and clear out remote name
