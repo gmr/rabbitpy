@@ -119,13 +119,12 @@ class Connection(base.StatefulObject):
 
         """
         if exc_type:
-            LOGGER.exception('Connection context manager closed on exception')
+            LOGGER.exception('Connection context manager closed on %s '
+                             'exception', exc_type)
+            import traceback
+            traceback.print_exception(exc_type, exc_val, exc_tb)
             self._shutdown()
             raise exc_type(exc_val)
-
-        if not self._exceptions.empty():
-            exception = self._exceptions.get()
-            raise exception
 
         LOGGER.debug('Closing connection')
         self.close()
@@ -182,9 +181,10 @@ class Connection(base.StatefulObject):
                     LOGGER.debug('Requesting IO socket close')
                     self._events.set(events.SOCKET_CLOSE)
                     LOGGER.debug('Waiting on socket to close')
-                    while (self._io.is_alive and
-                           not self._events.is_set(events.SOCKET_CLOSED)):
-                        time.sleep(0.2)
+                    self._events.wait(events.SOCKET_CLOSED, 10)
+                    while self._io.is_alive():
+                        print 'IO is still alive'
+                        time.sleep(1)
 
             # Set state and clear out remote name
             self._set_state(self.CLOSED)
@@ -237,9 +237,7 @@ class Connection(base.StatefulObject):
         self._io.start()
 
         # Wait for IO to connect to the socket or raise an exception
-        while self.opening:
-            if self._events.wait(events.SOCKET_OPENED, self.QUEUE_WAIT):
-                break
+        while self.opening and not self._events.is_set(events.SOCKET_OPENED):
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
@@ -256,9 +254,7 @@ class Connection(base.StatefulObject):
         self._channel0.start()
 
         # Wait for Channel0 to raise an exception or negotiate the connection
-        while self.opening:
-            if self._events.wait(events.CHANNEL0_OPENED, self.QUEUE_WAIT):
-                break
+        while self.opening and not self._events.is_set(events.CHANNEL0_OPENED):
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
@@ -483,22 +479,27 @@ class Connection(base.StatefulObject):
 
     def _shutdown(self):
 
-        if (self._channel0 and self._channel0.is_alive() and
-                self._events.is_set(events.CHANNEL0_OPENED)):
+        if (self._channel0 and
+                self._channel0.is_alive() and
+                self._events.is_set(events.CHANNEL0_OPENED) and
+                not self._events.is_set(events.CHANNEL0_CLOSED)):
+
             LOGGER.debug('Shutting down connection on unhandled exception')
             self._events.set(events.CHANNEL0_CLOSE)
 
             # Loop while Channel 0 closes
             while (self._channel0.is_alive and
-                   not self._events.is_set(events.CHANNEL0_CLOSED)):
-                time.sleep(0.2)
+                       not self._events.is_set(events.CHANNEL0_CLOSED)):
+                time.sleep(0.01)
 
-        if (self._io and self._io.is_alive() and
-                self._events.is_set(events.SOCKET_OPENED)):
+        if (self._io and
+                self._io.is_alive() and
+                self._events.is_set(events.SOCKET_OPENED) and
+                not self._events.is_set(events.SOCKET_CLOSED)):
             LOGGER.debug('Closing socket due to unhandled exception')
             self._events.set(events.SOCKET_CLOSE)
 
             # Loop while socket closes
             while (self._io.is_alive and
                    not self._events.is_set(events.SOCKET_CLOSED)):
-                time.sleep(0.2)
+                time.sleep(0.01)

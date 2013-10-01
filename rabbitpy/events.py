@@ -41,8 +41,7 @@ class Events(object):
         """Create a new instance of Events"""
         self._events = self._create_event_objects()
 
-    @staticmethod
-    def _create_event_objects():
+    def _create_event_objects(self):
         """Events are used like signals across threads for communicating state
         changes, used by the various threaded objects to communicate with each
         other when an action needs to be taken.
@@ -127,4 +126,6 @@ class Events(object):
         if event_id not in self._events:
             LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
+        LOGGER.debug('Waiting for %i seconds on event: %s',
+                     timeout, description(event_id))
         return self._events[event_id].wait(timeout)

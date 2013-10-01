@@ -73,12 +73,19 @@ class IO(threading.Thread, base.StatefulObject):
                 self._close()
             self._events.set(events.EXCEPTION_RAISED)
 
+        del self._writer
+        del self._socket
+        del self._channels
+        del self._buffer
+        LOGGER.debug('Exiting IO')
+
     def _run(self):
         """Start the thread, which will connect to the socket and run the
         event loop.
 
         """
         self._connect()
+        LOGGER.debug('Socket connected')
 
         # Create the remote name
         address, port = self._socket.getsockname()
@@ -86,7 +93,11 @@ class IO(threading.Thread, base.StatefulObject):
         self._remote_name = '%s:%s -> %s:%s' % (address, port,
                                                 peer_address, peer_port)
 
+        LOGGER.debug('In main loop')
         while self.open and not self._events.is_set(events.SOCKET_CLOSED):
+
+            if self._events.is_set(events.SOCKET_CLOSE):
+                return self._close()
 
             # Read and process data
             value = self._read_frame()
@@ -104,11 +115,11 @@ class IO(threading.Thread, base.StatefulObject):
                 else:
                     self._add_frame_to_queue(value[0], value[1])
 
-            if self._events.is_set(events.SOCKET_CLOSE):
-                return self._close()
-
         # Run the close method if the socket closes unexpectedly
-        self._close()
+        if not self._events.is_set(events.SOCKET_CLOSE):
+            LOGGER.debug('Running IO._close')
+            self._close()
+        LOGGER.debug('Exiting IO._run')
 
     def _add_frame_to_queue(self, channel_id, frame_value):
         """Add the frame to the stack by creating the key value used in
@@ -119,7 +130,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         LOGGER.debug('Adding frame to channel %i: %s',
-                     channel_id, type(frame_value))
+                     channel_id, frame_value.name)
         self._channels[channel_id][1].put(frame_value)
 
     def _close(self):
@@ -129,10 +140,11 @@ class IO(threading.Thread, base.StatefulObject):
         self._events.set(events.SOCKET_CLOSED)
         self._set_state(self.CLOSED)
 
-    def _connect_socket(self):
+    def _connect_socket(self, sock, address):
         """Connect the socket to the specified host and port."""
-        LOGGER.debug('Connecting to %(host)s:%(port)i', self._args)
-        self._socket.connect((self._args['host'], self._args['port']))
+        LOGGER.debug('Connecting to %r', address)
+        sock.settimeout(self.CONNECTION_TIMEOUT)
+        sock.connect(address)
 
     def _connect(self):
         """Connect to the RabbitMQ Server
@@ -141,24 +153,39 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._set_state(self.OPENING)
-        self._socket = self._create_socket()
-        self._connect_socket()
+        sock = None
+        for (af, socktype, proto, canonname, sockaddr) in self._get_addr_info():
+            LOGGER.info('Record: %r', (af, socktype, proto, sockaddr))
+            try:
+                sock = self._create_socket(af, socktype, proto)
+                self._connect_socket(sock, sockaddr)
+                break
+            except socket.error as error:
+                LOGGER.debug('Error connecting to %r: %s', sockaddr, error)
+                sock = None
+                continue
+
+        if not sock:
+            raise exceptions.ConnectionException(self._args['host'],
+                                                 self._args['port'])
+
+        self._socket = sock
+        self._socket.settimeout(0.1)
         self._events.set(events.SOCKET_OPENED)
         self._set_state(self.OPEN)
         self._writer = self._create_writer()
         self._writer.start()
 
-    def _create_socket(self):
+    def _create_socket(self, af, socktype, proto):
         """Create the new socket, optionally with SSL support.
 
         :rtype: socket.socket or ssl.SSLSocket
 
         """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        sock.setblocking(1)
-        sock.settimeout(self.CONNECTION_TIMEOUT)
+        #LOGGER.debug('Connection timeout: %s', self.CONNECTION_TIMEOUT)
+        sock = socket.socket(af, socktype, proto)
         if self._args['ssl']:
+            LOGGER.debug('Wrapping socket for SSL')
             return ssl.wrap_socket(sock,
                                    self._args['ssl_key'],
                                    self._args['ssl_cert'],
@@ -169,6 +196,7 @@ class IO(threading.Thread, base.StatefulObject):
         return sock
 
     def _create_writer(self):
+        """Create the writing thread"""
         return IOWriter(kwargs={'events': self._events,
                                 'exceptions': self._exceptions,
                                 'socket': self._socket,
@@ -178,6 +206,22 @@ class IO(threading.Thread, base.StatefulObject):
     def _disconnect_socket(self):
         """Close the existing socket connection"""
         self._socket.close()
+
+    def _get_addr_info(self):
+        family = socket.AF_UNSPEC
+        if not socket.has_ipv6:
+            family = socket.AF_INET
+        try:
+            res = socket.getaddrinfo(self._args['host'],
+                                     self._args['port'],
+                                     family,
+                                     socket.SOCK_STREAM,
+                                     0)
+        except socket.error as error:
+            LOGGER.exception('Could not resolve %s: %s',
+                             self._args['host'], error)
+            return []
+        return res
 
     @staticmethod
     def _get_frame_from_str(value):
@@ -299,10 +343,14 @@ class IOWriter(threading.Thread):
 
     def can_write(self):
         return (self._events.is_set(events.SOCKET_OPENED) and
-                not self._events.is_set(events.EXCEPTION_RAISED))
+                not self._events.is_set(events.EXCEPTION_RAISED) and
+                not self._events.is_set(events.SOCKET_CLOSE))
 
     def run(self):
         while self.can_write():
+            if self._events.is_set(events.SOCKET_CLOSE):
+                break
+
             if not self._events.is_set(events.CONNECTION_BLOCKED):
                 try:
                     value = self._write_queue.get(True, 0.1)
@@ -312,7 +360,7 @@ class IOWriter(threading.Thread):
             else:
                 warnings.warn('%i frames behind' % self._write_queue.qsize(),
                               exceptions.ConnectionBlockedWarning)
-        LOGGER.debug('Exiting')
+        LOGGER.debug('Exiting IOWriter')
 
     def _socket_error(self, exception):
         """Common functions when a socket error occurs. Make sure to set closed

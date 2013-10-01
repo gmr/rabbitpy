@@ -32,6 +32,8 @@ class Channel(base.AMQPChannel):
     py:meth:`rabbitpy.connection.Connection.channel`
 
     """
+    DEFAULT_CLOSE_CODE = 200
+    DEFAULT_CLOSE_REASON = 'Normal Shutdown'
     REMOTE_CLOSED = 0x04
     STATES = base.AMQPChannel.STATES
     STATES[0x04] = 'Remotely Closed'
@@ -72,20 +74,20 @@ class Channel(base.AMQPChannel):
 
         """
         if exc_type:
-            LOGGER.exception('Channel context manager closed on exception')
+            LOGGER.exception('Channel context manager closed on %s exception',
+                             exc_type)
             raise exc_type(exc_val)
-        LOGGER.info('Closing channel')
-        self.close()
+        if not self.closing and not self.closed:
+            LOGGER.debug('Closing channel')
+            self.close()
 
     def close(self):
         """Close the channel"""
-        self._check_for_exceptions()
+        LOGGER.debug('Channel %i close invoked while %s',
+                     self._channel_id, self.state_description)
         if not self.closing or self.closed:
-            self._set_state(self.CLOSING)
-            self._write_frame(Channel._build_close_frame())
-            self._wait_on_frame(specification.Channel.CloseOk)
-            self._set_state(self.CLOSED)
-        LOGGER.debug('Channel #%i closed', self._channel_id)
+            self._close()
+            LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def enable_publisher_confirms(self):
         """Turn on Publisher Confirms. If confirms are turned on, the
@@ -197,17 +199,7 @@ class Channel(base.AMQPChannel):
         if frame_value.synchronous:
             return self._wait_on_frame(frame_value.valid_responses)
 
-    @staticmethod
-    def _build_close_frame():
-        """Build and return a channel close frame
-
-        :rtype: pamqp.specification.Channel.Close
-
-        """
-        return specification.Channel.Close(200, 'Normal Shutdown')
-
-    @staticmethod
-    def _build_open_frame():
+    def _build_open_frame(self):
         """Build and return a channel open frame
 
         :rtype: pamqp.specification.Channel.Open

@@ -138,6 +138,10 @@ class StatefulObject(object):
 
 class AMQPChannel(StatefulObject):
 
+    CLOSE_REQUEST_FRAME = specification.Channel.Close
+    DEFAULT_CLOSE_CODE = 200
+    DEFAULT_CLOSE_REASON = 'Normal Shutdown'
+
     def __init__(self, exception_queue):
         super(AMQPChannel, self).__init__()
         self._channel_id = None
@@ -149,16 +153,30 @@ class AMQPChannel(StatefulObject):
     def __int__(self):
         return self._channel_id
 
+    def _build_close_frame(self):
+        return self.CLOSE_REQUEST_FRAME(self.DEFAULT_CLOSE_CODE,
+                                        self.DEFAULT_CLOSE_REASON)
+
     def _check_for_exceptions(self):
         if not self._exceptions.empty():
             exception = self._exceptions.get()
             raise exception
 
+    def _close(self):
+        if self.closing or self.closed:
+            return
+        self._set_state(self.CLOSING)
+        frame_value = self._build_close_frame()
+        self._write_frame(frame_value)
+        LOGGER.debug('Waiting for a valid response for %s', frame_value.name)
+        self._wait_on_frame(frame_value.valid_responses)
+        self._set_state(self.CLOSED)
+
     def _read_from_queue(self):
         self._check_for_exceptions()
-        if self.opening or self.open or self.closing:
+        if not self.closed:
             try:
-                return self._read_queue.get(True, 0.01)
+                return self._read_queue.get(True, 3)
             except queue.Empty:
                 pass
 
@@ -172,7 +190,8 @@ class AMQPChannel(StatefulObject):
         :rtype: bool
 
         """
-        if not frame_value:
+        if frame_value is None:
+            LOGGER.debug('No frame value passed in')
             return False
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
@@ -183,8 +202,8 @@ class AMQPChannel(StatefulObject):
                 if result:
                     return True
             return False
-        elif isinstance(frame_value, frame_type):
-            return True
+        elif isinstance(frame_value, specification.Frame):
+            return frame_value.name == frame_type.name
         return False
 
     def _wait_on_frame(self, frame_type=None):
@@ -199,21 +218,14 @@ class AMQPChannel(StatefulObject):
         :rtype: Frame
 
         """
-        if self.closing and frame_type not in [specification.Connection.CloseOk,
-                                               specification.Channel.CloseOk]:
-            LOGGER.info('Refusing to wait on %s while closing',
-                        type(frame_type))
-            return
-        LOGGER.debug('Waiting on %s', frame_type)
-        if frame_type:
-            while not self.closed:
-                value = self._read_from_queue()
-                if value:
-                    if self._validate_frame_type(value, frame_type):
-                        return value
-                    self._read_queue.put(value)
-            time.sleep(0.01)
-        return self._read_from_queue()
+        if not frame_type:
+            return self._read_from_queue()
+
+        while not self.closed:
+            value = self._read_from_queue()
+            if self._validate_frame_type(value, frame_type):
+                return value
+            self._read_queue.put(value)
 
     def _write_frame(self, frame):
         self._write_queue.put((self._channel_id, frame))

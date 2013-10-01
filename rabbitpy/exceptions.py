@@ -19,6 +19,11 @@ class ConnectionBlockedWarning(Warning):
         return 'Will not write to a connection that RabbitMQ is throttling'
 
 
+class ConnectionException(Exception):
+    def __repr__(self):
+        return 'Unable to connect to the remote server %r' % self.args
+
+
 class EmptyExchangeNameError(Exception):
     def __repr__(self):
         return 'You must specify an Exchange name'

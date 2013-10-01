@@ -34,8 +34,8 @@ class Channel0(threading.Thread, base.AMQPChannel):
 
     """
     CHANNEL = 0
-    DEFAULT_CLOSE_CODE = 200
-    DEFAULT_CLOSE_REASON = 'Normal Shutdown'
+
+    CLOSE_REQUEST_FRAME = specification.Connection.Close
     DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, group=None, target=None, name=None,
@@ -56,11 +56,9 @@ class Channel0(threading.Thread, base.AMQPChannel):
         self.properties = None
 
     def close(self):
-        if self.open:
-            self._set_state(self.CLOSING)
-            self._write_frame(self._build_close_frame())
+        if not self.closing and not self.closed:
+            self._close()
             self._events.set(events.CHANNEL0_CLOSED)
-            self._set_state(self.CLOSED)
         else:
             LOGGER.info('Bypassing sending Connection.Close, already closed')
 
@@ -97,16 +95,8 @@ class Channel0(threading.Thread, base.AMQPChannel):
                     pass
 
         # Close out Channel0
-        self.close()
-
-    def _build_close_frame(self):
-        """Build and return the Connection.Close frame.
-
-        :rtype: pamqp.specification.Connection.Close
-
-        """
-        return specification.Connection.Close(self.DEFAULT_CLOSE_CODE,
-                                              self.DEFAULT_CLOSE_REASON)
+        if not self.closing and not self.closed:
+            self.close()
 
     def _build_open_frame(self):
         """Build and return the Connection.Open frame.
