@@ -57,12 +57,14 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         LOGGER.debug('Adding channel')
-        self._channels[int(channel)] = channel, write_queue
+        with threading.Lock():
+            self._channels[int(channel)] = channel, write_queue
 
     def run(self):
         try:
             self._run()
         except Exception as exception:
+            LOGGER.exception('Exception raised: %s', exception)
             self._exceptions.put(exception)
             if self._events.is_set(events.CHANNEL0_OPENED):
                 self._events.set(events.CHANNEL0_CLOSE)
@@ -90,12 +92,17 @@ class IO(threading.Thread, base.StatefulObject):
             value = self._read_frame()
             if value[0] is not None:
 
-                # When RabbitMQ is closing a channel, remotely close it
+                # Close the channel if it's a Channel.Close frame
                 if isinstance(value[1], specification.Channel.Close):
-                    self._channels[value[0]][0]._remote_close(value[1])
+                    self._remote_close_channel(value[0], value[1])
+
+                # Let the channel know a message was returned
+                elif isinstance(value[1], specification.Basic.Return):
+                    self._notify_of_basic_return(value[0], value[1])
+
+                # Add the frame to the channel queue
                 else:
-                    # Add the frame to the channel queue
-                    self._channels[value[0]][1].put(value[1])
+                    self._add_frame_to_queue(value[0], value[1])
 
             if self._events.is_set(events.SOCKET_CLOSE):
                 return self._close()
@@ -113,7 +120,7 @@ class IO(threading.Thread, base.StatefulObject):
         """
         LOGGER.debug('Adding frame to channel %i: %s',
                      channel_id, type(frame_value))
-        self._channels[channel_id].put(frame_value)
+        self._channels[channel_id][1].put(frame_value)
 
     def _close(self):
         self._set_state(self.CLOSING)
@@ -172,7 +179,8 @@ class IO(threading.Thread, base.StatefulObject):
         """Close the existing socket connection"""
         self._socket.close()
 
-    def _get_frame_from_str(self, value):
+    @staticmethod
+    def _get_frame_from_str(value):
         """Get the pamqp frame from the string value.
 
         :param str value: The value to parse for an pamqp frame
@@ -190,6 +198,17 @@ class IO(threading.Thread, base.StatefulObject):
             LOGGER.debug('Failed to demarshal: %r', error)
             return value, None, None
         return value[byte_count:], channel_id, frame_in
+
+    def _notify_of_basic_return(self, channel_id, frame_value):
+        """Invoke the on_basic_return code in the specified channel. This will
+        block the IO loop unless the exception is caught.
+
+        :param int channel_id: The channel for the basic return
+        :param pamqp.specification.Frame frame_value: The Basic.Return frame
+
+        """
+        with threading.Lock():
+            self._channels[channel_id][0].on_basic_return(frame_value)
 
     def _read_frame(self):
         """Read in a full frame and return it, trying to read it from the
@@ -240,6 +259,17 @@ class IO(threading.Thread, base.StatefulObject):
             LOGGER.exception('Socket error in reading')
             self._socket_error(exception)
 
+    def _remote_close_channel(self, channel_id, frame_value):
+        """Invoke the on_channel_close code in the specified channel. This will
+        block the IO loop unless the exception is caught.
+
+        :param int channel_id: The channel to remote close
+        :param pamqp.specification.Frame frame_value: The Channel.Close frame
+
+        """
+        with threading.Lock():
+            self._channels[channel_id][0].on_remote_close(frame_value)
+
     def _socket_error(self, exception):
         """Common functions when a socket error occurs. Make sure to set closed
         and add the exception, and note an exception event.
@@ -248,6 +278,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._set_state(self.CLOSED)
+        LOGGER.exception('Socket error: %s', exception)
         self._exceptions.put(exception)
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
@@ -290,6 +321,7 @@ class IOWriter(threading.Thread):
         :param socket.error exception: The socket error
 
         """
+        LOGGER.exception('Socket error: %s', exception)
         self._exceptions.put(exception)
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
