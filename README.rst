@@ -11,11 +11,9 @@ Version History
 ---------------
 
 - 0.7.0: Bugfixes and code cleanup. Most notable fix around Basic.Return and recursion in Channel._wait_on_frame.
-- 0.6.0: Bugfix with Queue.get(), RPC requests expecting multiple
-         responses and the new Queue.consume_messages() method.
+- 0.6.0: Bugfix with Queue.get(), RPC requests expecting multiple responses and the new Queue.consume_messages() method.
 - 0.5.1: Installer/setup fix
-- 0.5.0: Bugfix release including low level socket sending fix and
-         connection timeouts.
+- 0.5.0: Bugfix release including low level socket sending fix and connection timeouts.
 
 Installation
 ------------
