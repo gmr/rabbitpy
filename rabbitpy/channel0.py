@@ -38,8 +38,10 @@ class Channel0(threading.Thread, base.AMQPChannel):
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
     DEFAULT_LOCALE = 'en-US'
 
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
-        super(Channel0, self).__init__(group, target, name, args, kwargs)
+    def __init__(self, group=None, target=None, name=None,
+                 args=None, kwargs=None):
+        super(Channel0, self).__init__(group, target, name,
+                                       args or (), kwargs or {})
         self._channel_id = 0
         self._args = kwargs['connection_args']
         self._events = kwargs['events']
@@ -51,6 +53,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
         self._state = self.CLOSED
         self.maximum_frame_size = specification.FRAME_MAX_SIZE
         self.minimum_frame_size = specification.FRAME_MIN_SIZE
+        self.properties = None
 
     def close(self):
         if self.open:
@@ -165,14 +168,14 @@ class Channel0(threading.Thread, base.AMQPChannel):
         if not self._validate_connection_start(frame_value):
             LOGGER.error('Could not negotiate a connection, disconnecting')
             return False
-        self._properties = frame_value.server_properties
-        for key in self._properties:
+        self.properties = frame_value.server_properties
+        for key in self.properties:
             if key == 'capabilities':
-                for capability in self._properties[key]:
+                for capability in self.properties[key]:
                     LOGGER.debug('Server supports %s: %r',
-                                 capability, self._properties[key][capability])
+                                 capability, self.properties[key][capability])
             else:
-                LOGGER.debug('Server %s: %r', key, self._properties[key])
+                LOGGER.debug('Server %s: %r', key, self.properties[key])
         self._write_frame(self._build_start_ok_frame())
         return True
 
@@ -239,7 +242,8 @@ class Channel0(threading.Thread, base.AMQPChannel):
         else:
             LOGGER.critical('Unhandled RPC request: %r', value)
 
-    def _validate_connection_start(self, frame_value):
+    @staticmethod
+    def _validate_connection_start(frame_value):
         """Validate the received Connection.Start frame
 
         :param specification.Connection.Start frame_value: The frame to validate
