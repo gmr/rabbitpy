@@ -55,13 +55,6 @@ class Channel0(threading.Thread, base.AMQPChannel):
         self.minimum_frame_size = specification.FRAME_MIN_SIZE
         self.properties = None
 
-    def close(self):
-        if not self.closing and not self.closed:
-            self._close()
-            self._events.set(events.CHANNEL0_CLOSED)
-        else:
-            LOGGER.info('Bypassing sending Connection.Close, already closed')
-
     @property
     def maximum_channels(self):
         return self._maximum_channels
