@@ -118,13 +118,14 @@ class Connection(base.StatefulObject):
          an exception or what.
 
         """
+        LOGGER.debug('In __exit__ (%s, %s)', exc_type, exc_val)
         if exc_type:
-            LOGGER.exception('Connection context manager closed on %s '
-                             'exception', exc_type)
-            self._shutdown()
-            raise exc_type(exc_val)
-
-        LOGGER.debug('Closing connection')
+            LOGGER.error('Connection context manager closed on %s '
+                         'exception', exc_type, exc_info=True)
+            LOGGER.info('Shutting down connection on unhandled exception')
+            self._shutdown_connection()
+            if exc_type != KeyboardInterrupt:
+                raise exc_type(exc_val)
         self.close()
 
     @property
@@ -141,7 +142,6 @@ class Connection(base.StatefulObject):
 
     def channel(self):
         """Create a new channel"""
-        LOGGER.debug('Creating a new channel')
         channel_id = self._get_next_channel_id()
         channel_frames = queue.Queue()
         self._channels[channel_id] = channel.Channel(channel_id,
@@ -163,25 +163,8 @@ class Connection(base.StatefulObject):
             if self._channels:
                 self._close_channels()
 
-            # If the connection is still established, close it
-            if self._events.is_set(events.CHANNEL0_OPENED):
-                self._events.set(events.CHANNEL0_CLOSE)
-
-                # Loop while Channel 0 closes
-                LOGGER.debug('Waiting on channel0 to close')
-                while (self._channel0.is_alive and
-                       not self._events.is_set(events.CHANNEL0_CLOSED)):
-                    time.sleep(0.2)
-                LOGGER.debug('channel0 closed')
-
-                # Close the socket
-                if self._events.is_set(events.SOCKET_OPENED):
-                    LOGGER.debug('Requesting IO socket close')
-                    self._events.set(events.SOCKET_CLOSE)
-                    LOGGER.debug('Waiting on socket to close')
-                    self._events.wait(events.SOCKET_CLOSED, 10)
-                    while self._io.is_alive():
-                        time.sleep(1)
+            # Shutdown the IO thread and socket
+            self._shutdown_connection()
 
             # Set state and clear out remote name
             self._set_state(self.CLOSED)
@@ -251,7 +234,8 @@ class Connection(base.StatefulObject):
         self._channel0.start()
 
         # Wait for Channel0 to raise an exception or negotiate the connection
-        while self.opening and not self._events.is_set(events.CHANNEL0_OPENED):
+        if self.opening:
+            self._events.wait(events.CHANNEL0_OPENED, 3)
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
@@ -474,29 +458,30 @@ class Connection(base.StatefulObject):
                 'ssl_validation': self._get_ssl_validation(query_values),
                 'ssl_version': self._get_ssl_version(query_values)}
 
-    def _shutdown(self):
+    def _shutdown_connection(self):
+        """Tell Channel0 and IO to stop if they are not stopped."""
+        #
+        for chan_id in self._channels:
+            self._channels[chan_id].close()
 
-        if (self._channel0 and
-                self._channel0.is_alive() and
-                self._events.is_set(events.CHANNEL0_OPENED) and
+        # If the connection is still established, close it
+        if (self._events.is_set(events.CHANNEL0_OPENED) and
                 not self._events.is_set(events.CHANNEL0_CLOSED)):
-
-            LOGGER.debug('Shutting down connection on unhandled exception')
             self._events.set(events.CHANNEL0_CLOSE)
 
             # Loop while Channel 0 closes
-            while (self._channel0.is_alive and
-                       not self._events.is_set(events.CHANNEL0_CLOSED)):
-                time.sleep(0.01)
+            LOGGER.debug('Waiting on channel0 to close')
+            while (self._channel0.is_alive() and
+                   not self._events.is_set(events.CHANNEL0_CLOSED)):
+                self._events.wait(events.CHANNEL0_CLOSED, 0.1)
+            LOGGER.debug('channel0 closed')
 
-        if (self._io and
-                self._io.is_alive() and
-                self._events.is_set(events.SOCKET_OPENED) and
+        # Close the socket
+        if (self._events.is_set(events.SOCKET_OPENED) and
                 not self._events.is_set(events.SOCKET_CLOSED)):
-            LOGGER.debug('Closing socket due to unhandled exception')
+            LOGGER.debug('Requesting IO socket close')
             self._events.set(events.SOCKET_CLOSE)
-
-            # Loop while socket closes
-            while (self._io.is_alive and
-                   not self._events.is_set(events.SOCKET_CLOSED)):
-                time.sleep(0.01)
+            LOGGER.debug('Waiting on socket to close')
+            self._events.wait(events.SOCKET_CLOSED, 0.1)
+            while self._io.is_alive():
+                time.sleep(0.25)
