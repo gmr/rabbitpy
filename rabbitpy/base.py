@@ -153,32 +153,61 @@ class AMQPChannel(StatefulObject):
     def __int__(self):
         return self._channel_id
 
+    def close(self):
+        if self.closing or self.closed:
+            LOGGER.debug('Bypassing close for already closed %s',
+                         self.CLOSE_REQUEST_FRAME.name.split('.')[0])
+            return
+        LOGGER.debug('Channel %i close invoked while %s',
+                     self._channel_id, self.state_description)
+        self._set_state(self.CLOSING)
+        frame_value = self._build_close_frame()
+        LOGGER.debug('Waiting for a valid response for %s', frame_value.name)
+        self.rpc(frame_value)
+        self._set_state(self.CLOSED)
+        LOGGER.debug('Channel #%i closed', self._channel_id)
+
+    def rpc(self, frame_value):
+        """Send a RPC command to the remote server.
+
+        :param pamqp.specification.Frame frame_value: The frame to send
+        :rtype: pamqp.specification.Frame or None
+
+        """
+        if self.closed:
+            raise exceptions.ChannelClosedException()
+        self._write_frame(frame_value)
+        if frame_value.synchronous:
+            return self._wait_on_frame(frame_value.valid_responses)
+
     def _build_close_frame(self):
+        """Return the proper close frame for this object.
+
+        :rtype: pamqp.specification.Channel.Close
+
+        """
         return self.CLOSE_REQUEST_FRAME(self.DEFAULT_CLOSE_CODE,
                                         self.DEFAULT_CLOSE_REASON)
 
     def _check_for_exceptions(self):
+        """Check if there are any queued exceptions to raise, raising it if
+        there is.
+
+        """
         if not self._exceptions.empty():
             exception = self._exceptions.get()
             raise exception
 
-    def _close(self):
-        if self.closing or self.closed:
-            return
-        self._set_state(self.CLOSING)
-        frame_value = self._build_close_frame()
-        self._write_frame(frame_value)
-        LOGGER.debug('Waiting for a valid response for %s', frame_value.name)
-        self._wait_on_frame(frame_value.valid_responses)
-        self._set_state(self.CLOSED)
-
     def _read_from_queue(self):
+        """Check to see if a frame is in the queue and if so, return it
+
+        :rtype: amqp.specification.Frame|None
+
+        """
         self._check_for_exceptions()
-        if not self.closed:
-            try:
-                return self._read_queue.get(True, 3)
-            except queue.Empty:
-                pass
+        if not self._read_queue.empty():
+            #LOGGER.debug('Queue size: %s', self._read_queue.qsize())
+            return self._read_queue.get(True)
 
     def _validate_frame_type(self, frame_value, frame_type):
         """Validate the frame value against the frame type. The frame type can
@@ -191,7 +220,7 @@ class AMQPChannel(StatefulObject):
 
         """
         if frame_value is None:
-            LOGGER.debug('No frame value passed in')
+            LOGGER.debug('Frame value is none?')
             return False
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
@@ -214,18 +243,30 @@ class AMQPChannel(StatefulObject):
         call the method.
 
         :param frame_type: The name or list of names of the frame type(s)
-        :type frame_type:  str|list|specification.Frame
+        :type frame_type: str|list|pamqp.specification.Frame
         :rtype: Frame
 
         """
-        if not frame_type:
-            return self._read_from_queue()
-
-        while not self.closed:
+        if isinstance(frame_type, list) and len(frame_type) == 1:
+            frame_type = frame_type[0]
+        start_state = self.state
+        while not self.closed and start_state == self.state:
             value = self._read_from_queue()
-            if self._validate_frame_type(value, frame_type):
-                return value
-            self._read_queue.put(value)
+            if value is not None:
+                #LOGGER.debug('Expecting %s, received %s', frame_type, value)
+                self._read_queue.task_done()
+                if not frame_type:
+                    return value
+                elif self._validate_frame_type(value, frame_type):
+                    return value
+                self._read_queue.put(value)
+            time.sleep(0.1)
 
     def _write_frame(self, frame):
+        """Put the frame in the write queue for the IOWriter object to write to
+        the socket when it can.
+
+        :param pamqp.specification.Frame frame: The frame to write
+
+        """
         self._write_queue.put((self._channel_id, frame))
