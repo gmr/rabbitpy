@@ -7,9 +7,11 @@ try:
     import queue
 except ImportError:
     import Queue as queue
+import select
 import socket
 import ssl
 import threading
+import time
 import warnings
 
 LOGGER = logging.getLogger(__name__)
@@ -17,7 +19,6 @@ LOGGER = logging.getLogger(__name__)
 from pamqp import frame
 from pamqp import exceptions as pamqp_exceptions
 from pamqp import specification
-from pamqp import PYTHON3
 
 from rabbitpy import base
 from rabbitpy import events
@@ -129,8 +130,7 @@ class IO(threading.Thread, base.StatefulObject):
         :param pamqp.specification.Frame frame_value: The frame to add
 
         """
-        LOGGER.debug('Adding frame to channel %i: %s',
-                     channel_id, frame_value.name)
+        #LOGGER.debug('Adding %s to channel %s', frame_value.name, channel_id)
         self._channels[channel_id][1].put(frame_value)
 
     def _close(self):
@@ -155,7 +155,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._set_state(self.OPENING)
         sock = None
         for (af, socktype, proto, canonname, sockaddr) in self._get_addr_info():
-            LOGGER.info('Record: %r', (af, socktype, proto, sockaddr))
+            LOGGER.debug('Record: %r', (af, socktype, proto, sockaddr))
             try:
                 sock = self._create_socket(af, socktype, proto)
                 self._connect_socket(sock, sockaddr)
@@ -170,7 +170,7 @@ class IO(threading.Thread, base.StatefulObject):
                                                  self._args['port'])
 
         self._socket = sock
-        self._socket.settimeout(0.1)
+        self._socket.settimeout(0)
         self._events.set(events.SOCKET_OPENED)
         self._set_state(self.OPEN)
         self._writer = self._create_writer()
@@ -182,7 +182,6 @@ class IO(threading.Thread, base.StatefulObject):
         :rtype: socket.socket or ssl.SSLSocket
 
         """
-        #LOGGER.debug('Connection timeout: %s', self.CONNECTION_TIMEOUT)
         sock = socket.socket(af, socktype, proto)
         if self._args['ssl']:
             LOGGER.debug('Wrapping socket for SSL')
@@ -237,9 +236,11 @@ class IO(threading.Thread, base.StatefulObject):
             return value, None, None
         try:
             byte_count, channel_id, frame_in = frame.unmarshal(value)
-        except (pamqp_exceptions.UnmarshalingException,
-                specification.AMQPFrameError) as error:
-            LOGGER.debug('Failed to demarshal: %r', error)
+        except pamqp_exceptions.UnmarshalingException:
+            return value, None, None
+        except specification.AMQPFrameError as error:
+            LOGGER.error('Failed to demarshal: %r', error, exc_info=True)
+            LOGGER.debug(value)
             return value, None, None
         return value[byte_count:], channel_id, frame_in
 
@@ -294,14 +295,15 @@ class IO(threading.Thread, base.StatefulObject):
         :rtype: str
 
         """
-        try:
-            value = self._socket.recv(self.READ_BUFFER_SIZE)
-            return value
-        except socket.timeout:
-            return bytes() if PYTHON3 else str()
-        except socket.error as exception:
-            LOGGER.exception('Socket error in reading')
-            self._socket_error(exception)
+        ready = select.select([self._socket], [], [], 3)
+        if ready[0]:
+            try:
+                return self._socket.recv(self.READ_BUFFER_SIZE)
+            except socket.timeout:
+                return bytes()
+            except socket.error as exception:
+                self._socket_error(exception)
+        return bytes()
 
     def _remote_close_channel(self, channel_id, frame_value):
         """Invoke the on_channel_close code in the specified channel. This will
@@ -350,13 +352,13 @@ class IOWriter(threading.Thread):
         while self.can_write():
             if self._events.is_set(events.SOCKET_CLOSE):
                 break
-
             if not self._events.is_set(events.CONNECTION_BLOCKED):
-                try:
-                    value = self._write_queue.get(True, 0.1)
+                if not self._write_queue.empty():
+                    value = self._write_queue.get(True)
                     self._write_frame(*value)
-                except queue.Empty:
-                    pass
+                    self._write_queue.task_done()
+                else:
+                    time.sleep(0.01)
             else:
                 warnings.warn('%i frames behind' % self._write_queue.qsize(),
                               exceptions.ConnectionBlockedWarning)
