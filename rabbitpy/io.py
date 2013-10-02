@@ -64,7 +64,7 @@ class IO(threading.Thread, base.StatefulObject):
         try:
             self._run()
         except Exception as exception:
-            LOGGER.exception('Exception raised: %s', exception)
+            LOGGER.error('Unhandled exception: %s', exception, exc_info=True)
             self._exceptions.put(exception)
             if self._events.is_set(events.CHANNEL0_OPENED):
                 self._events.set(events.CHANNEL0_CLOSE)
@@ -218,8 +218,8 @@ class IO(threading.Thread, base.StatefulObject):
                                      socket.SOCK_STREAM,
                                      0)
         except socket.error as error:
-            LOGGER.exception('Could not resolve %s: %s',
-                             self._args['host'], error)
+            LOGGER.error('Could not resolve %s: %s',
+                         self._args['host'], error, exc_info=True)
             return []
         return res
 
@@ -322,7 +322,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._set_state(self.CLOSED)
-        LOGGER.exception('Socket error: %s', exception)
+        LOGGER.error('Socket error: %s', exception, exc_info=True)
         self._exceptions.put(exception)
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
@@ -369,7 +369,7 @@ class IOWriter(threading.Thread):
         :param socket.error exception: The socket error
 
         """
-        LOGGER.exception('Socket error: %s', exception)
+        LOGGER.error('Socket error: %s', exception, exc_info=True)
         self._exceptions.put(exception)
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
@@ -391,7 +391,6 @@ class IOWriter(threading.Thread):
             except socket.timeout:
                 pass
             except socket.error as exception:
-                LOGGER.exception('Socket error in writing')
                 self._socket_error(exception)
                 bytes_sent = 0
         return bytes_sent
