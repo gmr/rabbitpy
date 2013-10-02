@@ -53,6 +53,7 @@ class Channel(base.AMQPChannel):
         """
         super(Channel, self).__init__(exception_queue)
         self._channel_id = channel_id
+        self._consumers = []
         self._events = events
         self._maximum_frame_size = maximum_frame_size
         self._read_queue = read_queue
@@ -74,20 +75,41 @@ class Channel(base.AMQPChannel):
 
         """
         if exc_type:
-            LOGGER.exception('Channel context manager closed on %s exception',
-                             exc_type)
+            LOGGER.error('Channel context manager closed on %s exception',
+                         exc_type, exc_info=True)
             raise exc_type(exc_val)
         if not self.closing and not self.closed:
-            LOGGER.debug('Closing channel')
             self.close()
 
     def close(self):
-        """Close the channel"""
-        LOGGER.debug('Channel %i close invoked while %s',
-                     self._channel_id, self.state_description)
-        if not self.closing or self.closed:
-            self._close()
-            LOGGER.debug('Channel #%i closed', self._channel_id)
+        """Close the channel, cancelling any active consumers, purging the read
+        queue, while looking to see if a Basic.Nack should be sent, sending it
+        if so.
+
+        """
+        self._set_state(self.CLOSING)
+        for queue_obj in self._consumers:
+            self._cancel_consumer(queue_obj)
+
+        # Empty the queue and nack the max id (and all previous)
+        if self._consumers:
+            LOGGER.debug('Purging read queue and nacking messages')
+            delivery_tag = 0
+            discard_counter = 0
+            while not self._read_queue.empty():
+                try:
+                    frame_value = self._read_queue.get(False)
+                    self._read_queue.task_done()
+                except queue.Empty:
+                    break
+                if frame_value.name == 'Basic.Deliver':
+                    if delivery_tag < frame_value.delivery_tag:
+                        delivery_tag = frame_value.delivery_tag
+                discard_counter += 1
+            if delivery_tag:
+                self._multi_nack(delivery_tag)
+            LOGGER.debug('Discarded %i pending frames', discard_counter)
+        super(Channel, self).close()
 
     def enable_publisher_confirms(self):
         """Turn on Publisher Confirms. If confirms are turned on, the
@@ -131,8 +153,7 @@ class Channel(base.AMQPChannel):
         :type frame_value: pamqp.specification.Basic.Return
 
         """
-        msg = self._wait_for_content_frames(frame_value)
-        self._process_basic_return(msg)
+        self._process_basic_return(self._wait_for_content_frames(frame_value))
 
     def open(self):
         """Open the channel, invoked directly upon creation by the Connection
@@ -165,6 +186,8 @@ class Channel(base.AMQPChannel):
                                   same connection
 
         """
+        if value is None:
+            return
         self.rpc(specification.Basic.Qos(prefetch_count=value,
                                          global_=all_channels))
 
@@ -186,20 +209,8 @@ class Channel(base.AMQPChannel):
         """
         self.rpc(specification.Basic.Recover(requeue=requeue))
 
-    def rpc(self, frame_value):
-        """Send a RPC command to the remote server.
-
-        :param pamqp.specification.Frame frame_value: The frame to send
-        :rtype: pamqp.specification.Frame or None
-
-        """
-        if self.closed:
-            raise exceptions.ChannelClosedException()
-        self._write_frame(frame_value)
-        if frame_value.synchronous:
-            return self._wait_on_frame(frame_value.valid_responses)
-
-    def _build_open_frame(self):
+    @staticmethod
+    def _build_open_frame():
         """Build and return a channel open frame
 
         :rtype: pamqp.specification.Channel.Open
@@ -207,18 +218,35 @@ class Channel(base.AMQPChannel):
         """
         return specification.Channel.Open()
 
+    def _cancel_consumer(self, obj):
+        """Cancel the consuming of a queue.
+
+        :param rabbitpy.amqp_queue.Queue obj: The queue to cancel
+
+        """
+        frame_value = specification.Basic.Cancel(consumer_tag=obj.consumer_tag)
+        self._write_frame(frame_value)
+
+    def _consume(self, obj, no_ack):
+        """Register a Queue object as a consumer, issuing Basic.Consume.
+
+        :param rabbitpy.amqp_queue.Queue obj: The queue to consume
+        :param bool no_ack: no_ack mode
+
+        """
+        self.rpc(specification.Basic.Consume(queue=obj.name,
+                                             consumer_tag=obj.consumer_tag,
+                                             no_ack=no_ack))
+        self._consumers.append(obj)
+
     def _consume_message(self):
-        """Try and get a delivered message from the connection's message stack.
+        """Get a message from the stack, blocking while doing so.
 
         :rtype: rabbitpy.message.Message
 
         """
-        frame_value = self._wait_on_frame([specification.Basic.Deliver,
-                                           specification.Basic.Return])
-        msg = self._wait_for_content_frames(frame_value)
-        if isinstance(frame_value, specification.Basic.Return):
-            self._process_basic_return(msg)
-        return msg
+        frame_value = self._wait_on_frame('Basic.Deliver')
+        return self._wait_for_content_frames(frame_value)
 
     def _create_message(self, method_frame, header_frame, body):
         """Create a message instance with the channel it was received on and the
@@ -250,6 +278,17 @@ class Channel(base.AMQPChannel):
             return None
         return self._wait_for_content_frames(frame_value)
 
+    def _multi_nack(self, delivery_tag):
+        """Send a multiple negative acknowledgement, re-queueing the items
+
+        :param int delivery_tag: The delivery tag for this channel
+
+        """
+        LOGGER.debug('Sending Basic.Nack with requeue')
+        self.rpc(specification.Basic.Nack(delivery_tag=delivery_tag,
+                                          multiple=True,
+                                          requeue=True))
+
     def _process_basic_return(self, msg):
         """Raise a MessageReturnedException so the publisher can handle returned
         messages.
@@ -271,7 +310,7 @@ class Channel(base.AMQPChannel):
         :rtype: pamqp.frame.Frame
 
         """
-        return self._wait_on_frame(specification.Confirm.SelectOk)
+        return self._wait_on_frame('Confirm.SelectOk')
 
     def _wait_for_content_frames(self, method_frame):
         """Used by both Channel._get_message and Channel._consume_message for
