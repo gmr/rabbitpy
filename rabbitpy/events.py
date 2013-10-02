@@ -76,8 +76,7 @@ class Events(object):
             LOGGER.debug('Event is not set: %s', description(event_id))
             return False
 
-        with threading.Lock():
-            self._events[event_id].clear()
+        self._events[event_id].clear()
         return True
 
     def is_set(self, event_id):
@@ -109,8 +108,7 @@ class Events(object):
             LOGGER.debug('Event is already set: %s', description(event_id))
             return False
 
-        with threading.Lock():
-            self._events[event_id].set()
+        self._events[event_id].set()
         return True
 
     def wait(self, event_id, timeout=3):
