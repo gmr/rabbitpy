@@ -111,6 +111,7 @@ More complex examples are available at https://rabbitpy.readthedocs.org
 Version History
 ---------------
 
+- 0.9.0: Major performance improvements, CPU usage reduction, minor bug-fixes
 - 0.8.0: Major bugfixes, IPv6 support
 - 0.7.0: Bugfixes and code cleanup. Most notable fix around Basic.Return and recursion in Channel._wait_on_frame.
 - 0.6.0: Bugfix with Queue.get(), RPC requests expecting multiple responses and the new Queue.consume_messages() method.
