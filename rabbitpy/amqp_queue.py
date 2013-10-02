@@ -9,10 +9,9 @@ should not be invoked directly, but rather by the
 
     with conn.channel() as channel:
         queue = rabbitpy.Queue(channel, 'example')
-            with queue.consumer() as consumer:
-                for message in consumer.next_message():
-                    print 'Message: %r' % message
-                    message.ack()
+            for message in queue.consume_messages():
+                print 'Message: %r' % message
+                message.ack()
 
 """
 import contextlib
@@ -72,15 +71,15 @@ class Queue(base.AMQPClass):
         """
         if hasattr(source, 'name'):
             source = source.name
-        response = self._rpc(specification.Queue.Bind(queue=self.name,
-                                                      exchange=source,
-                                                      routing_key=routing_key or
-                                                                  self.name,
-                                                      arguments=arguments))
+        frame = specification.Queue.Bind(queue=self.name,
+                                         exchange=source,
+                                         routing_key=routing_key or self.name,
+                                         arguments=arguments)
+        response = self._rpc(frame)
         return isinstance(response, specification.Queue.BindOk)
 
     @contextlib.contextmanager
-    def consumer(self, no_ack=False, prefetch=None):
+    def consumer(self, no_ack=False, prefetch=100):
         """Consumer message context manager, returns a consumer message
         generator.
 
@@ -89,20 +88,23 @@ class Queue(base.AMQPClass):
         :rtype: :py:class:`Consumer <rabbitpy.queue.Consumer>`
 
         """
-        if prefetch:
-            self.channel.prefetch(prefetch)
-        self._rpc(specification.Basic.Consume(queue=self.name,
-                                              consumer_tag=self.consumer_tag,
-                                              no_ack=no_ack))
+        if prefetch is not None:
+            self.channel.prefetch_count(prefetch)
+        self.channel._consume(self, no_ack)
+        self.consuming = True
         yield Consumer(self)
 
-    def consume_messages(self, no_ack=False, prefetch=None):
-        """Consume messages from the queue as an iterator. This wraps the
-        Consumer by calling its own consumer context manager.
+    def consume_messages(self, no_ack=False, prefetch=100):
+        """Consume messages from the queue as a generator:
+
+        ```
+            for message in queue.consume_messages():
+                message.ack()
+        ```
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
-        :rtype: :py:class:`rabbitpy.message.Message`
+        :rtype: :py:class:`Iterator`
 
         """
         with self.consumer(no_ack, prefetch) as consumer:
@@ -215,14 +217,12 @@ class Consumer(object):
     """
     def __init__(self, queue):
         self.queue = queue
-        self.queue.consuming = True
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Called when exiting the consumer iterator
 
-
         """
-        self.queue._rpc(self._basic_cancel)
+        self.queue.channel.rpc(self._basic_cancel)
         self.queue.consuming = False
 
     @property
@@ -237,6 +237,4 @@ class Consumer(object):
 
         """
         while self.queue.consuming:
-            value = self.queue.channel._consume_message()
-            if value:
-                yield value
+            yield self.queue.channel._consume_message()
