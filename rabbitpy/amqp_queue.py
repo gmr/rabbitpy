@@ -38,7 +38,7 @@ class Queue(base.AMQPClass):
     :param dict arguments: Custom arguments for the queue
 
     """
-    def __init__(self, channel, name, durable=True, exclusive=False,
+    def __init__(self, channel, name='', durable=True, exclusive=False,
                  auto_delete=False, arguments=None):
         super(Queue, self).__init__(channel, name)
         self.consumer_tag = 'rabbitpy.%i.%s' % (self.channel.id, id(self))
