@@ -60,7 +60,6 @@ class Queue(base.AMQPClass):
 
     def bind(self, source, routing_key=None, arguments=None):
         """Bind the queue to the specified exchange or routing key.
-        If routing key is None, use the queue name.
 
         :type source: str or :py:class:`rabbitpy.exchange.Exchange` exchange
         :param source: The exchange to bind to
@@ -73,7 +72,7 @@ class Queue(base.AMQPClass):
             source = source.name
         frame = specification.Queue.Bind(queue=self.name,
                                          exchange=source,
-                                         routing_key=routing_key or self.name,
+                                         routing_key=routing_key,
                                          arguments=arguments)
         response = self._rpc(frame)
         return isinstance(response, specification.Queue.BindOk)
