@@ -196,7 +196,8 @@ class Message(base.AMQPClass):
         if isinstance(exchange, base.AMQPClass):
             exchange = exchange.name
         method_frame = specification.Basic.Publish(exchange=exchange,
-                                                   routing_key=routing_key,
+                                                   routing_key=routing_key or
+                                                               '',
                                                    mandatory=mandatory)
         self.channel._write_frame(method_frame)
         header_frame = header.ContentHeader(body_size=len(self.body),
