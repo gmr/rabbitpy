@@ -9,6 +9,8 @@ except ImportError:
 
 from rabbitpy import utils
 
+from pamqp import PYTHON3
+
 
 class UtilsTestCase(unittest.TestCase):
 
@@ -52,6 +54,7 @@ class UtilsTestCase(unittest.TestCase):
     def test_is_string_bytes(self):
         self.assertTrue(utils.is_string(b'Foo'))
 
+    @unittest.skipIf(PYTHON3, 'Not supported in Python 3')
     def test_is_string_unicode(self):
         self.assertTrue(utils.is_string(u'Foo'))
 
