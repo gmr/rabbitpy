@@ -142,7 +142,8 @@ class Channel(base.AMQPChannel):
 
         """
         self._set_state(self.REMOTE_CLOSED)
-        raise exceptions.RemoteClosedChannelException(frame_value.reply_code,
+        raise exceptions.RemoteClosedChannelException(self._channel_id,
+                                                      frame_value.reply_code,
                                                       frame_value.reply_text)
 
     def on_basic_return(self, frame_value):
