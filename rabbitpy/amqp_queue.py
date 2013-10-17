@@ -72,7 +72,7 @@ class Queue(base.AMQPClass):
             source = source.name
         frame = specification.Queue.Bind(queue=self.name,
                                          exchange=source,
-                                         routing_key=routing_key,
+                                         routing_key=routing_key or '',
                                          arguments=arguments)
         response = self._rpc(frame)
         return isinstance(response, specification.Queue.BindOk)
