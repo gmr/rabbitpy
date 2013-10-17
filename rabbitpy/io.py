@@ -404,6 +404,5 @@ class IOWriter(threading.Thread):
         :return int: bytes written
 
         """
-        if self._ssl:
-            return self._socket.write(frame_data)
-        return self._socket.send(frame_data)
+        if not self._socket.sendall(frame_data):
+            return len(frame_data)
