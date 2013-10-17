@@ -6,10 +6,12 @@ try:
     import unittest2 as unittest
 except ImportError:
     import unittest
-
+import sys
 from rabbitpy import utils
 
-from pamqp import PYTHON3
+# 3 Unicode Compatibility hack
+if sys.version_info[0] == 3:
+    unicode = str
 
 
 class UtilsTestCase(unittest.TestCase):
@@ -54,12 +56,9 @@ class UtilsTestCase(unittest.TestCase):
     def test_is_string_bytes(self):
         self.assertTrue(utils.is_string(b'Foo'))
 
-    @unittest.skipIf(PYTHON3, 'Not supported in Python 3')
+    @unittest.skipIf(sys.version_info[0] == 3, 'No unicode obj in 3')
     def test_is_string_unicode(self):
-        try:
-            self.assertTrue(utils.is_string(u'Foo'))
-        except SyntaxError:
-            pass
+        self.assertTrue(utils.is_string(unicode('Foo')))
 
     def test_is_string_false_int(self):
         self.assertFalse(utils.is_string(123))
