@@ -56,7 +56,10 @@ class UtilsTestCase(unittest.TestCase):
 
     @unittest.skipIf(PYTHON3, 'Not supported in Python 3')
     def test_is_string_unicode(self):
-        self.assertTrue(utils.is_string(u'Foo'))
+        try:
+            self.assertTrue(utils.is_string(u'Foo'))
+        except SyntaxError:
+            pass
 
     def test_is_string_false_int(self):
         self.assertFalse(utils.is_string(123))
