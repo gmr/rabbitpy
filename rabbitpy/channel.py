@@ -310,7 +310,7 @@ class Channel(base.AMQPChannel):
         :rtype: pamqp.frame.Frame
 
         """
-        return self._wait_on_frame('Confirm.SelectOk')
+        return self._wait_on_frame(['Basic.Ack', 'Basic.Nack'])
 
     def _wait_for_content_frames(self, method_frame):
         """Used by both Channel._get_message and Channel._consume_message for
