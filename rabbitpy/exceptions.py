@@ -47,9 +47,8 @@ class RemoteClosedException(Exception):
 
 class MessageReturnedException(Exception):
     def __repr__(self):
-        return 'Message %s was returned by RabbitMQ: (%s) %s' % (self.args[0],
-                                                                 self.args[1],
-                                                                 self.args[2])
+        return 'Message %s was returned by RabbitMQ: (%s) %s' % \
+               (self.args[0], self.args[1], self.args[2])
 
 class NoActiveTransactionError(Exception):
     def __repr__(self):
@@ -59,7 +58,6 @@ class NoActiveTransactionError(Exception):
 class TooManyChannelsError(Exception):
     def __repr__(self):
         return 'The maximum amount of negotiated channels has been reached'
-
 
 
 class UnexpectedResponseError(Exception):
