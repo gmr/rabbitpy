@@ -51,10 +51,8 @@ class IOLoop(object):
         # Materialized lists for select
         self._data.read_only = [[fd, write_trigger], [], [fd], POLL_TIMEOUT]
         self._data.read_write = [[fd, write_trigger], [fd], [fd], POLL_TIMEOUT]
-        LOGGER.debug(self._data.read_write)
 
     def run(self):
-        LOGGER.debug('Starting IOLoop')
         self._data.running = True
         while (self._data.running and
                not self._data.events.is_set(events.SOCKET_CLOSE)):
@@ -66,10 +64,8 @@ class IOLoop(object):
                      len(exception.args) == 2 and
                      exception.args[0] == errno.EINTR)):
                     continue
-        LOGGER.debug('Exiting IOLoop')
 
     def stop(self):
-        LOGGER.debug('Stopping IOLoop')
         self._data.running = False
 
     def _poll(self):
