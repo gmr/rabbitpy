@@ -20,7 +20,7 @@ class UtilsTestCase(unittest.TestCase):
     AMQPS = 'amqps://guest:guest@localhost:5672/%2F?heartbeat_interval=1'
 
     NETLOC = 'guest:guest@localhost:5672'
-    URL = '/%2F'
+    PATH = '/%2F'
     PARAMS = ''
     QUERY = 'heartbeat_interval=1'
     FRAGMENT = ''
@@ -35,7 +35,7 @@ class UtilsTestCase(unittest.TestCase):
         self.assertEqual(utils.urlparse(self.AMQPS).netloc, self.NETLOC)
 
     def test_urlparse_url(self):
-        self.assertEqual(utils.urlparse(self.AMQPS).url, self.URL)
+        self.assertEqual(utils.urlparse(self.AMQPS).path, self.PATH)
 
     def test_urlparse_params(self):
         self.assertEqual(utils.urlparse(self.AMQPS).params, self.PARAMS)
@@ -64,4 +64,4 @@ class UtilsTestCase(unittest.TestCase):
         self.assertFalse(utils.is_string(123))
 
     def test_unqoute(self):
-        self.assertEqual(utils.unquote(self.URL), '//')
+        self.assertEqual(utils.unquote(self.PATH), '//')
