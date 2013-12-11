@@ -24,7 +24,7 @@ from rabbitpy import events
 from rabbitpy import exceptions
 
 MAX_READ = 4096
-MAX_WRITE = 131072
+MAX_WRITE = 32
 POLL_TIMEOUT = 3600.0
 
 
@@ -73,7 +73,6 @@ class IOLoop(object):
         self._data.running = False
 
     def _poll(self):
-        LOGGER.debug('Polling')
         # Poll select with the materialized lists
         if self._data.write_queue.empty() and not self._data.failed_write:
             read, write, err = select.select(*self._data.read_only)
@@ -109,26 +108,28 @@ class IOLoop(object):
         if self._data.failed_write:
             data = self._data.failed_write
             self._data.failed_write = None
-        else:
+            return self._write_frame(data[0], data[1])
+
+        frames = 0
+        while frames < MAX_WRITE:
             try:
                 data = self._data.write_queue.get(False)
             except queue.Empty:
-                return
-        frame_data = frame.marshal(data[1], data[0])
-        LOGGER.debug('Writing frame: %r', data[1])
-        while data:
-            try:
-                sent = self._data.fd.send(frame_data[:MAX_WRITE])
-                if not sent:
-                    self._data.failed_write = data
-                    return
-                data = data[sent:]
-            except socket.timeout:
-                pass
-            except socket.error as exception:
-                self._data.running = False
-                self._data.error_callback(exception)
+                break
+            self._write_frame(data[0], data[1])
+            frames += 1
+            if self._data.write_queue.empty():
+                break
 
+    def _write_frame(self, channel, value):
+        frame_data = frame.marshal(value, channel)
+        try:
+            self._data.fd.sendall(frame_data)
+        except socket.timeout:
+            self._data.failed_write = channel, value
+        except socket.error as exception:
+            self._data.running = False
+            self._data.error_callback(exception)
 
 class IO(threading.Thread, base.StatefulObject):
 
