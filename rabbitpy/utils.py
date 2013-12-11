@@ -4,7 +4,6 @@ a single API point for rabbitpy to use.
 
 """
 import collections
-import types
 try:
     from urllib import parse as _urlparse
 except ImportError:
@@ -12,7 +11,8 @@ except ImportError:
 from pamqp import PYTHON3
 
 Parsed = collections.namedtuple('Parsed',
-                                'scheme,netloc,url,params,query,fragment')
+                                'scheme,netloc,path,params,query,fragment,'
+                                'username,password,hostname,port')
 
 
 def parse_qs(query_string):
@@ -21,9 +21,11 @@ def parse_qs(query_string):
 
 def urlparse(url):
     value = 'http%s' % url[4:] if url[:4] == 'amqp' else url
-    parsed = list(_urlparse.urlparse(value))
-    parsed[0] = parsed[0].replace('http', 'amqp')
-    return Parsed(*parsed)
+    parsed = _urlparse.urlparse(value)
+    return Parsed(parsed.scheme.replace('http', 'amqp'), parsed.netloc,
+                  parsed.path, parsed.params, parsed.query, parsed.fragment,
+                  parsed.username, parsed.password, parsed.hostname,
+                  parsed.port)
 
 
 def unquote(value):
