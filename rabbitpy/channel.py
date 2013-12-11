@@ -40,7 +40,7 @@ class Channel(base.AMQPChannel):
 
     def __init__(self, channel_id, events,
                  exception_queue, read_queue, write_queue,
-                 maximum_frame_size):
+                 maximum_frame_size, write_trigger):
         """Create a new instance of the Channel class
 
         :param int channel_id: The channel # to use for this instance
@@ -49,9 +49,10 @@ class Channel(base.AMQPChannel):
         :param queue.Queue read_queue: Queue to read pending frames from
         :param queue.Queue write_queue: Queue to write pending AMQP objs to
         :param int maximum_frame_size: The max frame size for msg bodies
+        :param socket write_trigger: Write to this socket to break IO waiting
 
         """
-        super(Channel, self).__init__(exception_queue)
+        super(Channel, self).__init__(exception_queue, write_trigger)
         self._channel_id = channel_id
         self._consumers = []
         self._events = events
@@ -74,9 +75,9 @@ class Channel(base.AMQPChannel):
          an exception or what.
 
         """
-        if exc_type:
-            LOGGER.error('Channel context manager closed on %s exception',
-                         exc_type, exc_info=True)
+        if exc_val:
+            LOGGER.error('Channel context manager closed on %r exception',
+                         exc_val, exc_info=True)
             raise exc_type(exc_val)
         if not self.closing and not self.closed:
             self.close()
@@ -87,13 +88,18 @@ class Channel(base.AMQPChannel):
         if so.
 
         """
+        if self.closed:
+            LOGGER.debug('Channel %i close invoked when already closed',
+                         self._channel_id)
+            return
         self._set_state(self.CLOSING)
         for queue_obj in self._consumers:
             self._cancel_consumer(queue_obj)
 
         # Empty the queue and nack the max id (and all previous)
         if self._consumers:
-            LOGGER.debug('Purging read queue and nacking messages')
+            LOGGER.debug('Channel %i purging read queue and nacking messages',
+                         self._channel_id)
             delivery_tag = 0
             discard_counter = 0
             while not self._read_queue.empty():
@@ -145,6 +151,16 @@ class Channel(base.AMQPChannel):
         raise exceptions.RemoteClosedChannelException(self._channel_id,
                                                       frame_value.reply_code,
                                                       frame_value.reply_text)
+
+    def on_basic_cancel(self, frame_value):
+        """Invoked by rabbit.py.io._run when a Basic.Return is delivered from
+        RabbitMQ.
+
+        :param frame_value: The Basic.Return method frame
+        :type frame_value: pamqp.specification.Basic.Return
+
+        """
+        self._process_basic_return(self._wait_for_content_frames(frame_value))
 
     def on_basic_return(self, frame_value):
         """Invoked by rabbit.py.io._run when a Basic.Return is delivered from
@@ -298,6 +314,9 @@ class Channel(base.AMQPChannel):
         :raises: rabbitpy.exceptions.MessageReturnedException
 
         """
+        # Could happen when closing
+        if not msg:
+            return
         LOGGER.warning('Basic.Return received on channel %i', self._channel_id)
         message_id = msg.properties.get('message_id', 'Unknown')
         raise exceptions.MessageReturnedException(message_id,
@@ -334,4 +353,7 @@ class Channel(base.AMQPChannel):
             body_value += body_part.value
             if len(body_value) == header_value.body_size:
                 break
+            if self.closing or self.closed:
+                LOGGER.debug('Exiting from waiting for content frames')
+                return None
         return self._create_message(method_frame, header_value, body_value)

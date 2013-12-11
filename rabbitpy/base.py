@@ -142,27 +142,31 @@ class AMQPChannel(StatefulObject):
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
 
-    def __init__(self, exception_queue):
+    def __init__(self, exception_queue, write_trigger):
         super(AMQPChannel, self).__init__()
         self._channel_id = None
         self._exceptions = exception_queue
         self._state = self.CLOSED
         self._read_queue = None
         self._write_queue = None
+        self._write_trigger = write_trigger
 
     def __int__(self):
         return self._channel_id
 
     def close(self):
-        if self.closing or self.closed:
-            LOGGER.debug('Bypassing close for already closed %s',
+        if self.closed:
+            LOGGER.debug('Channel %i bypassing close for already closed %s',
+                         self._channel_id,
                          self.CLOSE_REQUEST_FRAME.name.split('.')[0])
             return
         LOGGER.debug('Channel %i close invoked while %s',
                      self._channel_id, self.state_description)
-        self._set_state(self.CLOSING)
+        if not self.closing:
+            self._set_state(self.CLOSING)
         frame_value = self._build_close_frame()
-        LOGGER.debug('Waiting for a valid response for %s', frame_value.name)
+        LOGGER.debug('Channel %i Waiting for a valid response for %s',
+                     self._channel_id, frame_value.name)
         self.rpc(frame_value)
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
@@ -270,3 +274,4 @@ class AMQPChannel(StatefulObject):
 
         """
         self._write_queue.put((self._channel_id, frame))
+        self._write_trigger.send('0')

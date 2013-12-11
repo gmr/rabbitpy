@@ -48,6 +48,7 @@ class Channel0(threading.Thread, base.AMQPChannel):
         self._exceptions = kwargs['exceptions']
         self._read_queue = kwargs['inbound']
         self._write_queue = kwargs['outbound']
+        self._write_trigger = kwargs['write_trigger']
         self._heartbeat = self._args['heartbeat']
         self._maximum_channels = 0
         self._state = self.CLOSED

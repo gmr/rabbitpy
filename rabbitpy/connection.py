@@ -149,7 +149,8 @@ class Connection(base.StatefulObject):
                                                      self._exceptions,
                                                      channel_frames,
                                                      self._write_queue,
-                                                     self._maximum_frame_size)
+                                                     self._maximum_frame_size,
+                                                     self._io.write_trigger)
         self._add_channel_to_io(channel_frames, self._channels[channel_id])
         self._channels[channel_id].open()
         return self._channels[channel_id]
@@ -201,7 +202,8 @@ class Connection(base.StatefulObject):
     def _close_channels(self):
         """Close all the channels that are currently open."""
         for channel_id in self._channels:
-            if self._channels[channel_id].open:
+            if (self._channels[channel_id].open and
+                not self._channels[channel_id].closing):
                 self._channels[channel_id].close()
 
     def _connect(self):
@@ -260,7 +262,9 @@ class Connection(base.StatefulObject):
                                           'events': self._events,
                                           'exceptions': self._exceptions,
                                           'inbound': channel0_read_queue,
-                                          'outbound': self._write_queue}))
+                                          'outbound': self._write_queue,
+                                          'write_trigger':
+                                              self._io.write_trigger}))
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
@@ -481,6 +485,10 @@ class Connection(base.StatefulObject):
                 not self._events.is_set(events.SOCKET_CLOSED)):
             LOGGER.debug('Requesting IO socket close')
             self._events.set(events.SOCKET_CLOSE)
+
+            # Break out of select waiting
+            self._io.write_trigger.send('0')
+
             LOGGER.debug('Waiting on socket to close')
             self._events.wait(events.SOCKET_CLOSED, 0.1)
             while self._io.is_alive():
