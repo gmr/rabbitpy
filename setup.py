@@ -1,8 +1,6 @@
 import setuptools
 import sys
 
-from rabbitpy import __version__
-
 tests_require = ['nose', 'mock']
 if sys.version_info < (2, 7, 0):
     tests_require.append('unittest2')
@@ -11,7 +9,7 @@ desc = ('A pure python, thread-safe, minimalistic and pythonic RabbitMQ '
         'client library')
 
 setuptools.setup(name='rabbitpy',
-                 version=__version__,
+                 version='0.10.0',
                  description=desc,
                  long_description=open('README.rst').read(),
                  author='Gavin M. Roy',
