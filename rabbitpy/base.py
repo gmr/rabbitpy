@@ -10,6 +10,7 @@ except ImportError:
 from pamqp import specification
 import time
 
+from rabbitpy import DEBUG
 from rabbitpy import exceptions
 
 LOGGER = logging.getLogger(__name__)
@@ -77,8 +78,9 @@ class StatefulObject(object):
         """
         if value not in list(self.STATES.keys()):
             raise ValueError('Invalid state value: %r' % value)
-        LOGGER.debug('%s setting state to %r', self.__class__.__name__,
-                     self.STATES[value])
+        if DEBUG:
+            LOGGER.debug('%s setting state to %r', self.__class__.__name__,
+                         self.STATES[value])
         self._state = value
 
     @property
@@ -156,20 +158,24 @@ class AMQPChannel(StatefulObject):
 
     def close(self):
         if self.closed:
-            LOGGER.debug('Channel %i bypassing close for already closed %s',
-                         self._channel_id,
-                         self.CLOSE_REQUEST_FRAME.name.split('.')[0])
+            if DEBUG:
+                LOGGER.debug('Channel %i bypassing close for already closed %s',
+                             self._channel_id,
+                             self.CLOSE_REQUEST_FRAME.name.split('.')[0])
             return
-        LOGGER.debug('Channel %i close invoked while %s',
-                     self._channel_id, self.state_description)
+        if DEBUG:
+            LOGGER.debug('Channel %i close invoked while %s',
+                         self._channel_id, self.state_description)
         if not self.closing:
             self._set_state(self.CLOSING)
         frame_value = self._build_close_frame()
-        LOGGER.debug('Channel %i Waiting for a valid response for %s',
-                     self._channel_id, frame_value.name)
+        if DEBUG:
+            LOGGER.debug('Channel %i Waiting for a valid response for %s',
+                         self._channel_id, frame_value.name)
         self.rpc(frame_value)
         self._set_state(self.CLOSED)
-        LOGGER.debug('Channel #%i closed', self._channel_id)
+        if DEBUG:
+            LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def rpc(self, frame_value):
         """Send a RPC command to the remote server.
@@ -210,7 +216,8 @@ class AMQPChannel(StatefulObject):
         """
         self._check_for_exceptions()
         if not self._read_queue.empty():
-            #LOGGER.debug('Queue size: %s', self._read_queue.qsize())
+            if DEBUG:
+                LOGGER.debug('Queue size: %s', self._read_queue.qsize())
             return self._read_queue.get(True)
 
     def _validate_frame_type(self, frame_value, frame_type):
@@ -224,7 +231,8 @@ class AMQPChannel(StatefulObject):
 
         """
         if frame_value is None:
-            LOGGER.debug('Frame value is none?')
+            if DEBUG:
+                LOGGER.debug('Frame value is none?')
             return False
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
@@ -251,13 +259,21 @@ class AMQPChannel(StatefulObject):
         :rtype: Frame
 
         """
+        if DEBUG:
+            LOGGER.debug('Waiting on %r', frame_type)
         if isinstance(frame_type, list) and len(frame_type) == 1:
             frame_type = frame_type[0]
         start_state = self.state
         while not self.closed and start_state == self.state:
+            if DEBUG:
+                LOGGER.debug('Closed: %r, start: %r, state: %r',
+                             self.closed, start_state, self.state)
             value = self._read_from_queue()
+            if DEBUG:
+                LOGGER.debug('Read %r from queue', value)
             if value is not None:
-                #LOGGER.debug('Expecting %s, received %s', frame_type, value)
+                if DEBUG:
+                    LOGGER.debug('Expecting %s, received %s', frame_type, value)
                 self._read_queue.task_done()
                 if not frame_type:
                     return value

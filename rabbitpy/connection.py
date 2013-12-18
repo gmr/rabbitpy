@@ -13,6 +13,7 @@ except ImportError:
     ssl = None
 import time
 
+from rabbitpy import DEBUG
 from rabbitpy import base
 from rabbitpy import io
 from rabbitpy import channel
@@ -118,7 +119,8 @@ class Connection(base.StatefulObject):
          an exception or what.
 
         """
-        LOGGER.debug('In __exit__ (%s, %s)', exc_type, exc_val)
+        if DEBUG:
+            LOGGER.debug('In __exit__ (%s, %s)', exc_type, exc_val)
         if exc_type:
             LOGGER.error('Connection context manager closed on %s '
                          'exception', exc_type, exc_info=True)
@@ -187,7 +189,8 @@ class Connection(base.StatefulObject):
         :param rabbitpy.base.AMQPChannel: The channel to add
 
         """
-        LOGGER.debug('Adding channel %s to io', int(channel_id))
+        if DEBUG:
+            LOGGER.debug('Adding channel %s to io', int(channel_id))
         self._io.add_channel(channel_id, channel_queue)
 
     @property
@@ -474,22 +477,26 @@ class Connection(base.StatefulObject):
             self._events.set(events.CHANNEL0_CLOSE)
 
             # Loop while Channel 0 closes
-            LOGGER.debug('Waiting on channel0 to close')
+            if DEBUG:
+                LOGGER.debug('Waiting on channel0 to close')
             while (self._channel0.is_alive() and
                    not self._events.is_set(events.CHANNEL0_CLOSED)):
                 self._events.wait(events.CHANNEL0_CLOSED, 0.1)
-            LOGGER.debug('channel0 closed')
+            if DEBUG:
+                LOGGER.debug('channel0 closed')
 
         # Close the socket
         if (self._events.is_set(events.SOCKET_OPENED) and
                 not self._events.is_set(events.SOCKET_CLOSED)):
-            LOGGER.debug('Requesting IO socket close')
+            if DEBUG:
+                LOGGER.debug('Requesting IO socket close')
             self._events.set(events.SOCKET_CLOSE)
 
             # Break out of select waiting
             self._io.write_trigger.send('0')
 
-            LOGGER.debug('Waiting on socket to close')
+            if DEBUG:
+                LOGGER.debug('Waiting on socket to close')
             self._events.wait(events.SOCKET_CLOSED, 0.1)
             while self._io.is_alive():
                 time.sleep(0.25)

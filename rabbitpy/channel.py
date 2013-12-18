@@ -17,6 +17,7 @@ except ImportError:
 from pamqp import specification
 from pamqp import PYTHON3
 
+from rabbitpy import DEBUG
 from rabbitpy import base
 from rabbitpy import exceptions
 from rabbitpy import message
@@ -89,8 +90,9 @@ class Channel(base.AMQPChannel):
 
         """
         if self.closed:
-            LOGGER.debug('Channel %i close invoked when already closed',
-                         self._channel_id)
+            if DEBUG:
+                LOGGER.debug('Channel %i close invoked when already closed',
+                             self._channel_id)
             return
         self._set_state(self.CLOSING)
         for queue_obj in self._consumers:
@@ -98,8 +100,9 @@ class Channel(base.AMQPChannel):
 
         # Empty the queue and nack the max id (and all previous)
         if self._consumers:
-            LOGGER.debug('Channel %i purging read queue and nacking messages',
-                         self._channel_id)
+            if DEBUG:
+                LOGGER.debug('Channel %i purging read queue & nacking messages',
+                             self._channel_id)
             delivery_tag = 0
             discard_counter = 0
             while not self._read_queue.empty():
@@ -114,7 +117,8 @@ class Channel(base.AMQPChannel):
                 discard_counter += 1
             if delivery_tag:
                 self._multi_nack(delivery_tag)
-            LOGGER.debug('Discarded %i pending frames', discard_counter)
+            if DEBUG:
+                LOGGER.debug('Discarded %i pending frames', discard_counter)
         super(Channel, self).close()
 
     def enable_publisher_confirms(self):
@@ -180,7 +184,8 @@ class Channel(base.AMQPChannel):
         self._write_frame(self._build_open_frame())
         self._wait_on_frame(specification.Channel.OpenOk)
         self._set_state(self.OPEN)
-        LOGGER.debug('Channel #%i open', self._channel_id)
+        if DEBUG:
+            LOGGER.debug('Channel #%i open', self._channel_id)
 
     def prefetch_count(self, value, all_channels=False):
         """Set a prefetch count for the channel (or all channels on the same
@@ -275,7 +280,7 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.message.Message
 
         """
-        if not header_frame:
+        if DEBUG and not header_frame:
             LOGGER.debug('Malformed header frame: %r', header_frame)
         props = header_frame.properties.to_dict() if header_frame else dict()
         msg = message.Message(self, body, props)
@@ -289,10 +294,16 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.message.Message or None
 
         """
+        if DEBUG:
+            LOGGER.debug('Waiting on GetOk or GetEmpty')
         frame_value = self._wait_on_frame([specification.Basic.GetOk,
                                            specification.Basic.GetEmpty])
+        if DEBUG:
+            LOGGER.debug('Returned with %r', frame_value)
         if isinstance(frame_value, specification.Basic.GetEmpty):
             return None
+        if DEBUG:
+            LOGGER.debug('Waiting on content frames for %r', frame_value)
         return self._wait_for_content_frames(frame_value)
 
     def _multi_nack(self, delivery_tag):
@@ -301,7 +312,8 @@ class Channel(base.AMQPChannel):
         :param int delivery_tag: The delivery tag for this channel
 
         """
-        LOGGER.debug('Sending Basic.Nack with requeue')
+        if DEBUG:
+            LOGGER.debug('Sending Basic.Nack with requeue')
         self.rpc(specification.Basic.Nack(delivery_tag=delivery_tag,
                                           multiple=True,
                                           requeue=True))
@@ -342,10 +354,16 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.Message
 
         """
+        if DEBUG:
+            LOGGER.debug('Waiting on ContentHeader')
         header_value = self._wait_on_frame('ContentHeader')
         if not header_value:
+            if DEBUG:
+                LOGGER.debug('No header value')
             return self._create_message(method_frame, None, None)
         body_value = bytes() if PYTHON3 else str()
+        if DEBUG:
+            LOGGER.debug('Waiting for %i body bytes', header_value.body_size)
         while len(body_value) < header_value.body_size:
             body_part = self._wait_on_frame('ContentBody')
             if not body_part:
@@ -354,6 +372,7 @@ class Channel(base.AMQPChannel):
             if len(body_value) == header_value.body_size:
                 break
             if self.closing or self.closed:
-                LOGGER.debug('Exiting from waiting for content frames')
+                if DEBUG:
+                    LOGGER.debug('Exiting from waiting for content frames')
                 return None
         return self._create_message(method_frame, header_value, body_value)

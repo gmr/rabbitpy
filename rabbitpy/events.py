@@ -5,6 +5,8 @@ Common rabbitpy events
 import logging
 import threading
 
+from rabbitpy import DEBUG
+
 LOGGER = logging.getLogger(__name__)
 
 CHANNEL0_CLOSE = 0x01
@@ -69,11 +71,13 @@ class Events(object):
 
         """
         if event_id not in self._events:
-            LOGGER.debug('Event does not exist: %s', description(event_id))
+            if DEBUG:
+                LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
 
         if not self.is_set(event_id):
-            LOGGER.debug('Event is not set: %s', description(event_id))
+            if DEBUG:
+                LOGGER.debug('Event is not set: %s', description(event_id))
             return False
 
         self._events[event_id].clear()
@@ -88,7 +92,8 @@ class Events(object):
 
         """
         if event_id not in self._events:
-            LOGGER.debug('Event does not exist: %s', description(event_id))
+            if DEBUG:
+                LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
         return self._events[event_id].is_set()
 
@@ -101,11 +106,13 @@ class Events(object):
 
         """
         if event_id not in self._events:
-            LOGGER.debug('Event does not exist: %s', description(event_id))
+            if DEBUG:
+                LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
 
         if self.is_set(event_id):
-            LOGGER.debug('Event is already set: %s', description(event_id))
+            if DEBUG:
+                LOGGER.debug('Event is already set: %s', description(event_id))
             return False
 
         self._events[event_id].set()
@@ -122,8 +129,10 @@ class Events(object):
 
         """
         if event_id not in self._events:
-            LOGGER.debug('Event does not exist: %s', description(event_id))
+            if DEBUG:
+                LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
-        LOGGER.debug('Waiting for %i seconds on event: %s',
-                     timeout, description(event_id))
+        if DEBUG:
+            LOGGER.debug('Waiting for %i seconds on event: %s',
+                         timeout, description(event_id))
         return self._events[event_id].wait(timeout)
