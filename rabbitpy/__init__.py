@@ -1,4 +1,5 @@
 __version__ = '0.10.0'
+version = __version__
 
 from rabbitpy.connection import Connection
 from rabbitpy.exchange import Exchange
@@ -27,3 +28,5 @@ except ImportError:
             pass
 
 logging.getLogger('rabbitpy').addHandler(NullHandler())
+
+DEBUG = False
