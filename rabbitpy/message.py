@@ -16,6 +16,7 @@ from pamqp import body
 from pamqp import header
 from pamqp import specification
 
+from rabbitpy import DEBUG
 from rabbitpy import base
 from rabbitpy import exceptions
 
@@ -130,7 +131,31 @@ class Message(base.AMQPClass):
         invalid_keys = [key for key in self.properties
                         if key not in specification.Basic.Properties.attributes]
         self._prune_invalid_properties(invalid_keys)
+        self._coerce_properties()
         return specification.Basic.Properties(**self.properties)
+
+    def _coerce_properties(self):
+        """Force properties to be set to the correct data type"""
+        for key in self.properties:
+            _type = getattr(specification.Basic.Properties, key)
+            if DEBUG:
+                LOGGER.debug('Type: %s, %s', _type, type(self.properties[key]))
+            if _type == 'shortstr' and not isinstance(self.properties[key],
+                                                      basestring):
+                LOGGER.warning('Coercing property %s to bytes', key)
+                self.properties[key] = bytes(self.properties[key])
+            elif _type == 'octet' and not isinstance(self.properties[key], int):
+                LOGGER.warning('Coercing property %s to int', key)
+                self.properties[key] = int(self.properties[key])
+            elif _type == 'table' and not isinstance(self.properties[key],
+                                                     dict):
+                LOGGER.warning('Resetting invalid value for %s to None', key)
+                self.properties[key] = {}
+            elif _type == 'timestamp' and isinstance(self.properties[key],
+                                                     int):
+                LOGGER.warning('Coercing property %s to datetime', key)
+                self.properties[key] = \
+                    datetime.datetime.fromtimestamp(self.properties[key])
 
     def _prune_invalid_properties(self, invalid_keys):
         """Remove invalid properties from the message properties.
