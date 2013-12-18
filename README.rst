@@ -111,6 +111,7 @@ More complex examples are available at https://rabbitpy.readthedocs.org
 Version History
 ---------------
 
+- 0.11.0: Major bugfix focused on receiving multiple AMQP frames at the same time. Add auto-coersion of property data-types.
 - 0.10.0: Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes
 - 0.9.0: Major performance improvements, CPU usage reduction, minor bug-fixes
 - 0.8.0: Major bugfixes, IPv6 support

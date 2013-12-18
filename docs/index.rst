@@ -9,7 +9,7 @@ rabbitpy is a pure python, thread-safe, minimalistic and pythonic BSD Licensed A
 
 Installation
 ------------
-rabbitpy is available from the `Python Package Index <https://pypi.python.org>`_ and can be installed by running :command:`easy_install rabbitpy` or :command:`pip install rabbitpy`
+rabbitpy is available from the `Python Package Index <https://preview-pypi.python.org/project/rabbitpy/>`_ and can be installed by running :command:`easy_install rabbitpy` or :command:`pip install rabbitpy`
 
 rabbitpy aims to make it very simple to use RabbitMQ via the AMQP 0-9-1 protocol:
 
@@ -74,8 +74,6 @@ API Documentation
    simple
    api
    api/*
-
-
 
 Inspiration
 -----------
