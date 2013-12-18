@@ -19,6 +19,7 @@ from pamqp import frame
 from pamqp import exceptions as pamqp_exceptions
 from pamqp import specification
 
+from rabbitpy import DEBUG
 from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
@@ -70,6 +71,8 @@ class IOLoop(object):
 
     def _poll(self):
         # Poll select with the materialized lists
+        if DEBUG:
+            LOGGER.debug('Polling')
         if self._data.write_queue.empty() and not self._data.failed_write:
             read, write, err = select.select(*self._data.read_only)
         else:
@@ -86,6 +89,8 @@ class IOLoop(object):
             self._read()
         if write:
             self._write()
+        if DEBUG:
+            LOGGER.debug('End of poll')
 
     def _read(self):
         try:
@@ -187,7 +192,8 @@ class IO(threading.Thread, base.StatefulObject):
         del self._socket
         del self._channels
         del self._buffer
-        LOGGER.debug('Exiting IO')
+        if DEBUG:
+            LOGGER.debug('Exiting IO')
 
     def on_error(self, exception):
         """Common functions when a socket error occurs. Make sure to set closed
@@ -214,10 +220,17 @@ class IO(threading.Thread, base.StatefulObject):
         # Append the data to the buffer
         self._buffer += data
 
-        # Read and process data
-        value = self._read_frame()
-        if value[0] is not None:
-            LOGGER.debug('Received (%i) %r', value[0], value[1])
+        while self._buffer:
+
+            # Read and process data
+            value = self._read_frame()
+
+            # Break out if a frame could not be decoded
+            if self._buffer and value[0] is None:
+                break
+
+            if DEBUG:
+                LOGGER.debug('Received (%i) %r', value[0], value[1])
 
             # Close the channel if it's a Channel.Close frame
             if isinstance(value[1], specification.Channel.Close):
@@ -243,7 +256,9 @@ class IO(threading.Thread, base.StatefulObject):
         :param pamqp.specification.Frame frame_value: The frame to add
 
         """
-        #LOGGER.debug('Adding %s to channel %s', frame_value.name, channel_id)
+        if DEBUG:
+            LOGGER.debug('Adding %s to channel %s',
+                         frame_value.name, channel_id)
         self._channels[channel_id][1].put(frame_value)
 
     def _close(self):
@@ -255,7 +270,8 @@ class IO(threading.Thread, base.StatefulObject):
 
     def _connect_socket(self, sock, address):
         """Connect the socket to the specified host and port."""
-        LOGGER.debug('Connecting to %r', address)
+        if DEBUG:
+            LOGGER.debug('Connecting to %r', address)
         sock.settimeout(self.CONNECTION_TIMEOUT)
         sock.connect(address)
 
@@ -273,7 +289,8 @@ class IO(threading.Thread, base.StatefulObject):
                 self._connect_socket(sock, sockaddr)
                 break
             except socket.error as error:
-                LOGGER.debug('Error connecting to %r: %s', sockaddr, error)
+                if DEBUG:
+                    LOGGER.debug('Error connecting to %r: %s', sockaddr, error)
                 sock = None
                 continue
 
@@ -293,7 +310,8 @@ class IO(threading.Thread, base.StatefulObject):
         """
         sock = socket.socket(af, socktype, proto)
         if self._args['ssl']:
-            LOGGER.debug('Wrapping socket for SSL')
+            if DEBUG:
+                LOGGER.debug('Wrapping socket for SSL')
             return ssl.wrap_socket(sock,
                                    self._args['ssl_key'],
                                    self._args['ssl_cert'],
@@ -341,7 +359,8 @@ class IO(threading.Thread, base.StatefulObject):
             return value, None, None
         except specification.AMQPFrameError as error:
             LOGGER.error('Failed to demarshal: %r', error, exc_info=True)
-            LOGGER.debug(value)
+            if DEBUG:
+                LOGGER.debug(value)
             return value, None, None
         return value[byte_count:], channel_id, frame_in
 
@@ -380,7 +399,8 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._connect()
-        LOGGER.debug('Socket connected')
+        if DEBUG:
+            LOGGER.debug('Socket connected')
 
         # Create the remote name
         address, port = self._socket.getsockname()
