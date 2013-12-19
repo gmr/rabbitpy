@@ -152,8 +152,8 @@ class Channel(base.AMQPChannel):
 
         """
         self._set_state(self.REMOTE_CLOSED)
-        if value.reply_code in exceptions.AMQP_EXCEPTIONS:
-            raise exceptions.AMQP_EXCEPTIONS[value.reply_code](value)
+        if value.reply_code in exceptions.AMQP:
+            raise exceptions.AMQP[value.reply_code](value)
         else:
             raise exceptions.RemoteClosedChannelException(self._channel_id,
                                                           value.reply_code,
