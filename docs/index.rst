@@ -27,7 +27,7 @@ Getting a message is equally simple:
 
 And consuming is nearly as simple:
 
-    >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
+    ```>>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
     ...     message.pprint(properties=True)
     ...
     Properties:
@@ -49,7 +49,7 @@ And consuming is nearly as simple:
 
     Body:
 
-    'This is my test message'
+    'This is my test message'```
 
 Creating queues and exchanges is just as easy:
 
