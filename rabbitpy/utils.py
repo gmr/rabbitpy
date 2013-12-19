@@ -8,6 +8,7 @@ try:
     from urllib import parse as _urlparse
 except ImportError:
     import urlparse as _urlparse
+
 from pamqp import PYTHON3
 
 Parsed = collections.namedtuple('Parsed',
