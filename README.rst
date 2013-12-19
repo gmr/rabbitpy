@@ -89,8 +89,7 @@ Simple Getter
 
 Simple Consumer
 ---------------
-for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
-    message.pprint(properties=True)
+
 ::
 
     >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
