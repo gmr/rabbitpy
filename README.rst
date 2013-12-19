@@ -47,6 +47,7 @@ Simple Publisher
 ----------------
 
 The simple publisher is ideal for sending one off messages:
+
 .. highlight:: python
 
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
@@ -55,6 +56,7 @@ The simple publisher is ideal for sending one off messages:
                          body='This is my test message')
 
 If you want to add properties:
+
 .. highlight:: python
 
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
@@ -64,6 +66,7 @@ If you want to add properties:
                          properties={'content_type': 'text/plain'})
 
 And publisher confirms:
+
 .. highlight:: python
 
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
@@ -77,6 +80,7 @@ And publisher confirms:
 
 Simple Getter
 -------------
+
 .. highlight:: python
 
     >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
