@@ -7,6 +7,7 @@ try:
     import queue
 except ImportError:
     import Queue as queue
+import socket
 from pamqp import specification
 import time
 
@@ -289,5 +290,18 @@ class AMQPChannel(StatefulObject):
         :param pamqp.specification.Frame frame: The frame to write
 
         """
+        if self.closed:
+            if DEBUG:
+                LOGGER.debug('Not writing frame, channel closed')
+                return
+
+        if not self._exceptions.empty():
+            self._set_state(self.CLOSED)
+            exception = self._exceptions.get()
+            raise exception
+
         self._write_queue.put((self._channel_id, frame))
-        self._write_trigger.send('0')
+        try:
+            self._write_trigger.send('0')
+        except socket.error:
+            pass
