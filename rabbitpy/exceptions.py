@@ -2,6 +2,8 @@
 rabbitpy Specific Exceptions
 
 """
+from pamqp import specification
+
 
 class ActionException(Exception):
     def __repr__(self):
@@ -22,6 +24,11 @@ class ConnectionBlockedWarning(Warning):
 class ConnectionException(Exception):
     def __repr__(self):
         return 'Unable to connect to the remote server %r' % self.args
+
+
+class ConnectionResetException(Exception):
+    def __repr__(self):
+        return 'Connection was reset at socket level'
 
 
 class EmptyExchangeNameError(Exception):
@@ -64,3 +71,43 @@ class UnexpectedResponseError(Exception):
     def __repr__(self):
         return 'Received an expected response, expected %s, received %s' % \
                (self.args[0], self.args[1])
+
+# AMQP Exceptions
+
+AMQPContentTooLarge = specification.AMQPContentTooLarge
+AMQPNoRoute = specification.AMQPNoRoute
+AMQPNoConsumers = specification.AMQPNoConsumers
+AMQPConnectionForced = specification.AMQPConnectionForced
+AMQPInvalidPath = specification.AMQPInvalidPath
+AMQPAccessRefused = specification.AMQPAccessRefused
+AMQPNotFound = specification.AMQPNotFound
+AMQPResourceLocked = specification.AMQPResourceLocked
+AMQPPreconditionFailed = specification.AMQPPreconditionFailed
+AMQPFrameError = specification.AMQPFrameError
+AMQPSyntaxError = specification.AMQPSyntaxError
+AMQPCommandInvalid = specification.AMQPCommandInvalid
+AMQPChannelError = specification.AMQPChannelError
+AMQPUnexpectedFrame = specification.AMQPUnexpectedFrame
+AMQPResourceError = specification.AMQPResourceError
+AMQPNotAllowed = specification.AMQPNotAllowed
+AMQPNotImplemented = specification.AMQPNotImplemented
+AMQPInternalError = specification.AMQPInternalError
+
+AMQP = {311: AMQPContentTooLarge,
+        312: AMQPNoRoute,
+        313: AMQPNoConsumers,
+        320: AMQPConnectionForced,
+        402: AMQPInvalidPath,
+        403: AMQPAccessRefused,
+        404: AMQPNotFound,
+        405: AMQPResourceLocked,
+        406: AMQPPreconditionFailed,
+        501: AMQPFrameError,
+        502: AMQPSyntaxError,
+        503: AMQPCommandInvalid,
+        504: AMQPChannelError,
+        505: AMQPUnexpectedFrame,
+        506: AMQPResourceError,
+        530: AMQPNotAllowed,
+        540: AMQPNotImplemented,
+        541: AMQPInternalError}
