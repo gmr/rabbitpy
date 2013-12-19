@@ -3,8 +3,6 @@ Wrapper methods for easy access to common operations, making them both less
 complex and less verbose for one off or simple use cases.
 
 """
-import contextlib
-
 from rabbitpy import connection
 from rabbitpy import exchange
 from rabbitpy import exceptions
@@ -12,15 +10,19 @@ from rabbitpy import amqp_queue
 from rabbitpy import message
 
 
-@contextlib.contextmanager
-def consume(uri=None, queue_name=None):
-    """Create a queue consumer, returning a :py:class:`rabbitpy.queue.Consumer`
-    generator class that you can retrieve messages from using
-    :py:class:`rabbitpy.queue.Consumer.next_message`
+def consume(uri=None, queue_name=None, no_ack=False, prefetch=100):
+    """Consume messages from the queue as a generator:
 
-    Invoke directly as rabbitpy.consumer()
+    ```
+        for message in rabbitpy.consume('amqp://localhost/%2F', 'my_queue'):
+            message.ack()
+    ```
 
-    :rtype: :py:class:`rabbitpy.queue.Consumer`
+    :param str uri: AMQP connection URI
+    :param str queue_name: The name of the queue to consume from
+    :param bool no_ack: Do not require acknowledgements
+    :param int prefetch: Set a prefetch count for the channel
+    :rtype: :py:class:`Iterator`
     :raises: :py:class:`rabbitpy.exceptions.EmptyQueueNameError`
 
     """
@@ -30,8 +32,8 @@ def consume(uri=None, queue_name=None):
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
             q = amqp_queue.Queue(channel, queue_name)
-            with q.consumer() as consumer:
-                yield consumer
+            for msg in q.consume_messages(no_ack, prefetch):
+                yield msg
 
 
 def get(uri=None, queue_name=None):

@@ -5,7 +5,7 @@
 
 rabbitpy: RabbitMQ Simplified
 =============================
-rabbitpy is a pure python, thread-safe, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3. rabbitpy was previously called `rmqid`.
+rabbitpy is a pure python, thread-safe, minimalistic and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6, 2.7 and 3.3. rabbitpy aims to provide a simple and easy to use API for interfacing with RabbitMQ, minimizing the programming overhead often found in other libraries.
 
 Installation
 ------------
@@ -25,16 +25,31 @@ Getting a message is equally simple:
     >>> m.json()
     {u'foo': u'bar'}
 
-And consuming is almost as simple:
+And consuming is nearly as simple:
 
-    >>> with rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
-    ...     for message in c.next_message():
-    ...         print message.properties['message_id']
-    ...         print message.body
-    ...         message.ack()
+    >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
+    ...     message.pprint(properties=True)
     ...
-    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
-    {"foo": "bar"}
+    Properties:
+
+    {'app_id': '',
+     'cluster_id': '',
+     'content_encoding': '',
+     'content_type': '',
+     'correlation_id': '',
+     'delivery_mode': None,
+     'expiration': '',
+     'headers': None,
+     'message_id': 'b191f7f4-4e9d-4420-b18a-2ac8783ab3c5',
+     'message_type': '',
+     'priority': None,
+     'reply_to': '',
+     'timestamp': datetime.datetime(2013, 12, 18, 21, 48, 5),
+     'user_id': ''}
+
+    Body:
+
+    'This is my test message'
 
 Creating queues and exchanges is just as easy:
 

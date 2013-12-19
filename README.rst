@@ -3,7 +3,8 @@ rabbitpy - rabbitmq simplified
 
 A pure python, thread-safe, minimalistic and pythonic BSD Licensed
 AMQP/RabbitMQ library that supports Python 2.6+ and Python 3.2+.
-Previously named ``rmqid``.
+rabbitpy aims to provide a simple and easy to use API for interfacing with
+RabbitMQ, minimizing the programming overhead often found in other libraries.
 
 |PyPI version| |Downloads| |Build Status|
 
@@ -38,12 +39,6 @@ Requirements
 
 -  pamqp - https://github.com/pika/pamqp
 -  requests - http://docs.python-requests.org/
-
-Python3 Caveats
----------------
-
--  Message bodies must use the bytes data type while most other values
-   are strings.
 
 Examples
 ========
@@ -94,23 +89,40 @@ Simple Getter
 
 Simple Consumer
 ---------------
-
+for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
+    message.pprint(properties=True)
 ::
 
-    >>> with rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'test') as c:
-    ..    for message in c.next_message():
-    ...         print message.properties['message_id']
-    ...         print message.body
-    ...         message.ack()
+    >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
+    ...     message.pprint(properties=True)
     ...
-    856dfdc7-5ee3-4fc1-9635-977bf0043a9f
-    {"foo": "bar"}
+    Properties:
+
+    {'app_id': '',
+     'cluster_id': '',
+     'content_encoding': '',
+     'content_type': '',
+     'correlation_id': '',
+     'delivery_mode': None,
+     'expiration': '',
+     'headers': None,
+     'message_id': 'b191f7f4-4e9d-4420-b18a-2ac8783ab3c5',
+     'message_type': '',
+     'priority': None,
+     'reply_to': '',
+     'timestamp': datetime.datetime(2013, 12, 18, 21, 48, 5),
+     'user_id': ''}
+
+    Body:
+
+    'This is my test message'
 
 More complex examples are available at https://rabbitpy.readthedocs.org
 
 Version History
 ---------------
 
+- 0.12.0: Updated simple consumer to potential one-liner, added rabbitpy.Message.pprint()
 - 0.11.0: Major bugfix focused on receiving multiple AMQP frames at the same time. Add auto-coersion of property data-types.
 - 0.10.0: Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes
 - 0.9.0: Major performance improvements, CPU usage reduction, minor bug-fixes
@@ -119,8 +131,6 @@ Version History
 - 0.6.0: Bugfix with Queue.get(), RPC requests expecting multiple responses and the new Queue.consume_messages() method.
 - 0.5.1: Installer/setup fix
 - 0.5.0: Bugfix release including low level socket sending fix and connection timeouts.
-
-
 
 .. |PyPI version| image:: https://badge.fury.io/py/rabbitpy.png
    :target: http://badge.fury.io/py/rabbitpy

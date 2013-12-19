@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import time
+import pprint
 import uuid
 
 from pamqp import body
@@ -206,6 +207,18 @@ class Message(base.AMQPClass):
                                               requeue=requeue,
                                               multiple=all_previous)
         self.channel._write_frame(basic_nack)
+
+    def pprint(self, properties=False):
+        """Print a formatted representation of the message.
+
+        :param bool properties: Include properties in the representation
+
+        """
+        if properties:
+            print('Properties:\n')
+            pprint.pprint(self.properties)
+            print('\nBody:\n')
+        pprint.pprint(self.body)
 
     def publish(self, exchange, routing_key='', mandatory=False):
         """Publish the message to the exchange with the specified routing
