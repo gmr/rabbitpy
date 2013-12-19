@@ -143,18 +143,21 @@ class Channel(base.AMQPChannel):
     def maximum_frame_size(self):
         return self._maximum_frame_size
 
-    def on_remote_close(self, frame_value):
+    def on_remote_close(self, value):
         """Invoked by rabbitpy.connection.Connection when a remote channel close
         is issued.
 
-        :param frame_value: The Channel.Close method frame
-        :type frame_value: pamqp.specification.Channel.Close
+        :param value: The Channel.Close method frame
+        :type value: pamqp.specification.Channel.Close
 
         """
         self._set_state(self.REMOTE_CLOSED)
-        raise exceptions.RemoteClosedChannelException(self._channel_id,
-                                                      frame_value.reply_code,
-                                                      frame_value.reply_text)
+        if value.reply_code in exceptions.AMQP_EXCEPTIONS:
+            raise exceptions.AMQP_EXCEPTIONS[value.reply_code](value)
+        else:
+            raise exceptions.RemoteClosedChannelException(self._channel_id,
+                                                          value.reply_code,
+                                                          value.reply_text)
 
     def on_basic_cancel(self, frame_value):
         """Invoked by rabbit.py.io._run when a Basic.Return is delivered from

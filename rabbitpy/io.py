@@ -55,10 +55,12 @@ class IOLoop(object):
 
     def run(self):
         self._data.running = True
-        while (self._data.running and
-               not self._data.events.is_set(events.SOCKET_CLOSE)):
+        while self._data.running:
             try:
                 self._poll()
+            except (KeyboardInterrupt, SystemExit) as exception:
+                LOGGER.warning('Exiting IOLoop.run due to %s', exception)
+                break
             except EnvironmentError as exception:
                 if (getattr(exception, 'errno', None) == errno.EINTR or
                     (isinstance(getattr(exception, 'args', None), tuple) and
@@ -66,13 +68,28 @@ class IOLoop(object):
                      exception.args[0] == errno.EINTR)):
                     continue
 
+            if self._data.events.is_set(events.SOCKET_CLOSE):
+                if DEBUG:
+                    LOGGER.debug('Exiting due to closed socket')
+                break
+        if DEBUG:
+            LOGGER.debug('Exiting IOLoop.run')
+
     def stop(self):
+        LOGGER.info('Stopping IOLoop')
         self._data.running = False
+        try:
+            self._data.write_trigger.close()
+        except socket.error:
+            pass
 
     def _poll(self):
         # Poll select with the materialized lists
-        if DEBUG:
-            LOGGER.debug('Polling')
+        #if DEBUG:
+        #    LOGGER.debug('Polling')
+        if not self._data.running:
+            LOGGER.info('Exiting poll')
+
         if self._data.write_queue.empty() and not self._data.failed_write:
             read, write, err = select.select(*self._data.read_only)
         else:
@@ -81,6 +98,7 @@ class IOLoop(object):
             self._data.running = False
             self._data.error_callback(None)
             return
+
         # Clear out the trigger socket
         if self._data.write_trigger in read:
             self._data.write_trigger.recv(1024)
@@ -89,10 +107,14 @@ class IOLoop(object):
             self._read()
         if write:
             self._write()
-        if DEBUG:
-            LOGGER.debug('End of poll')
+        #if DEBUG:
+        #    LOGGER.debug('End of poll')
 
     def _read(self):
+        if not self._data.running:
+            if DEBUG:
+                LOGGER.debug('Skipping read, not running')
+            return
         try:
             if self._data.ssl:
                 self._data.read_callback(self._data.fd.read(MAX_READ))
@@ -123,6 +145,10 @@ class IOLoop(object):
                 break
 
     def _write_frame(self, channel, value):
+        if not self._data.running:
+            if DEBUG:
+                LOGGER.debug('Skipping write frame, not running')
+            return
         frame_data = frame.marshal(value, channel)
         try:
             self._data.fd.sendall(frame_data)
@@ -152,6 +178,8 @@ class IO(threading.Thread, base.StatefulObject):
         # A socket to trigger write interrupts with
         (self._write_listener,
          self._write_trigger) = socket.socketpair()
+        self._write_listener.setblocking(0)
+        self._write_trigger.setblocking(0)
 
         self._buffer = bytes()
         self._channels = dict()
@@ -192,8 +220,7 @@ class IO(threading.Thread, base.StatefulObject):
         del self._socket
         del self._channels
         del self._buffer
-        if DEBUG:
-            LOGGER.debug('Exiting IO')
+        LOGGER.info('Exiting IO.run')
 
     def on_error(self, exception):
         """Common functions when a socket error occurs. Make sure to set closed
@@ -203,18 +230,23 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         LOGGER.error('Socket error: %s', exception, exc_info=True)
+        args = [self._args['host'], self._args['port'], exception[1]]
+        if self._channels[0][0].open:
+            self._exceptions.put(exceptions.ConnectionResetException(*args))
+        else:
+            self._exceptions.put(exceptions.ConnectionException(*args))
         self._set_state(self.CLOSED)
-        self._exceptions.put(exception)
+        self._loop.stop()
+        try:
+            self._write_trigger.send('0')
+        except socket.error:
+            pass
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
         self._events.set(events.EXCEPTION_RAISED)
-        if self._events.is_set(events.CHANNEL0_OPENED):
-            self._events.set(events.CHANNEL0_CLOSE)
-            self._events.wait(events.CHANNEL0_CLOSED)
         if self.open:
             self._close()
-        self._events.set(events.EXCEPTION_RAISED)
-        raise exception
+        self._channels[0][0]._set_state(self._channels[0][0].CLOSED)
 
     def on_read(self, data):
         # Append the data to the buffer
@@ -231,6 +263,11 @@ class IO(threading.Thread, base.StatefulObject):
 
             if DEBUG:
                 LOGGER.debug('Received (%i) %r', value[0], value[1])
+
+            # If it's channel 0, call the Channel0 directly
+            if value[0] == 0:
+                self._channels[0][0].on_frame(value[1])
+                continue
 
             # Close the channel if it's a Channel.Close frame
             if isinstance(value[1], specification.Channel.Close):
@@ -295,8 +332,11 @@ class IO(threading.Thread, base.StatefulObject):
                 continue
 
         if not sock:
-            raise exceptions.ConnectionException(self._args['host'],
-                                                 self._args['port'])
+            args = [self._args['host'], self._args['port'], 'Could not connect']
+            self._exceptions.put(exceptions.ConnectionException(*args))
+            self._events.set(events.EXCEPTION_RAISED)
+            return
+
         self._socket = sock
         self._socket.settimeout(0)
         self._events.set(events.SOCKET_OPENED)
@@ -408,6 +448,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._remote_name = '%s:%s -> %s:%s' % (address, port,
                                                 peer_address, peer_port)
         self._loop = IOLoop(self._socket, self.on_error, self.on_read,
-                            self._write_queue, self._events,
+                            self._write_queue,
+                            self._events,
                             self._write_listener)
         self._loop.run()

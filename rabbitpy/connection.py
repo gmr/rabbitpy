@@ -7,6 +7,7 @@ try:
     import queue
 except ImportError:
     import Queue as queue
+import socket
 try:
     import ssl
 except ImportError:
@@ -121,9 +122,11 @@ class Connection(base.StatefulObject):
         """
         if DEBUG:
             LOGGER.debug('In __exit__ (%s, %s)', exc_type, exc_val)
+
         if exc_type:
-            LOGGER.error('Connection context manager closed on %s '
-                         'exception', exc_type, exc_info=True)
+            if DEBUG:
+                LOGGER.debug('Connection context manager closed on %s '
+                             'exception', exc_type, exc_info=True)
             LOGGER.info('Shutting down connection on unhandled exception')
             self._shutdown_connection()
             if exc_type != KeyboardInterrupt:
@@ -153,7 +156,7 @@ class Connection(base.StatefulObject):
                                                      self._write_queue,
                                                      self._maximum_frame_size,
                                                      self._io.write_trigger)
-        self._add_channel_to_io(channel_frames, self._channels[channel_id])
+        self._add_channel_to_io(self._channels[channel_id], channel_frames)
         self._channels[channel_id].open()
         return self._channels[channel_id]
 
@@ -182,7 +185,7 @@ class Connection(base.StatefulObject):
         """
         return self._channel0.properties
 
-    def _add_channel_to_io(self, channel_queue, channel_id):
+    def _add_channel_to_io(self, channel_id, channel_queue):
         """Add a channel and queue to the IO object.
 
         :param Queue.Queue channel_queue: Channel inbound msg queue
@@ -210,11 +213,7 @@ class Connection(base.StatefulObject):
                 self._channels[channel_id].close()
 
     def _connect(self):
-        """Connect to the RabbitMQ Server
-
-        :raises: ConnectionException
-
-        """
+        """Connect to the RabbitMQ Server"""
         self._set_state(self.OPENING)
 
         # Create and start the IO object that reads, writes & dispatches frames
@@ -232,21 +231,16 @@ class Connection(base.StatefulObject):
             return self.close()
 
         # Create the Channel0 queue and add it to the IO thread
-        channel0_read_queue, self._channel0 = self._create_channel0()
-        self._add_channel_to_io(channel0_read_queue, self._channel0)
-
-        # Start the Channel0 thread, starting the connection process
+        self._channel0 = self._create_channel0()
+        self._add_channel_to_io(self._channel0, None)
         self._channel0.start()
 
         # Wait for Channel0 to raise an exception or negotiate the connection
-        if self.opening:
-            self._events.wait(events.CHANNEL0_OPENED, 3)
+        while not self._channel0.open:
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
-
-        if self.closed:
-            return self.close()
+            time.sleep(0.1)
 
         # Set the maximum frame size for channel use
         self._maximum_frame_size = self._channel0.maximum_frame_size
@@ -254,20 +248,14 @@ class Connection(base.StatefulObject):
     def _create_channel0(self):
         """Each connection should have a distinct channel0
 
-        :rtype: tuple(queue.Queue, rabbitpy.channel0.Channel0)
+        :rtype: rabbitpy.channel0.Channel0
 
         """
-        channel0_read_queue = queue.Queue()
-        return (channel0_read_queue,
-                channel0.Channel0(name='%s-channel0' % self._name,
-                                  kwargs={'channel_id': 0,
-                                          'connection_args': self._args,
-                                          'events': self._events,
-                                          'exceptions': self._exceptions,
-                                          'inbound': channel0_read_queue,
-                                          'outbound': self._write_queue,
-                                          'write_trigger':
-                                              self._io.write_trigger}))
+        return channel0.Channel0(connection_args=self._args,
+                                 events_obj=self._events,
+                                 exception_queue=self._exceptions,
+                                 write_queue=self._write_queue,
+                                 write_trigger=self._io.write_trigger)
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
@@ -468,32 +456,39 @@ class Connection(base.StatefulObject):
     def _shutdown_connection(self):
         """Tell Channel0 and IO to stop if they are not stopped."""
         #
+        if not self._io.is_alive():
+            self._set_state(self.CLOSED)
+            if DEBUG:
+                LOGGER.debug('Cant shutdown connection, IO is no longer alive')
+            return
+
         for chan_id in self._channels:
             self._channels[chan_id].close()
 
         # If the connection is still established, close it
-        if (self._events.is_set(events.CHANNEL0_OPENED) and
-                not self._events.is_set(events.CHANNEL0_CLOSED)):
-            self._events.set(events.CHANNEL0_CLOSE)
+        if self._channel0.open:
+            self._channel0.close()
 
             # Loop while Channel 0 closes
             if DEBUG:
                 LOGGER.debug('Waiting on channel0 to close')
-            while (self._channel0.is_alive() and
-                   not self._events.is_set(events.CHANNEL0_CLOSED)):
-                self._events.wait(events.CHANNEL0_CLOSED, 0.1)
+            while not self._channel0.closed:
+                time.sleep(0.1)
             if DEBUG:
                 LOGGER.debug('channel0 closed')
 
         # Close the socket
         if (self._events.is_set(events.SOCKET_OPENED) and
-                not self._events.is_set(events.SOCKET_CLOSED)):
+            not self._events.is_set(events.SOCKET_CLOSED)):
             if DEBUG:
                 LOGGER.debug('Requesting IO socket close')
             self._events.set(events.SOCKET_CLOSE)
 
             # Break out of select waiting
-            self._io.write_trigger.send('0')
+            try:
+                self._io.write_trigger.send('0')
+            except socket.error:
+                pass
 
             if DEBUG:
                 LOGGER.debug('Waiting on socket to close')
