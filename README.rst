@@ -48,7 +48,7 @@ Simple Publisher
 
 The simple publisher is ideal for sending one off messages:
 
-.. highlight:: python
+.. code:: python
 
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
                          exchange='test',
@@ -57,7 +57,7 @@ The simple publisher is ideal for sending one off messages:
 
 If you want to add properties:
 
-.. highlight:: python
+.. code:: python
 
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
                          exchange='test',
@@ -67,7 +67,7 @@ If you want to add properties:
 
 And publisher confirms:
 
-.. highlight:: python
+.. code:: python
 
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
                          exchange='test',
@@ -81,7 +81,7 @@ And publisher confirms:
 Simple Getter
 -------------
 
-.. highlight:: python
+.. code:: python
 
     >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
     >>> m.json()
@@ -89,7 +89,7 @@ Simple Getter
 
 Simple Consumer
 ---------------
-.. highlight:: python
+.. code:: python
 
     >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
     ...     message.pprint(properties=True)

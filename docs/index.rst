@@ -13,7 +13,7 @@ rabbitpy is available from the `Python Package Index <https://preview-pypi.pytho
 
 rabbitpy aims to make it very simple to use RabbitMQ via the AMQP 0-9-1 protocol:
 
-.. highlight:: python
+.. code:: python
 
     >>> import rabbitpy
     >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
@@ -23,7 +23,7 @@ rabbitpy aims to make it very simple to use RabbitMQ via the AMQP 0-9-1 protocol
 
 Getting a message is equally simple:
 
-.. highlight:: python
+.. code:: python
 
     >>> m = rabbitpy.get('amqp://guest:guest@localhost:5672/%2f', 'test')
     >>> m.json()
@@ -31,7 +31,7 @@ Getting a message is equally simple:
 
 And consuming is nearly as simple:
 
-.. highlight:: python
+.. code:: python
 
     >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
     ...     message.pprint(properties=True)
@@ -59,7 +59,7 @@ And consuming is nearly as simple:
 
 Creating queues and exchanges is just as easy:
 
-.. highlight:: python
+.. code:: python
 
 >>> rabbitpy.create_queue('amqp://guest:guest@localhost:5672/%2f', 'test-queue')
 >>> rabbitpy.create_topic_exchange('amqp://guest:guest@localhost:5672/%2f', 'my-exchange')
