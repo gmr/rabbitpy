@@ -275,14 +275,18 @@ class Channel(base.AMQPChannel):
 
     def _create_message(self, method_frame, header_frame, body):
         """Create a message instance with the channel it was received on and the
-        dictionary of message parts.
+        dictionary of message parts. Will return None if no message can be
+        created.
 
         :param pamqp.specification.Frame method_frame: The method frame value
         :param pamqp.header.ContentHeader|None header_frame: Header frame value
         :param str|None body: The message body
-        :rtype: rabbitpy.message.Message
+        :rtype: rabbitpy.message.Message|None
 
         """
+        if not method_frame:
+            LOGGER.warning('Received empty method_frame, returning None')
+            return None
         if DEBUG and not header_frame:
             LOGGER.debug('Malformed header frame: %r', header_frame)
         props = header_frame.properties.to_dict() if header_frame else dict()
