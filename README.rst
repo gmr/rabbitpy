@@ -94,6 +94,10 @@ Simple Consumer
     >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
     ...     message.pprint(properties=True)
     ...
+    Exchange: amq.topic
+
+    Routing Key: example
+
     Properties:
 
     {'app_id': '',
@@ -119,7 +123,8 @@ More complex examples are available at https://rabbitpy.readthedocs.org
 
 Version History
 ---------------
-
+- 0.12.2: Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
+- 0.12.1: Fix exception with pika.exceptions.AMQP
 - 0.12.0: Updated simple consumer to potential one-liner, added rabbitpy.Message.pprint()
 - 0.11.0: Major bugfix focused on receiving multiple AMQP frames at the same time. Add auto-coersion of property data-types.
 - 0.10.0: Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes

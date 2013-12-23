@@ -215,6 +215,8 @@ class Message(base.AMQPClass):
 
         """
         if properties:
+            print('Exchange: %s\n' % self.method.exchange)
+            print('Routing Key: %s\n' % self.method.routing_key)
             print('Properties:\n')
             pprint.pprint(self.properties)
             print('\nBody:\n')
