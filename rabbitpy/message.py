@@ -214,9 +214,9 @@ class Message(base.AMQPClass):
         :param bool properties: Include properties in the representation
 
         """
+        print('Exchange: %s\n' % self.method.exchange)
+        print('Routing Key: %s\n' % self.method.routing_key)
         if properties:
-            print('Exchange: %s\n' % self.method.exchange)
-            print('Routing Key: %s\n' % self.method.routing_key)
             print('Properties:\n')
             pprint.pprint(self.properties)
             print('\nBody:\n')

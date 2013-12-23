@@ -123,6 +123,7 @@ More complex examples are available at https://rabbitpy.readthedocs.org
 
 Version History
 ---------------
+- 0.12.3: Minor Message.pprint() reformatting
 - 0.12.2: Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
 - 0.12.1: Fix exception with pika.exceptions.AMQP
 - 0.12.0: Updated simple consumer to potential one-liner, added rabbitpy.Message.pprint()
