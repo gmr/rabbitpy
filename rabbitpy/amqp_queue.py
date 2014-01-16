@@ -66,7 +66,9 @@ class Queue(base.AMQPClass):
 
         for var, name in [(dead_letter_exchange, 'dead_letter_exchange'),
                           (dead_letter_routing_key, 'dead_letter_routing_key')]:
-            if var and not isinstance(var, basestring):
+            if var and not (isinstance(var, bytes) or
+                            isinstance(var, str) or
+                            isinstance(var, unicode)):
                 raise ValueError('%s must be a str, bytes or unicode' % name)
 
         if arguments and not isinstance(arguments, dict()):
