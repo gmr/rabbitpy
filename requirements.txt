@@ -1,0 +1,4 @@
+pamqp>=1.2.0
+nose
+mock
+unittest2
