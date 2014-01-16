@@ -7,5 +7,5 @@ python:
     - 3.3
 install:
     - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install --use-mirrors unittest2; fi
-    - "pip install -r requires.txt --use-mirrors"
+    - "pip install -r requirments.txt --use-mirrors"
 script: nosetests
