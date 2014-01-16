@@ -87,7 +87,10 @@ def publish(uri=None, exchange=None, routing_key=None,
                 msg.publish(exchange, routing_key or '')
 
 
-def create_queue(uri=None, queue_name=None, durable=True, auto_delete=False):
+def create_queue(uri=None, queue_name=None, durable=True, auto_delete=False,
+                 max_length=None, message_ttl=None, expires=None,
+                 dead_letter_exchange=None, dead_letter_routing_key=None,
+                 arguments=None):
     """Create a queue with RabbitMQ. This should only be used for one-off
     operations.
 
@@ -96,6 +99,15 @@ def create_queue(uri=None, queue_name=None, durable=True, auto_delete=False):
     :param durable: Indicates if the queue should survive a RabbitMQ is restart
     :type durable: bool
     :param bool auto_delete: Automatically delete when all consumers disconnect
+    :param int max_length: Maximum queue length
+    :param int message_ttl: Time-to-live of a message in milliseconds
+    :param expires: Milliseconds until a queue is removed after becoming idle
+    :type expires: int
+    :param dead_letter_exchange: Dead letter exchange for rejected messages
+    :type dead_letter_exchange: str
+    :param dead_letter_routing_key: Routing key for dead lettered messages
+    :type dead_letter_routing_key: str
+    :param dict arguments: Custom arguments for the queue
     :raises: :py:class:`rabbitpy.exceptions.EmptyQueueNameError`
     :raises: :py:class:`rabbitpy.RemoteClosedException`
 
@@ -105,8 +117,16 @@ def create_queue(uri=None, queue_name=None, durable=True, auto_delete=False):
 
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
-            obj = amqp_queue.Queue(channel, queue_name, durable=durable,
-                                   auto_delete=auto_delete)
+            obj = amqp_queue.Queue(channel, queue_name,
+                                   durable=durable,
+                                   auto_delete=auto_delete,
+                                   max_length=max_length,
+                                   message_ttl=message_ttl,
+                                   expires=expires,
+                                   dead_letter_exchange=dead_letter_exchange,
+                                   dead_letter_routing_key=
+                                   dead_letter_routing_key,
+                                   arguments=arguments)
             obj.declare()
 
 
@@ -149,6 +169,7 @@ def create_direct_exchange(uri=None, exchange_name=None, durable=True):
             obj = exchange.DirectExchange(channel, exchange_name,
                                           durable=durable)
             obj.declare()
+
 
 def create_fanout_exchange(uri=None, exchange_name=None, durable=True):
     """Create a fanout exchange with RabbitMQ. This should only be used for

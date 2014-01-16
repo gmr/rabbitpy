@@ -35,18 +35,57 @@ class Queue(base.AMQPClass):
     :param durable: Indicates if the queue should survive a RabbitMQ is restart
     :type durable: bool
     :param bool auto_delete: Automatically delete when all consumers disconnect
+    :param int max_length: Maximum queue length
+    :param int message_ttl: Time-to-live of a message in milliseconds
+    :param expires: Milliseconds until a queue is removed after becoming idle
+    :type expires: int
+    :param dead_letter_exchange: Dead letter exchange for rejected messages
+    :type dead_letter_exchange: str
+    :param dead_letter_routing_key: Routing key for dead lettered messages
+    :type dead_letter_routing_key: str
     :param dict arguments: Custom arguments for the queue
 
     """
-    def __init__(self, channel, name='', durable=True, exclusive=False,
-                 auto_delete=False, arguments=None):
+    def __init__(self, channel, name='',
+                 durable=True, exclusive=False, auto_delete=False,
+                 max_length=None, message_ttl=None, expires=None,
+                 dead_letter_exchange=None, dead_letter_routing_key=None,
+                 arguments=None):
         super(Queue, self).__init__(channel, name)
+
+        # Validate Arguments
+        for var, name in [(auto_delete, 'auto_delete'), (durable, 'durable'),
+                          (exclusive, 'exclusive')]:
+            if not isinstance(var, bool):
+                raise ValueError('%s must be True or False' % name)
+
+        for var, name in [(max_length, 'max_length'),
+                          (message_ttl, 'message_ttl'), (expires, 'expires')]:
+            if var and not isinstance(var, int):
+                raise ValueError('%s must be an int' % name)
+
+        for var, name in [(dead_letter_exchange, 'dead_letter_exchange'),
+                          (dead_letter_routing_key, 'dead_letter_routing_key')]:
+            if var and not isinstance(var, basestring):
+                raise ValueError('%s must be a str, bytes or unicode' % name)
+
+        if arguments and not isinstance(arguments, dict()):
+            raise ValueError('arguments must be a dict')
+
+        # Defaults
         self.consumer_tag = 'rabbitpy.%i.%s' % (self.channel.id, id(self))
         self.consuming = False
+
+        # Assign Arguments
         self._durable = durable
         self._exclusive = exclusive
         self._auto_delete = auto_delete
         self._arguments = arguments or {}
+        self._max_length = max_length
+        self._message_ttl = message_ttl
+        self._expires = expires
+        self._dlx = dead_letter_exchange
+        self._dlr = dead_letter_routing_key
 
     def __len__(self):
         """Return the pending number of messages in the queue by doing a passive
@@ -198,12 +237,23 @@ class Queue(base.AMQPClass):
         :rtype: pamqp.specification.Queue.Declare
 
         """
+        arguments = dict(self._arguments)
+        if self._expires:
+            arguments['x-expires'] = self._expires
+        if self._message_ttl:
+            arguments['x-message-ttl'] = self._message_ttl
+        if self._max_length:
+            arguments['x-max-length'] = self._max_length
+        if self._dlx:
+            arguments['x-dead-letter-exchange'] = self._dlx
+        if self._dlr:
+            arguments['x-dead-letter-routing-key'] = self._dlr
         return specification.Queue.Declare(queue=self.name,
                                            durable=self._durable,
                                            passive=passive,
                                            exclusive=self._exclusive,
                                            auto_delete=self._auto_delete,
-                                           arguments=self._arguments)
+                                           arguments=arguments)
 
 
 class Consumer(object):
