@@ -9,32 +9,37 @@ except ImportError:
 
 from rabbitpy import base
 from rabbitpy import channel
+from rabbitpy import utils
+
 
 class AMQPClassTests(unittest.TestCase):
 
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+
     def test_channel_valid(self):
-        chan = channel.Channel(1, None, None, None, None, 32768, None)
-        obj = base.AMQPClass(chan, 'Foo')
-        self.assertEqual(obj.channel, chan)
+        obj = base.AMQPClass(self.chan, 'Foo')
+        self.assertEqual(obj.channel, self.chan)
 
     def test_channel_invalid(self):
         self.assertRaises(ValueError, base.AMQPClass, 'Foo', 'Bar')
 
     def test_name_bytes(self):
-        chan = channel.Channel(1, None, None, None, None, 32768, None)
-        obj = base.AMQPClass(chan, bytes('Foo'))
-        self.assertEqual(obj.name, bytes('Foo'))
+        obj = base.AMQPClass(self.chan, bytes('Foo'))
+        self.assertIsInstance(obj.name, bytes)
 
     def test_name_str(self):
-        chan = channel.Channel(1, None, None, None, None, 32768, None)
-        obj = base.AMQPClass(chan, str('Foo'))
-        self.assertEqual(obj.name, str('Foo'))
+        obj = base.AMQPClass(self.chan, str('Foo'))
+        self.assertIsInstance(obj.name, bytes)
 
+    @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_name_unicode(self):
-        chan = channel.Channel(1, None, None, None, None, 32768, None)
-        obj = base.AMQPClass(chan, unicode('Foo'))
-        self.assertEqual(obj.name, unicode('Foo'))
+        obj = base.AMQPClass(self.chan, unicode('Foo'))
+        self.assertIsInstance(obj.name, unicode)
+
+    def test_name_value(self):
+        obj = base.AMQPClass(self.chan, 'Foo')
+        self.assertEqual(obj.name, 'Foo')
 
     def test_name_invalid(self):
-        chan = channel.Channel(1, None, None, None, None, 32768, None)
-        self.assertRaises(ValueError, base.AMQPClass, chan, 1)
+        self.assertRaises(ValueError, base.AMQPClass, self.chan, 1)

@@ -19,6 +19,7 @@ import logging
 from pamqp import specification
 
 from rabbitpy import base
+from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,22 +55,22 @@ class Queue(base.AMQPClass):
         super(Queue, self).__init__(channel, name)
 
         # Validate Arguments
-        for var, name in [(auto_delete, 'auto_delete'), (durable, 'durable'),
+        for var, vname in [(auto_delete, 'auto_delete'), (durable, 'durable'),
                           (exclusive, 'exclusive')]:
             if not isinstance(var, bool):
-                raise ValueError('%s must be True or False' % name)
+                raise ValueError('%s must be True or False' % vname)
 
-        for var, name in [(max_length, 'max_length'),
-                          (message_ttl, 'message_ttl'), (expires, 'expires')]:
+        for var, vname in [(max_length, 'max_length'),
+                           (message_ttl, 'message_ttl'), (expires, 'expires')]:
             if var and not isinstance(var, int):
-                raise ValueError('%s must be an int' % name)
+                raise ValueError('%s must be an int' % vname)
 
-        for var, name in [(dead_letter_exchange, 'dead_letter_exchange'),
-                          (dead_letter_routing_key, 'dead_letter_routing_key')]:
-            if var and not (isinstance(var, bytes) or
-                            isinstance(var, str) or
-                            isinstance(var, unicode)):
-                raise ValueError('%s must be a str, bytes or unicode' % name)
+        for var, vname in [(dead_letter_exchange,
+                            'dead_letter_exchange'),
+                           (dead_letter_routing_key,
+                            'dead_letter_routing_key')]:
+            if var and not utils.is_string(var):
+                raise ValueError('%s must be a str, bytes or unicode' % vname)
 
         if arguments and not isinstance(arguments, dict()):
             raise ValueError('arguments must be a dict')

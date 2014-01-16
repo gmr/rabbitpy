@@ -7,8 +7,9 @@ try:
 except ImportError:
     import unittest
 
-from rabbitpy import channel
 from rabbitpy import amqp_queue
+from rabbitpy import channel
+from rabbitpy import utils
 
 
 class QueueInitializationTests(unittest.TestCase):
@@ -130,19 +131,21 @@ class QueueInitializationTests(unittest.TestCase):
         queue = amqp_queue.Queue(self.chan)
         self.assertIsNone(queue._dlx)
 
+    def test_dlx_value(self):
+        queue = amqp_queue.Queue(self.chan, dead_letter_exchange='dlx-name')
+        self.assertEqual(queue._dlx, 'dlx-name')
+
     def test_dlx_bytes(self):
         queue = amqp_queue.Queue(self.chan, dead_letter_exchange=b'dlx-name')
-        self.assertEqual(queue._dlx, bytes('dlx-name'))
         self.assertIsInstance(queue._dlx, bytes)
 
     def test_dlx_str(self):
         queue = amqp_queue.Queue(self.chan, dead_letter_exchange='dlx-name')
-        self.assertEqual(queue._dlx, 'dlx-name')
-        self.assertIsInstance(queue._dlx, basestring)
+        self.assertIsInstance(queue._dlx, bytes)
 
+    @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_dlx_unicode(self):
         queue = amqp_queue.Queue(self.chan, dead_letter_exchange=u'dlx-name')
-        self.assertEqual(queue._dlx, unicode('dlx-name'))
         self.assertIsInstance(queue._dlx, unicode)
 
     def test_message_dlx_validation(self):
@@ -153,22 +156,26 @@ class QueueInitializationTests(unittest.TestCase):
         queue = amqp_queue.Queue(self.chan)
         self.assertIsNone(queue._dlr)
 
+    def test_dlr_value(self):
+        queue = amqp_queue.Queue(self.chan,
+                                 dead_letter_routing_key='routing-key')
+        self.assertEqual(queue._dlr, 'routing-key')
+
     def test_dlr_bytes(self):
         queue = amqp_queue.Queue(self.chan,
                                  dead_letter_routing_key=b'routing-key')
-        self.assertEqual(queue._dlr, bytes('routing-key'))
         self.assertIsInstance(queue._dlr, bytes)
 
     def test_dlr_str(self):
         queue = amqp_queue.Queue(self.chan,
-                                 dead_letter_routing_key=b'routing-key')
-        self.assertEqual(queue._dlr, 'routing-key')
-        self.assertIsInstance(queue._dlr, basestring)
+                                 dead_letter_routing_key='routing-key')
+        self.assertIsInstance(queue._dlr, bytes)
 
+
+    @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_dlr_unicode(self):
         queue = amqp_queue.Queue(self.chan,
                                  dead_letter_routing_key=u'routing-key')
-        self.assertEqual(queue._dlr, unicode('routing-key'))
         self.assertIsInstance(queue._dlr, unicode)
 
     def test_dlr_validation(self):

@@ -13,6 +13,7 @@ import time
 
 from rabbitpy import DEBUG
 from rabbitpy import exceptions
+from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,9 +33,7 @@ class AMQPClass(object):
         # Use type so there's not a circular dependency
         if channel.__class__.__name__ != 'Channel':
             raise ValueError('channel must be a valid rabbitpy Channel object')
-        if not (isinstance(name, bytes) or
-                isinstance(name, str) or
-                isinstance(name, unicode)):
+        if not utils.is_string(name):
             raise ValueError('name must be str, bytes or unicode')
 
         self.channel = channel
