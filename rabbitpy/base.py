@@ -26,10 +26,17 @@ class AMQPClass(object):
 
         :param rabbitpy.Channel channel: The channel to execute commands on
         :param str name: Set the name
+        :raises: ValueError
 
         """
-        self.name = name
+        # Use type so there's not a circular dependency
+        if channel.__class__.__name__ != 'Channel':
+            raise ValueError('channel must be a valid rabbitpy Channel object')
+        if not isinstance(name, basestring):
+            raise ValueError('name must be str, bytes or unicode')
+
         self.channel = channel
+        self.name = name
 
     def _rpc(self, frame_value):
         """Execute the RPC command for the frame.
