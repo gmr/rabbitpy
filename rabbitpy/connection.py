@@ -434,9 +434,7 @@ class Connection(base.StatefulObject):
         query_values = utils.parse_qs(parsed.query)
 
         # Make sure the heartbeat is an int if it is not None
-        heartbeat = query_values.get('heartbeat_interval', [None])[0]
-        if heartbeat is not None:
-            heartbeat = int(heartbeat)
+        heartbeat = int(query_values.get('heartbeat_interval', [None])[0] or 0)
 
         # Return the configuration dictionary to use when connecting
         return {'host': parsed.hostname,
