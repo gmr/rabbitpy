@@ -123,6 +123,7 @@ More complex examples are available at https://rabbitpy.readthedocs.org
 
 Version History
 ---------------
+- 0.13.0: Validate heartbeat is always an integer, add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
 - 0.12.3: Minor Message.pprint() reformatting
 - 0.12.2: Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
 - 0.12.1: Fix exception with pika.exceptions.AMQP
