@@ -239,6 +239,7 @@ class Connection(base.StatefulObject):
         while not self._channel0.open:
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
+                self._io.stop()
                 raise exception
             time.sleep(0.1)
 

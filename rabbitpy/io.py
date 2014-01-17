@@ -281,6 +281,12 @@ class IO(threading.Thread, base.StatefulObject):
             else:
                 self._add_frame_to_queue(value[0], value[1])
 
+    def stop(self):
+        """Stop the IO Layer due to exception or other problem.
+
+        """
+        self._close()
+
     @property
     def write_trigger(self):
         return self._write_trigger
@@ -300,7 +306,8 @@ class IO(threading.Thread, base.StatefulObject):
 
     def _close(self):
         self._set_state(self.CLOSING)
-        self._socket.close()
+        if hasattr(self, '_socket') and self._socket:
+            self._socket.close()
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
         self._set_state(self.CLOSED)
