@@ -30,7 +30,7 @@ class AMQPClassTests(unittest.TestCase):
 
     def test_name_str(self):
         obj = base.AMQPClass(self.chan, 'Foo')
-        self.assertIsInstance(obj.name, bytes)
+        self.assertIsInstance(obj.name, str)
 
     @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_name_unicode(self):

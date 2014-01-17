@@ -141,7 +141,7 @@ class QueueInitializationTests(unittest.TestCase):
 
     def test_dlx_str(self):
         queue = amqp_queue.Queue(self.chan, dead_letter_exchange='dlx-name')
-        self.assertIsInstance(queue._dlx, bytes)
+        self.assertIsInstance(queue._dlx, str)
 
     @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_dlx_unicode(self):
@@ -170,7 +170,7 @@ class QueueInitializationTests(unittest.TestCase):
     def test_dlr_str(self):
         queue = amqp_queue.Queue(self.chan,
                                  dead_letter_routing_key='routing-key')
-        self.assertIsInstance(queue._dlr, bytes)
+        self.assertIsInstance(queue._dlr, str)
 
 
     @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
