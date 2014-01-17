@@ -10,7 +10,8 @@ from rabbitpy import amqp_queue
 from rabbitpy import message
 
 
-def consume(uri=None, queue_name=None, no_ack=False, prefetch=100):
+def consume(uri=None, queue_name=None, no_ack=False, prefetch=100,
+            priority=None):
     """Consume messages from the queue as a generator:
 
     ```
@@ -22,6 +23,7 @@ def consume(uri=None, queue_name=None, no_ack=False, prefetch=100):
     :param str queue_name: The name of the queue to consume from
     :param bool no_ack: Do not require acknowledgements
     :param int prefetch: Set a prefetch count for the channel
+    :param int priority: Set the consumer priority
     :rtype: :py:class:`Iterator`
     :raises: :py:class:`rabbitpy.exceptions.EmptyQueueNameError`
 
@@ -32,7 +34,7 @@ def consume(uri=None, queue_name=None, no_ack=False, prefetch=100):
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
             q = amqp_queue.Queue(channel, queue_name)
-            for msg in q.consume_messages(no_ack, prefetch):
+            for msg in q.consume_messages(no_ack, prefetch, priority):
                 yield msg
 
 

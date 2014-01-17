@@ -252,16 +252,24 @@ class Channel(base.AMQPChannel):
         frame_value = specification.Basic.Cancel(consumer_tag=obj.consumer_tag)
         self._write_frame(frame_value)
 
-    def _consume(self, obj, no_ack):
+    def _consume(self, obj, no_ack, priority):
         """Register a Queue object as a consumer, issuing Basic.Consume.
 
         :param rabbitpy.amqp_queue.Queue obj: The queue to consume
         :param bool no_ack: no_ack mode
+        :param int priority: Consumer priority
+        :raises: ValueError
 
         """
+        args = dict()
+        if priority is not None:
+            if not isinstance(priority, int):
+                raise ValueError('Consumer priority must be an int')
+            args['x-priority'] = priority
         self.rpc(specification.Basic.Consume(queue=obj.name,
                                              consumer_tag=obj.consumer_tag,
-                                             no_ack=no_ack))
+                                             no_ack=no_ack,
+                                             arguments=args))
         self._consumers.append(obj)
 
     def _consume_message(self):

@@ -120,22 +120,23 @@ class Queue(base.AMQPClass):
         return isinstance(response, specification.Queue.BindOk)
 
     @contextlib.contextmanager
-    def consumer(self, no_ack=False, prefetch=100):
+    def consumer(self, no_ack=False, prefetch=100, priority=None):
         """Consumer message context manager, returns a consumer message
         generator.
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
+        :param int priority: Consumer priority
         :rtype: :py:class:`Consumer <rabbitpy.queue.Consumer>`
 
         """
         if prefetch is not None:
             self.channel.prefetch_count(prefetch)
-        self.channel._consume(self, no_ack)
+        self.channel._consume(self, no_ack, priority)
         self.consuming = True
         yield Consumer(self)
 
-    def consume_messages(self, no_ack=False, prefetch=100):
+    def consume_messages(self, no_ack=False, prefetch=100, priority=None):
         """Consume messages from the queue as a generator:
 
         ```
@@ -145,10 +146,11 @@ class Queue(base.AMQPClass):
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
+        :param int priority: Consumer priority
         :rtype: :py:class:`Iterator`
 
         """
-        with self.consumer(no_ack, prefetch) as consumer:
+        with self.consumer(no_ack, prefetch, priority) as consumer:
             for message in consumer.next_message():
                 yield message
 
