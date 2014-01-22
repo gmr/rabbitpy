@@ -31,6 +31,32 @@ class Tx(base.AMQPClass):
     """
     def __init__(self, channel):
         super(Tx, self).__init__(channel, 'Tx')
+        self._selected = False
+
+    def __enter__(self):
+        """For use as a context manager, return a handle to this object
+        instance.
+
+        :rtype: Connection
+
+        """
+        self.select()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """When leaving the context, examine why the context is leaving, if
+        it's an exception or what.
+
+        """
+        if exc_type:
+            LOGGER.warning('Exiting Transaction on exception: %r', exc_val)
+            if self._selected:
+                self.rollback()
+            raise exc_val
+        else:
+            LOGGER.debug('Committing transaction on exit of context block')
+            if self._selected:
+                self.commit()
 
     def select(self):
         """Select standard transaction mode
@@ -43,7 +69,9 @@ class Tx(base.AMQPClass):
 
         """
         response = self._rpc(spec.Tx.Select())
-        return isinstance(response, spec.Tx.SelectOk)
+        result = isinstance(response, spec.Tx.SelectOk)
+        self._selected = result
+        return result
 
     def commit(self):
         """Commit the current transaction
@@ -61,7 +89,7 @@ class Tx(base.AMQPClass):
         except exceptions.ChannelClosedException as error:
             LOGGER.warning('Error committing transaction: %s', error)
             raise exceptions.NoActiveTransactionError()
-
+        self._selected = False
         return isinstance(response, spec.Tx.CommitOk)
 
     def rollback(self):
@@ -82,4 +110,5 @@ class Tx(base.AMQPClass):
         except exceptions.ChannelClosedException as error:
             LOGGER.warning('Error rolling back transaction: %s', error)
             raise exceptions.NoActiveTransactionError()
+        self._selected = False
         return isinstance(response, spec.Tx.RollbackOk)
