@@ -46,6 +46,7 @@ class AMQPClass(object):
         :rtype: pamqp.specification.Frame | pamqp.message.Message
 
         """
+        LOGGER.debug('Issuing RPC to RabbitMQ: %r', frame_value)
         if self.channel.closed:
             raise exceptions.ChannelClosedException()
         return self.channel.rpc(frame_value)
