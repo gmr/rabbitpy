@@ -136,9 +136,13 @@ class Connection(base.StatefulObject):
     @property
     def blocked(self):
         """Indicates if the connection is blocked from publishing by RabbitMQ.
+
         This flag indicates communication from RabbitMQ that the connection is
         blocked using the Connection.Blocked RPC notification from RabbitMQ
-        slated to be added in 3.2.
+        that was added in RabbitMQ 3.2.
+
+        @TODO If RabbitMQ version < 3.2, use the HTTP management API to query
+        the value
 
         :rtype: bool
 
