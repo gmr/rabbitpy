@@ -1,14 +1,5 @@
 """
-The Channel object is the communications object used by Exchanges, Messages,
-Queues, and Transactions. It is created by invoking the
-:py:meth:`rabbitpy.Connection.channel()
-<rabbitpy.connection.Connection.channel>` method. It can act as a context
-manager, allowing for quick shorthand use:
 
-.. code:: python
-
-    with connection.channel():
-       # Do something
 
 """
 import logging
@@ -29,8 +20,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Channel(base.AMQPChannel):
-    """The Channel class implements the channel communication layer on top of
-    the Connection object, which is responsible for creating new channels.
+    """The Channel object is the communications object used by Exchanges,
+    Messages, Queues, and Transactions. It is created by invoking the
+    :py:meth:`rabbitpy.Connection.channel()
+    <rabbitpy.connection.Connection.channel>` method. It can act as a context
+    manager, allowing for quick shorthand use:
+
+    .. code:: python
+
+        with connection.channel():
+           # Do something
 
     To create a new channel, invoke
     py:meth:`rabbitpy.connection.Connection.channel`
@@ -290,9 +289,11 @@ class Channel(base.AMQPChannel):
         created.
 
         :param pamqp.specification.Frame method_frame: The method frame value
-        :param pamqp.header.ContentHeader|None header_frame: Header frame value
-        :param str|None body: The message body
-        :rtype: rabbitpy.message.Message|None
+        :param header_frame: Header frame value
+        :type header_frame: pamqp.header.ContentHeader or None
+        :param body: The message body
+        :type body: str or None
+        :rtype: rabbitpy.message.Message or None
 
         """
         if not method_frame:

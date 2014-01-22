@@ -244,10 +244,11 @@ class Message(base.AMQPClass):
         """Publish the message to the exchange with the specified routing
         key.
 
-        :param str | rabbitpy.base.AMQPClass exchange: The exchange to bind to
+        :param exchange: The exchange to publish the message to
+        :type exchange: str or :class:`rabbitpy.Exchange`
         :param str routing_key: The routing key to use
         :param bool mandatory: Requires the message is published
-        :return: bool | None
+        :return: bool or None
         :raises: rabbitpy.exceptions.MessageReturnedException
 
         """

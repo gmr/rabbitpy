@@ -347,7 +347,7 @@ class Connection(base.StatefulObject):
         """Turn a class or list of classes into a list of class names.
 
         :param expectations: List of classes or class name or class obj
-        :type expectations: list|str|pamqp.specification.Frame
+        :type expectations: list or str or pamqp.specification.Frame
         :rtype: list
 
         """

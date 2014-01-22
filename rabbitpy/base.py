@@ -43,7 +43,7 @@ class AMQPClass(object):
         """Execute the RPC command for the frame.
 
         :param pamqp.specification.Frame frame_value: The frame to send
-        :rtype: pamqp.specification.Frame | pamqp.message.Message
+        :rtype: pamqp.specification.Frame or pamqp.message.Message
 
         """
         LOGGER.debug('Issuing RPC to RabbitMQ: %r', frame_value)
@@ -221,7 +221,7 @@ class AMQPChannel(StatefulObject):
     def _read_from_queue(self):
         """Check to see if a frame is in the queue and if so, return it
 
-        :rtype: amqp.specification.Frame|None
+        :rtype: amqp.specification.Frame or None
 
         """
         self._check_for_exceptions()
@@ -236,7 +236,7 @@ class AMQPChannel(StatefulObject):
 
         :param pamqp.specification.Frame frame_value: The frame to check
         :param frame_type: The frame(s) to check against
-        :type frame_type: pamqp.specification.Frame|list
+        :type frame_type: pamqp.specification.Frame or list
         :rtype: bool
 
         """
@@ -265,7 +265,7 @@ class AMQPChannel(StatefulObject):
         call the method.
 
         :param frame_type: The name or list of names of the frame type(s)
-        :type frame_type: str|list|pamqp.specification.Frame
+        :type frame_type: str or list or pamqp.specification.Frame
         :rtype: Frame
 
         """

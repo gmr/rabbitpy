@@ -1,9 +1,12 @@
 """
-The rabbitpy.queue module contains two classes :py:class:`Queue` and
+The rabbitpy.amqp_queue module contains two classes :py:class:`Queue` and
 :py:class:`Consumer`. The :py:class:`Queue` class is an object that is used
-create and work with queues on a RabbitMQ server. To consume messages you can
-iterate over the Queue object itself if the defaults for
-the :py:meth:`Queue.__iter__() <Queue.__iter__>` method work for your needs::
+create and work with queues on a RabbitMQ server.
+
+
+To consume messages you can iterate over the Queue object itself if the
+defaults for the :py:meth:`Queue.__iter__() <Queue.__iter__>` method work
+for your needs::
 
     with conn.channel() as channel:
         for message in rabbitpy.Queue(channel, 'example'):
@@ -68,6 +71,10 @@ class Queue(base.AMQPClass):
                  max_length=None, message_ttl=None, expires=None,
                  dead_letter_exchange=None, dead_letter_routing_key=None,
                  arguments=None):
+        """Create a new Queue object instance. Only the
+        :class:`rabbitpy.Channel` object is required.
+
+        """
         super(Queue, self).__init__(channel, name)
 
         # Defaults
