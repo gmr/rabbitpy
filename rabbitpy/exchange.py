@@ -29,21 +29,26 @@ class Exchange(base.AMQPClass):
     :param dict arguments: Optional key/value arguments
 
     """
+    durable = True
+    arguments = dict()
+    auto_delete = False
+    type = 'direct'
+
     def __init__(self, channel, name, exchange_type='direct',
                  durable=True, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(Exchange, self).__init__(channel, name)
-        self._type = exchange_type
-        self._durable = durable
-        self._auto_delete = auto_delete
-        self._arguments = arguments or dict()
+        self.type = exchange_type
+        self.durable = durable
+        self.auto_delete = auto_delete
+        self.arguments = arguments or dict()
 
     def bind(self, source, routing_key=None):
         """Bind to another exchange with the routing key.
 
         :param source: The exchange to bind to
-        :type source: str or :py:class:`Exchange`
+        :type source: str or :py:class:`rabbitpy.Exchange`
         :param str routing_key: The routing key to use
 
         """
@@ -61,11 +66,11 @@ class Exchange(base.AMQPClass):
 
         """
         self._rpc(specification.Exchange.Declare(exchange=self.name,
-                                                 exchange_type=self._type,
-                                                 durable=self._durable,
+                                                 exchange_type=self.type,
+                                                 durable=self.durable,
                                                  passive=passive,
-                                                 auto_delete=self._auto_delete,
-                                                 arguments=self._arguments))
+                                                 auto_delete=self.auto_delete,
+                                                 arguments=self.arguments))
 
     def delete(self, if_unused=False):
         """Delete the exchange from RabbitMQ.
@@ -81,7 +86,7 @@ class Exchange(base.AMQPClass):
         routing key. If routing key is None, use the queue or exchange name.
 
         :param source: The exchange to unbind from
-        :type source: str or :py:class:`Exchange`
+        :type source: str or :py:class:`rabbitpy.Exchange`
         :param str routing_key: The routing key that binds them
 
         """
