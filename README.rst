@@ -41,6 +41,7 @@ Requirements
 
 Simple Examples
 ---------------
+
 The simple methods provide quick and easy access for one-off actions with
 rabbitpy. In addition to the simple methods, there is extensive support for
 all RabbitMQ actions using the rabbitpy object methods.
