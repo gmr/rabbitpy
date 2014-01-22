@@ -1,17 +1,23 @@
 """
 The rabbitpy.queue module contains two classes :py:class:`Queue` and
 :py:class:`Consumer`. The :py:class:`Queue` class is an object that is used
-create and work with queues on a RabbitMQ server. The :py:class:`Consumer`
-contains a generator method, :py:meth:`next_message <Consumer.next_message>`
-which returns messages delivered by RabbitMQ. The :py:class:`Consumer` class
-should not be invoked directly, but rather by the
-:py:meth:`Queue.consumer() <Queue.consumer>` method::
+create and work with queues on a RabbitMQ server. To consume messages you can
+iterate over the Queue object itself if the defaults for
+the :py:meth:`Queue.__iter__() <Queue.__iter__>` method work for your needs::
+
+    with conn.channel() as channel:
+        for message in rabbitpy.Queue(channel, 'example'):
+            print 'Message: %r' % message
+            message.ack()
+
+or by the :py:meth:`Queue.consume_messages() <Queue.consume_messages>` method
+if you would like to specify `no_ack`, `prefetch_count`, or `priority`::
 
     with conn.channel() as channel:
         queue = rabbitpy.Queue(channel, 'example')
-            for message in queue.consume_messages():
-                print 'Message: %r' % message
-                message.ack()
+        for message in queue.consume_messages():
+            print 'Message: %r' % message
+            message.ack()
 
 """
 import contextlib
@@ -47,6 +53,16 @@ class Queue(base.AMQPClass):
     :param dict arguments: Custom arguments for the queue
 
     """
+    arguments = dict()
+    auto_delete = False
+    dead_letter_exchange = None
+    dead_letter_routing_key = None
+    durable = True
+    exclusive = False
+    expires = None
+    max_length = None
+    message_ttl = None
+
     def __init__(self, channel, name='',
                  durable=True, exclusive=False, auto_delete=False,
                  max_length=None, message_ttl=None, expires=None,
@@ -54,41 +70,31 @@ class Queue(base.AMQPClass):
                  arguments=None):
         super(Queue, self).__init__(channel, name)
 
-        # Validate Arguments
-        for var, vname in [(auto_delete, 'auto_delete'), (durable, 'durable'),
-                           (exclusive, 'exclusive')]:
-            if not isinstance(var, bool):
-                raise ValueError('%s must be True or False' % vname)
-
-        for var, vname in [(max_length, 'max_length'),
-                           (message_ttl, 'message_ttl'), (expires, 'expires')]:
-            if var and not isinstance(var, int):
-                raise ValueError('%s must be an int' % vname)
-
-        for var, vname in [(dead_letter_exchange,
-                            'dead_letter_exchange'),
-                           (dead_letter_routing_key,
-                            'dead_letter_routing_key')]:
-            if var and not utils.is_string(var):
-                raise ValueError('%s must be a str, bytes or unicode' % vname)
-
-        if arguments and not isinstance(arguments, dict()):
-            raise ValueError('arguments must be a dict')
-
         # Defaults
         self.consumer_tag = 'rabbitpy.%i.%s' % (self.channel.id, id(self))
         self.consuming = False
 
         # Assign Arguments
-        self._durable = durable
-        self._exclusive = exclusive
-        self._auto_delete = auto_delete
-        self._arguments = arguments or {}
-        self._max_length = max_length
-        self._message_ttl = message_ttl
-        self._expires = expires
-        self._dlx = dead_letter_exchange
-        self._dlr = dead_letter_routing_key
+        self.durable = durable
+        self.exclusive = exclusive
+        self.auto_delete = auto_delete
+        self.arguments = arguments or {}
+        self.max_length = max_length
+        self.message_ttl = message_ttl
+        self.expires = expires
+        self.dead_letter_exchange = dead_letter_exchange
+        self.dead_letter_routing_key = dead_letter_routing_key
+
+    def __iter__(self):
+        """Quick way to consume messages using defaults of no_ack=False,
+        prefetch of 100, and no priority set.
+
+        :yields: rabbitpy.message.Message
+
+        """
+        with self.consumer() as consumer:
+            for message in consumer.next_message():
+                yield message
 
     def __len__(self):
         """Return the pending number of messages in the queue by doing a
@@ -99,6 +105,37 @@ class Queue(base.AMQPClass):
         """
         response = self._rpc(self._declare(True))
         return response.message_count
+
+    def __setattr__(self, name, value):
+        """Validate the data types for specific attributes when setting them,
+        otherwise fall throw to the parent __setattr__
+
+        :param str name: The attribute to set
+        :param mixed value: The value to set
+        :raises: ValueError
+
+        """
+        if value is not None:
+
+            if (name in ['auto_delete', 'durable', 'exclusive'] and
+                    not isinstance(value, bool)):
+                raise ValueError('%s must be True or False' % name)
+
+            if (name in ['max_length', 'message_ttl', 'expires'] and
+                    not isinstance(value, int)):
+                    raise ValueError('%s must be an int' % name)
+
+            if (name in ['dead_letter_exchange', 'dead_letter_routing_key'] and
+                    not utils.is_string(value)):
+                    raise ValueError('%s must be a str, bytes or unicode' %
+                                     name)
+
+            if name == 'arguments' and not isinstance(value, dict):
+                raise ValueError('arguments must be a dict')
+
+        # Set the value
+        super(Queue, self).__setattr__(name, value)
+
 
     def bind(self, source, routing_key=None, arguments=None):
         """Bind the queue to the specified exchange or routing key.
@@ -205,12 +242,12 @@ class Queue(base.AMQPClass):
 
         """
         if nodes:
-            self._arguments['x-ha-policy'] = 'nodes'
-            self._arguments['x-ha-nodes'] = nodes
+            self.arguments['x-ha-policy'] = 'nodes'
+            self.arguments['x-ha-nodes'] = nodes
         else:
-            self._arguments['x-ha-policy'] = 'all'
-            if 'x-ha-nodes' in self._arguments:
-                del self._arguments['x-ha-nodes']
+            self.arguments['x-ha-policy'] = 'all'
+            if 'x-ha-nodes' in self.arguments:
+                del self.arguments['x-ha-nodes']
         return self.declare()
 
     def purge(self):
@@ -241,22 +278,29 @@ class Queue(base.AMQPClass):
         :rtype: pamqp.specification.Queue.Declare
 
         """
-        arguments = dict(self._arguments)
-        if self._expires:
-            arguments['x-expires'] = self._expires
-        if self._message_ttl:
-            arguments['x-message-ttl'] = self._message_ttl
-        if self._max_length:
-            arguments['x-max-length'] = self._max_length
-        if self._dlx:
-            arguments['x-dead-letter-exchange'] = self._dlx
-        if self._dlr:
-            arguments['x-dead-letter-routing-key'] = self._dlr
+        arguments = dict(self.arguments)
+        if self.expires:
+            arguments['x-expires'] = self.expires
+        if self.message_ttl:
+            arguments['x-message-ttl'] = self.message_ttl
+        if self.max_length:
+            arguments['x-max-length'] = self.max_length
+        if self.dead_letter_exchange:
+            arguments['x-dead-letter-exchange'] = self.dead_letter_exchange
+        if self.dead_letter_routing_key:
+            arguments['x-dead-letter-routing-key'] = \
+                self.dead_letter_routing_key
+
+        LOGGER.debug('Declaring Queue %s, durable=%s, passive=%s, '
+                     'exclusive=%s, auto_delete=%s, arguments=%r',
+                     self.name, self.durable, passive, self.exclusive,
+                     self.auto_delete, arguments)
+
         return specification.Queue.Declare(queue=self.name,
-                                           durable=self._durable,
+                                           durable=self.durable,
                                            passive=passive,
-                                           exclusive=self._exclusive,
-                                           auto_delete=self._auto_delete,
+                                           exclusive=self.exclusive,
+                                           auto_delete=self.auto_delete,
                                            arguments=arguments)
 
 
