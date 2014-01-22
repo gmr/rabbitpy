@@ -109,7 +109,22 @@ class Message(base.AMQPClass):
         self.properties['timestamp'] = datetime.datetime.now()
 
     def _timestamp_from_struct_time(self):
+        """Return a datetime.datetime object from struct_time
+
+        :rtype: datetime.datetime
+
+        """
         return datetime.datetime(*self.properties['timestamp'][:6])
+
+    @property
+    def delivery_tag(self):
+        """Return the delivery tag for a message that was delivered or gotten
+        from RabbitMQ.
+
+        :rtype: int or None
+
+        """
+        return self.method.delivery_tag if self.method else None
 
     @property
     def _base_properties(self):
