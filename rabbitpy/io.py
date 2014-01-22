@@ -176,10 +176,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._write_queue = kwargs['write_queue']
 
         # A socket to trigger write interrupts with
-        (self._write_listener,
-         self._write_trigger) = socket.socketpair()
-        self._write_listener.setblocking(0)
-        self._write_trigger.setblocking(0)
+        self._write_listener, self._write_trigger = self._socketpair()
 
         self._buffer = bytes()
         self._channels = dict()
@@ -459,3 +456,38 @@ class IO(threading.Thread, base.StatefulObject):
                             self._events,
                             self._write_listener)
         self._loop.run()
+
+    def _socketpair(self):
+        """Return a socket pair regardless of platform.
+
+        :rtype: (socket, socket)
+
+        """
+        try:
+            server, client = socket.socketpair()
+        except AttributeError:
+            # Connect in Windows
+            LOGGER.debug('Falling back to emulated socketpair behavior')
+
+            # Create the listening server socket & bind it to a random port
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(('127.0.0.1', 0))
+
+            # Get the port for the notifying socket to connect to
+            port = s.getsockname()[1]
+
+            # Create the notifying client socket and connect using a timer
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            def connect():
+                client.connect(('127.0.0.1', port))
+            t = threading.Timer(0.01, connect)
+            t.start()
+
+            # Have the listening server socket listen and accept the connect
+            s.listen(0)
+            server, _unused = s.accept()
+
+        # Don't block on either socket
+        server.setblocking(0)
+        client.setblocking(0)
+        return server, client
