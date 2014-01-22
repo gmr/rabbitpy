@@ -108,7 +108,7 @@ class DirectExchange(Exchange):
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(DirectExchange, self).__init__(channel, name, 'direct', durable,
-                                            auto_delete, arguments)
+                                             auto_delete, arguments)
 
 
 class FanoutExchange(Exchange):
@@ -127,7 +127,7 @@ class FanoutExchange(Exchange):
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(FanoutExchange, self).__init__(channel, name, 'fanout', durable,
-                                            auto_delete, arguments)
+                                             auto_delete, arguments)
 
 
 class HeadersExchange(Exchange):
@@ -145,8 +145,8 @@ class HeadersExchange(Exchange):
     def __init__(self, channel, name, durable=True, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
-        super(HeadersExchange, self).__init__(channel, name, 'headers', durable,
-                                              auto_delete, arguments)
+        super(HeadersExchange, self).__init__(channel, name, 'headers',
+                                              durable, auto_delete, arguments)
 
 
 class TopicExchange(Exchange):

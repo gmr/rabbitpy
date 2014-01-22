@@ -158,6 +158,7 @@ class IOLoop(object):
             self._data.running = False
             self._data.error_callback(exception)
 
+
 class IO(threading.Thread, base.StatefulObject):
 
     CONNECTION_TIMEOUT = 3
@@ -324,7 +325,8 @@ class IO(threading.Thread, base.StatefulObject):
         """
         self._set_state(self.OPENING)
         sock = None
-        for (af, socktype, proto, canonname, sockaddr) in self._get_addr_info():
+        for (af, socktype, proto,
+             canonname, sockaddr) in self._get_addr_info():
             try:
                 sock = self._create_socket(af, socktype, proto)
                 self._connect_socket(sock, sockaddr)
@@ -336,7 +338,8 @@ class IO(threading.Thread, base.StatefulObject):
                 continue
 
         if not sock:
-            args = [self._args['host'], self._args['port'], 'Could not connect']
+            args = [self._args['host'], self._args['port'],
+                    'Could not connect']
             self._exceptions.put(exceptions.ConnectionException(*args))
             self._events.set(events.EXCEPTION_RAISED)
             return
@@ -393,7 +396,6 @@ class IO(threading.Thread, base.StatefulObject):
         :return (str, int, pamqp.specification.Frame): Remainder of value,
                                                        channel id and
                                                        frame value
-
         """
         if not value:
             return value, None, None
@@ -478,8 +480,10 @@ class IO(threading.Thread, base.StatefulObject):
 
             # Create the notifying client socket and connect using a timer
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
             def connect():
                 client.connect(('127.0.0.1', port))
+
             t = threading.Timer(0.01, connect)
             t.start()
 

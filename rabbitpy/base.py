@@ -168,7 +168,7 @@ class AMQPChannel(StatefulObject):
     def close(self):
         if self.closed:
             if DEBUG:
-                LOGGER.debug('Channel %i bypassing close for already closed %s',
+                LOGGER.debug('Channel %i bypassing close, %s already closed',
                              self._channel_id,
                              self.CLOSE_REQUEST_FRAME.name.split('.')[0])
             return
@@ -282,7 +282,8 @@ class AMQPChannel(StatefulObject):
                 LOGGER.debug('Read %r from queue', value)
             if value is not None:
                 if DEBUG:
-                    LOGGER.debug('Expecting %s, received %s', frame_type, value)
+                    LOGGER.debug('Expecting %s, received %s',
+                                 frame_type, value)
                 self._read_queue.task_done()
                 if not frame_type:
                     return value

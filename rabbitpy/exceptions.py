@@ -52,10 +52,12 @@ class RemoteClosedException(Exception):
         return 'Connection was closed by the remote server (%i): %s' % \
                (self.args[0], self.args[1])
 
+
 class MessageReturnedException(Exception):
     def __repr__(self):
         return 'Message %s was returned by RabbitMQ: (%s) %s' % \
                (self.args[0], self.args[1], self.args[2])
+
 
 class NoActiveTransactionError(Exception):
     def __repr__(self):

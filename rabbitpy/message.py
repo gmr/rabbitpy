@@ -30,9 +30,10 @@ class Properties(specification.Basic.Properties):
 
 
 class Message(base.AMQPClass):
-    """Created by both rabbitpy internally when a message is delivered or returned
-    from RabbitMQ and by implementing applications, the Message class is used
-    to publish a message to and access and respond to a message from RabbitMQ.
+    """Created by both rabbitpy internally when a message is delivered or
+    returned from RabbitMQ and by implementing applications, the Message class
+    is used to publish a message to and access and respond to a message from
+    RabbitMQ.
 
     When specifying properties for a message, pass in a dict of key value items
     that match the AMQP Basic.Properties specification with a small caveat.
@@ -130,7 +131,8 @@ class Message(base.AMQPClass):
 
         """
         invalid_keys = [key for key in self.properties
-                        if key not in specification.Basic.Properties.attributes]
+                        if key not in
+                        specification.Basic.Properties.attributes]
         self._prune_invalid_properties(invalid_keys)
         self._coerce_properties()
         return specification.Basic.Properties(**self.properties)
@@ -145,7 +147,8 @@ class Message(base.AMQPClass):
                                                       basestring):
                 LOGGER.warning('Coercing property %s to bytes', key)
                 self.properties[key] = bytes(self.properties[key])
-            elif _type == 'octet' and not isinstance(self.properties[key], int):
+            elif _type == 'octet' and not isinstance(self.properties[key],
+                                                     int):
                 LOGGER.warning('Coercing property %s to int', key)
                 self.properties[key] = int(self.properties[key])
             elif _type == 'table' and not isinstance(self.properties[key],
@@ -191,8 +194,8 @@ class Message(base.AMQPClass):
         return json.loads(self.body)
 
     def nack(self, requeue=False, all_previous=False):
-        """Negatively acknowledge receipt of the message to RabbitMQ. Will raise
-        an ActionException if the message was not received from a broker.
+        """Negatively acknowledge receipt of the message to RabbitMQ. Will
+        raise an ActionException if the message was not received from a broker.
 
         :param bool requeue: Requeue the message
         :param bool all_previous: Nack all previous unacked messages up to and
@@ -236,8 +239,8 @@ class Message(base.AMQPClass):
         if isinstance(exchange, base.AMQPClass):
             exchange = exchange.name
         method_frame = specification.Basic.Publish(exchange=exchange,
-                                                   routing_key=routing_key or
-                                                               '',
+                                                   routing_key=
+                                                   routing_key or '',
                                                    mandatory=mandatory)
         self.channel._write_frame(method_frame)
         header_frame = header.ContentHeader(body_size=len(self.body),

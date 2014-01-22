@@ -181,8 +181,9 @@ class Channel0(base.AMQPChannel):
         self._write_frame(self._build_start_ok_frame())
 
     def _on_connection_tune(self, frame_value):
-        """Negotiate the Connection.Tune frames, waiting for the Connection.Tune
-        frame from RabbitMQ and sending the Connection.TuneOk frame.
+        """Negotiate the Connection.Tune frames, waiting for the
+        Connection.Tune frame from RabbitMQ and sending the Connection.TuneOk
+        frame.
 
         :param specification.Connection.Tune frame_value: Tune frame
 
@@ -222,15 +223,16 @@ class Channel0(base.AMQPChannel):
     def _validate_connection_start(frame_value):
         """Validate the received Connection.Start frame
 
-        :param specification.Connection.Start frame_value: The frame to validate
+        :param specification.Connection.Start frame_value: Frame to validate
         :rtype: bool
 
         """
         if (frame_value.version_major,
             frame_value.version_minor) != (specification.VERSION[0],
                                            specification.VERSION[1]):
-            LOGGER.warning('AMQP version mismatch, received %i.%i, expected %r',
-                           frame_value.version_major, frame_value.version_minor,
+            LOGGER.warning('AMQP version error (received %i.%i, expected %r)',
+                           frame_value.version_major,
+                           frame_value.version_minor,
                            specification.VERSION)
             return False
         return True

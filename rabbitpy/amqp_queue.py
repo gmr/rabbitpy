@@ -56,7 +56,7 @@ class Queue(base.AMQPClass):
 
         # Validate Arguments
         for var, vname in [(auto_delete, 'auto_delete'), (durable, 'durable'),
-                          (exclusive, 'exclusive')]:
+                           (exclusive, 'exclusive')]:
             if not isinstance(var, bool):
                 raise ValueError('%s must be True or False' % vname)
 
@@ -91,8 +91,8 @@ class Queue(base.AMQPClass):
         self._dlr = dead_letter_routing_key
 
     def __len__(self):
-        """Return the pending number of messages in the queue by doing a passive
-        Queue declare.
+        """Return the pending number of messages in the queue by doing a
+        passive Queue declare.
 
         :rtype: int
 
@@ -228,10 +228,9 @@ class Queue(base.AMQPClass):
         """
         if hasattr(source, 'name'):
             source = source.name
-        self._rpc(specification.Queue.Bind(queue=self.name,
-                                           exchange=source,
-                                           routing_key=routing_key or
-                                                       self.name))
+        routing_key = routing_key or self.name
+        self._rpc(specification.Queue.Bind(queue=self.name, exchange=source,
+                                           routing_key=routing_key))
 
     def _declare(self, passive=False):
         """Return a specification.Queue.Declare class pre-composed for the rpc

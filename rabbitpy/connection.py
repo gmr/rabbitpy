@@ -57,9 +57,9 @@ class Connection(base.StatefulObject):
 
         :code:`[scheme]://[username]:[password]@[host]:[port]/[virtual_host]`
 
-    The following example connects to the test virtual host on a RabbitMQ server
-    running at 192.168.1.200 port 5672 as the user "www" and the password
-    rabbitmq:
+    The following example connects to the test virtual host on a RabbitMQ
+    server running at 192.168.1.200 port 5672 as the user "www" and the
+    password rabbitmq:
 
         :code:`amqp://admin192.168.1.200:5672/test`
 
@@ -116,8 +116,8 @@ class Connection(base.StatefulObject):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """When leaving the context, examine why the context is leaving, if it's
-         an exception or what.
+        """When leaving the context, examine why the context is leaving, if
+        it's an exception or what.
 
         """
         if DEBUG:
@@ -209,7 +209,7 @@ class Connection(base.StatefulObject):
         """Close all the channels that are currently open."""
         for channel_id in self._channels:
             if (self._channels[channel_id].open and
-                not self._channels[channel_id].closing):
+                    not self._channels[channel_id].closing):
                 self._channels[channel_id].close()
 
     def _connect(self):
@@ -271,8 +271,8 @@ class Connection(base.StatefulObject):
                              'write_queue': self._write_queue})
 
     def _create_message(self, channel_id, method_frame, header_frame, body):
-        """Create a message instance with the channel it was received on and the
-        dictionary of message parts.
+        """Create a message instance with the channel it was received on and
+        the dictionary of message parts.
 
         :param int channel_id: The channel id the message was sent on
         :param pamqp.specification.Frame method_frame: The method frame value
@@ -360,8 +360,8 @@ class Connection(base.StatefulObject):
         return ['%i:%s' % (channel_id, expectations.name)]
 
     def _process_url(self, url):
-        """Parse the AMQP URL passed in and return the configuration information
-        in a dictionary of values.
+        """Parse the AMQP URL passed in and return the configuration
+        information in a dictionary of values.
 
         The URL format is as follows:
 
@@ -478,7 +478,7 @@ class Connection(base.StatefulObject):
 
         # Close the socket
         if (self._events.is_set(events.SOCKET_OPENED) and
-            not self._events.is_set(events.SOCKET_CLOSED)):
+                not self._events.is_set(events.SOCKET_CLOSED)):
             if DEBUG:
                 LOGGER.debug('Requesting IO socket close')
             self._events.set(events.SOCKET_CLOSE)

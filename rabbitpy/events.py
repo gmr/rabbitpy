@@ -29,6 +29,7 @@ DESCRIPTIONS = {0x01: 'Channel 0 Close Requested',
                 0x08: 'Socket Closed',
                 0x09: 'Socket Connected'}
 
+
 def description(event_id):
     """Return the text description for an event"""
     return DESCRIPTIONS.get(event_id, event_id)
@@ -119,10 +120,10 @@ class Events(object):
         return True
 
     def wait(self, event_id, timeout=1):
-        """Wait for an event to be set for up to `timeout` seconds. If `timeout`
-        is None, block until the event is set. If the event is invalid, None
-        will be returned, otherwise False is used to indicate the event is still
-        not set when using a timeout.
+        """Wait for an event to be set for up to `timeout` seconds. If
+        `timeout` is None, block until the event is set. If the event is
+        invalid, None will be returned, otherwise False is used to indicate
+        the event is still not set when using a timeout.
 
         :param int event_id: The event to wait for
         :param float timeout: The number of seconds to wait

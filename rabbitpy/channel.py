@@ -1,8 +1,8 @@
 """
 The Channel object is the communications object used by Exchanges, Messages,
 Queues, and Transactions. It is created by invoking the
-:py:meth:`rabbitpy.connection.Connection.channel` method. It can act as a context
-manager, allowing for quick shorthand use:
+:py:meth:`rabbitpy.connection.Connection.channel` method. It can act as a
+context manager, allowing for quick shorthand use:
 
     with connection.channel():
        # Do something
@@ -72,8 +72,8 @@ class Channel(base.AMQPChannel):
         return self
 
     def __exit__(self, exc_type, exc_val, unused_exc_tb):
-        """When leaving the context, examine why the context is leaving, if it's
-         an exception or what.
+        """When leaving the context, examine why the context is leaving, if
+        it's  an exception or what.
 
         """
         if exc_val:
@@ -101,7 +101,7 @@ class Channel(base.AMQPChannel):
         # Empty the queue and nack the max id (and all previous)
         if self._consumers:
             if DEBUG:
-                LOGGER.debug('Channel %i purging read queue & nacking messages',
+                LOGGER.debug('Channel %i purging read queue & nacking msgs',
                              self._channel_id)
             delivery_tag = 0
             discard_counter = 0
@@ -144,8 +144,8 @@ class Channel(base.AMQPChannel):
         return self._maximum_frame_size
 
     def on_remote_close(self, value):
-        """Invoked by rabbitpy.connection.Connection when a remote channel close
-        is issued.
+        """Invoked by rabbitpy.connection.Connection when a remote channel
+        close is issued.
 
         :param value: The Channel.Close method frame
         :type value: pamqp.specification.Channel.Close
@@ -282,8 +282,8 @@ class Channel(base.AMQPChannel):
         return self._wait_for_content_frames(frame_value)
 
     def _create_message(self, method_frame, header_frame, body):
-        """Create a message instance with the channel it was received on and the
-        dictionary of message parts. Will return None if no message can be
+        """Create a message instance with the channel it was received on and
+        the dictionary of message parts. Will return None if no message can be
         created.
 
         :param pamqp.specification.Frame method_frame: The method frame value
@@ -334,8 +334,8 @@ class Channel(base.AMQPChannel):
                                           requeue=True))
 
     def _process_basic_return(self, msg):
-        """Raise a MessageReturnedException so the publisher can handle returned
-        messages.
+        """Raise a MessageReturnedException so the publisher can handle
+        returned messages.
 
         :param pmqid.message.message msg: The message to add
         :raises: rabbitpy.exceptions.MessageReturnedException

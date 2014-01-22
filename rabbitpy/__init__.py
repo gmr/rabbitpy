@@ -1,3 +1,7 @@
+"""
+rabbitpy, a pythonic RabbitMQ client
+
+"""
 __version__ = '0.14.0'
 version = __version__
 
@@ -8,9 +12,14 @@ import logging
 try:
     from logging import NullHandler
 except ImportError:
-    # Python 2.6 does not have a NullHandler
     class NullHandler(logging.Handler):
+        """Python 2.6 does not have a NullHandler"""
         def emit(self, record):
+            """Emit a record
+
+            :param record record: The record to emit
+
+            """
             pass
 
 logging.getLogger('rabbitpy').addHandler(NullHandler())
