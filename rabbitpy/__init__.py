@@ -25,7 +25,12 @@ except ImportError:
 logging.getLogger('rabbitpy').addHandler(NullHandler())
 
 from rabbitpy.connection import Connection
+from rabbitpy.channel import Channel
 from rabbitpy.exchange import Exchange
+from rabbitpy.exchange import DirectExchange
+from rabbitpy.exchange import FanoutExchange
+from rabbitpy.exchange import HeadersExchange
+from rabbitpy.exchange import TopicExchange
 from rabbitpy.message import Message
 from rabbitpy.amqp_queue import Queue
 from rabbitpy.tx import Tx
