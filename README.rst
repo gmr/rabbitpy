@@ -141,7 +141,7 @@ More complex examples and the rabbitpy API documentation are available at https:
 
 Version History
 ---------------
-- 0.14.0: Add support for authentication_failure_close and consumer priorities, Queue consuming via Queue.__iter__, Queue & Exchange attributes are no longer private, Tx objects can be used as a context manager, and experimental support for Windows.
+- 0.14.0: Add support for authentication_failure_close and consumer priorities, Exception cleanup, Queue consuming via Queue.__iter__, Queue & Exchange attributes are no longer private, Tx objects can be used as a context manager, and experimental support for Windows.
 - 0.13.0: Validate heartbeat is always an integer, add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
 - 0.12.3: Minor Message.pprint() reformatting
 - 0.12.2: Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
