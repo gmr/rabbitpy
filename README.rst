@@ -37,14 +37,16 @@ https://rabbitpy.readthedocs.org
 Requirements
 ------------
 
--  pamqp - https://github.com/pika/pamqp
--  requests - http://docs.python-requests.org/
+-  `pamqp <https://github.com/pika/pamqp>`_
 
-Examples
-========
+Simple Examples
+---------------
+The simple methods provide quick and easy access for one-off actions with
+rabbitpy. In addition to the simple methods, there is extensive support for
+all RabbitMQ actions using the rabbitpy object methods.
 
 Simple Publisher
-----------------
+################
 
 The simple publisher is ideal for sending one off messages:
 
@@ -79,7 +81,7 @@ And publisher confirms:
     >>>
 
 Simple Getter
--------------
+#############
 
 .. code:: python
 
@@ -88,7 +90,7 @@ Simple Getter
     {u'foo': u'bar'}
 
 Simple Consumer
----------------
+###############
 .. code:: python
 
     >>> for message in rabbitpy.consume('amqp://guest:guest@localhost:5672/%2f', 'example', no_ack=True):
@@ -119,11 +121,26 @@ Simple Consumer
 
     'This is my test message'
 
-More complex examples are available at https://rabbitpy.readthedocs.org
+RabbitMQ Objects
+----------------
+In addition, the API offers support for more complex coding using objects that
+represent either the AMQ Model or RabbitMQ concepts. These include:
+
+- Connections
+- Channels
+- Exchanges
+- Messsages
+- Policies [@TODO]
+- Queues
+- Transactions
+- Users [@TODO]
+- Virtual Hosts [ @TODO]
+
+More complex examples and the rabbitpy API documentation are available at https://rabbitpy.readthedocs.org
 
 Version History
 ---------------
-- 0.14.0: Add support for authentication_failure_close and consumer priorities
+- 0.14.0: Add support for authentication_failure_close and consumer priorities, Queue consuming via Queue.__iter__, Queue & Exchange attributes are no longer private, Tx objects can be used as a context manager, and experimental support for Windows.
 - 0.13.0: Validate heartbeat is always an integer, add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
 - 0.12.3: Minor Message.pprint() reformatting
 - 0.12.2: Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
