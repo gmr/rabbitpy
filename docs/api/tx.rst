@@ -1,4 +1,4 @@
-tx
-==
-.. automodule:: rabbitpy.tx
+Transactions
+============
+.. autoclass:: rabbitpy.Tx
     :members:
