@@ -1,75 +1,102 @@
 """
-rabbitpy Specific Exceptions
+Exceptions that may be raised by rabbitpy during use
+----------------------------------------------------
 
 """
-from pamqp import specification
-
 
 class ActionException(Exception):
+    """Raised when an action is taken on a rabbitpy object that is not
+    supported due to the state of the object. An example would be trying to
+    ack a Message object when the message object was locally created and not
+    sent by RabbitMQ via an AMQP Basic.Get or Basic.Consume.
+
+    """
     def __repr__(self):
         return self.args[0]
 
 
 class ChannelClosedException(Exception):
+    """Raised when an action is attempted on a channel that is closed."""
     def __repr__(self):
         return 'Can not perform RPC requests on a closed channel, you must ' \
                'create a new channel'
 
 
-class ConnectionBlockedWarning(Warning):
-    def __repr__(self):
-        return 'Will not write to a connection that RabbitMQ is throttling'
-
-
 class ConnectionException(Exception):
+    """Raised when rabbitpy can not connect to the specified server and if
+    a connection fails and the RabbitMQ version does not support the
+    authentication_failure_close feature added in RabbitMQ 3.2.
+
+    """
     def __repr__(self):
         return 'Unable to connect to the remote server %r' % self.args
 
 
 class ConnectionResetException(Exception):
+    """Raised if the socket level connection was reset. This can happen due
+    to the loss of network connection or socket timeout.
+
+    """
     def __repr__(self):
         return 'Connection was reset at socket level'
 
 
-class EmptyExchangeNameError(Exception):
-    def __repr__(self):
-        return 'You must specify an Exchange name'
-
-
-class EmptyQueueNameError(Exception):
-    def __repr__(self):
-        return 'You must specify a Queue name'
-
-
 class RemoteClosedChannelException(Exception):
+    """Raised if RabbitMQ closes the channel and the reply_code in the
+    Channel.Close RPC request does not have a mapped exception in rabbitpy.
+
+    """
     def __repr__(self):
         return 'Channel %i was closed by the remote server (%i): %s' % \
                (self.args[0], self.args[1], self.args[2])
 
 
 class RemoteClosedException(Exception):
+    """Raised if RabbitMQ closes the connection and the reply_code in the
+    Connection.Close RPC request does not have a mapped exception in rabbitpy.
+
+    """
     def __repr__(self):
         return 'Connection was closed by the remote server (%i): %s' % \
                (self.args[0], self.args[1])
 
 
 class MessageReturnedException(Exception):
+    """Raised if the RabbitMQ sends a message back to a publisher via
+    the Basic.Return RPC call.
+
+    """
     def __repr__(self):
         return 'Message %s was returned by RabbitMQ: (%s) %s' % \
                (self.args[0], self.args[1], self.args[2])
 
 
 class NoActiveTransactionError(Exception):
+    """Raised when a transaction method is issued but the transaction has not
+    been initiated.
+
+    """
     def __repr__(self):
         return 'No active transaction for the request, channel closed'
 
 
 class TooManyChannelsError(Exception):
+    """Raised if an application attempts to create a channel, exceeding the
+    maximum number of channels (MAXINT or 2,147,483,647) available for a
+    single connection. Note that each time a channel object is created, it will
+    take a new channel id. If you create and destroy 2,147,483,648 channels,
+    this exception will be raised.
+
+    """
     def __repr__(self):
         return 'The maximum amount of negotiated channels has been reached'
 
 
 class UnexpectedResponseError(Exception):
+    """Raised when an RPC call is made to RabbitMQ but the response it sent
+    back is not recognized.
+
+    """
     def __repr__(self):
         return 'Received an expected response, expected %s, received %s' % \
                (self.args[0], self.args[1])
@@ -84,8 +111,7 @@ class AMQPContentTooLarge(Warning):
     accept at the present time. The client may retry at a later time.
 
     """
-    name = 'CONTENT-TOO-LARGE'
-    value = 311
+    pass
 
 
 class AMQPNoRoute(Warning):
@@ -93,8 +119,7 @@ class AMQPNoRoute(Warning):
     Undocumented AMQP Soft Error
 
     """
-    name = 'NO-ROUTE'
-    value = 312
+    pass
 
 
 class AMQPNoConsumers(Warning):
@@ -104,8 +129,7 @@ class AMQPNoConsumers(Warning):
     consumers of the queue.
 
     """
-    name = 'NO-CONSUMERS'
-    value = 313
+    pass
 
 
 class AMQPAccessRefused(Warning):
@@ -114,8 +138,7 @@ class AMQPAccessRefused(Warning):
     due to security settings.
 
     """
-    name = 'ACCESS-REFUSED'
-    value = 403
+    pass
 
 
 class AMQPNotFound(Warning):
@@ -123,8 +146,7 @@ class AMQPNotFound(Warning):
     The client attempted to work with a server entity that does not exist.
 
     """
-    name = 'NOT-FOUND'
-    value = 404
+    pass
 
 
 class AMQPResourceLocked(Warning):
@@ -133,8 +155,7 @@ class AMQPResourceLocked(Warning):
     because another client is working with it.
 
     """
-    name = 'RESOURCE-LOCKED'
-    value = 405
+    pass
 
 
 class AMQPPreconditionFailed(Warning):
@@ -143,8 +164,7 @@ class AMQPPreconditionFailed(Warning):
     precondition failed.
 
     """
-    name = 'PRECONDITION-FAILED'
-    value = 406
+    pass
 
 
 class AMQPConnectionForced(Exception):
@@ -153,8 +173,7 @@ class AMQPConnectionForced(Exception):
     may retry at some later date.
 
     """
-    name = 'CONNECTION-FORCED'
-    value = 320
+    pass
 
 
 class AMQPInvalidPath(Exception):
@@ -162,8 +181,7 @@ class AMQPInvalidPath(Exception):
     The client tried to work with an unknown virtual host.
 
     """
-    name = 'INVALID-PATH'
-    value = 402
+    pass
 
 
 class AMQPFrameError(Exception):
@@ -172,8 +190,7 @@ class AMQPFrameError(Exception):
     strongly implies a programming error in the sending peer.
 
     """
-    name = 'FRAME-ERROR'
-    value = 501
+    pass
 
 
 class AMQPSyntaxError(Exception):
@@ -182,8 +199,7 @@ class AMQPSyntaxError(Exception):
     fields. This strongly implies a programming error in the sending peer.
 
     """
-    name = 'SYNTAX-ERROR'
-    value = 502
+    pass
 
 
 class AMQPCommandInvalid(Exception):
@@ -193,8 +209,7 @@ class AMQPCommandInvalid(Exception):
     programming error in the client.
 
     """
-    name = 'COMMAND-INVALID'
-    value = 503
+    pass
 
 
 class AMQPChannelError(Exception):
@@ -203,8 +218,7 @@ class AMQPChannelError(Exception):
     opened. This most likely indicates a fault in the client layer.
 
     """
-    name = 'CHANNEL-ERROR'
-    value = 504
+    pass
 
 
 class AMQPUnexpectedFrame(Exception):
@@ -214,8 +228,7 @@ class AMQPUnexpectedFrame(Exception):
     content processing.
 
     """
-    name = 'UNEXPECTED-FRAME'
-    value = 505
+    pass
 
 
 class AMQPResourceError(Exception):
@@ -225,8 +238,7 @@ class AMQPResourceError(Exception):
     entity.
 
     """
-    name = 'RESOURCE-ERROR'
-    value = 506
+    pass
 
 
 class AMQPNotAllowed(Exception):
@@ -235,9 +247,7 @@ class AMQPNotAllowed(Exception):
     the server, due to security settings or by some other criteria.
 
     """
-    name = 'NOT-ALLOWED'
-    value = 530
-
+    pass
 
 class AMQPNotImplemented(Exception):
     """
@@ -245,8 +255,7 @@ class AMQPNotImplemented(Exception):
     server.
 
     """
-    name = 'NOT-IMPLEMENTED'
-    value = 540
+    pass
 
 
 class AMQPInternalError(Exception):
@@ -256,8 +265,7 @@ class AMQPInternalError(Exception):
     operations.
 
     """
-    name = 'INTERNAL-ERROR'
-    value = 541
+    pass
 
 
 AMQP = {311: AMQPContentTooLarge,
