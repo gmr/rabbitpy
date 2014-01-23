@@ -29,13 +29,13 @@ class Exchange(base.AMQPClass):
     :param dict arguments: Optional key/value arguments
 
     """
-    durable = True
+    durable = False
     arguments = dict()
     auto_delete = False
     type = 'direct'
 
     def __init__(self, channel, name, exchange_type='direct',
-                 durable=True, auto_delete=False,
+                 durable=False, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(Exchange, self).__init__(channel, name)
@@ -109,7 +109,7 @@ class DirectExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=True, auto_delete=False,
+    def __init__(self, channel, name, durable=False, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(DirectExchange, self).__init__(channel, name, 'direct', durable,
@@ -128,7 +128,7 @@ class FanoutExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=True, auto_delete=False,
+    def __init__(self, channel, name, durable=False, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(FanoutExchange, self).__init__(channel, name, 'fanout', durable,
@@ -147,7 +147,7 @@ class HeadersExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=True, auto_delete=False,
+    def __init__(self, channel, name, durable=False, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(HeadersExchange, self).__init__(channel, name, 'headers',
@@ -166,7 +166,7 @@ class TopicExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=True, auto_delete=False,
+    def __init__(self, channel, name, durable=False, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
         super(TopicExchange, self).__init__(channel, name, 'topic', durable,

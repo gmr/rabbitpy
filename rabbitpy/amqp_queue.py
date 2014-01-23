@@ -60,14 +60,14 @@ class Queue(base.AMQPClass):
     auto_delete = False
     dead_letter_exchange = None
     dead_letter_routing_key = None
-    durable = True
+    durable = False
     exclusive = False
     expires = None
     max_length = None
     message_ttl = None
 
     def __init__(self, channel, name='',
-                 durable=True, exclusive=False, auto_delete=False,
+                 durable=False, exclusive=False, auto_delete=False,
                  max_length=None, message_ttl=None, expires=None,
                  dead_letter_exchange=None, dead_letter_routing_key=None,
                  arguments=None):
@@ -78,7 +78,7 @@ class Queue(base.AMQPClass):
         super(Queue, self).__init__(channel, name)
 
         # Defaults
-        self.consumer_tag = 'rabbitpy.%i.%s' % (self.channel.id, id(self))
+        self.consumer_tag = 'rabbitpy.%s.%s' % (self.channel.id, id(self))
         self.consuming = False
 
         # Assign Arguments
