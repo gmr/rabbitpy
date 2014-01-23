@@ -210,6 +210,8 @@ class Queue(base.AMQPClass):
 
         """
         response = self._rpc(self._declare(passive))
+        if not self.name:
+            self.name = response.queue
         return response.message_count, response.consumer_count
 
     def delete(self, if_unused=False, if_empty=False):
