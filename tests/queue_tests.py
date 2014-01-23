@@ -42,7 +42,7 @@ class QueueInitializationTests(unittest.TestCase):
 
     def test_durable_default(self):
         queue = amqp_queue.Queue(self.chan)
-        self.assertTrue(queue.durable)
+        self.assertFalse(queue.durable)
 
     def test_durable_true(self):
         queue = amqp_queue.Queue(self.chan, durable=True)
@@ -194,7 +194,7 @@ class QueueDeclareTests(unittest.TestCase):
         obj = amqp_queue.Queue(self.chan)
         expectation = {'arguments': {},
                        'auto_delete': False,
-                       'durable': True,
+                       'durable': False,
                        'exclusive': False,
                        'nowait': False,
                        'passive': False,
@@ -206,7 +206,7 @@ class QueueDeclareTests(unittest.TestCase):
         obj = amqp_queue.Queue(self.chan)
         expectation = {'arguments': {},
                        'auto_delete': False,
-                       'durable': True,
+                       'durable': False,
                        'exclusive': False,
                        'nowait': False,
                        'passive': True,
@@ -218,7 +218,7 @@ class QueueDeclareTests(unittest.TestCase):
         obj = amqp_queue.Queue(self.chan, 'my-queue')
         expectation = {'arguments': {},
                        'auto_delete': False,
-                       'durable': True,
+                       'durable': False,
                        'exclusive': False,
                        'nowait': False,
                        'passive': False,
