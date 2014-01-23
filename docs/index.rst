@@ -111,6 +111,7 @@ rabbitpy source is available on Github at  `https://github.com/pika/rabbitpy <ht
 
 Version History
 ---------------
+- 0.14.2: Fix an issue when IPv6 is the default protocol for the box rabbitpy is being used on
 - 0.14.1: Assign queue name for RabbitMQ named queues in rabbitpy.Queue.declare
 - 0.14.0: Add support for authentication_failure_close and consumer priorities, Exception cleanup, Queue consuming via Queue.__iter__, Queue & Exchange attributes are no longer private, Tx objects can be used as a context manager, and experimental support for Windows.
 - 0.13.0: Validate heartbeat is always an integer, add arguments to Queue for expires, message-ttl, max-length, & dead-lettering

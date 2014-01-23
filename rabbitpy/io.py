@@ -448,13 +448,13 @@ class IO(threading.Thread, base.StatefulObject):
         if DEBUG:
             LOGGER.debug('Socket connected')
 
-        LOGGER.debug('getsockname: %r', self._socket.getsockname())
-
         # Create the remote name
-        address, port = self._socket.getsockname()
-        peer_address, peer_port = self._socket.getpeername()
-        self._remote_name = '%s:%s -> %s:%s' % (address, port,
-                                                peer_address, peer_port)
+        local_socket = self._socket.getsockname()
+        peer_socket = self._socket.getpeername()
+        self._remote_name = '%s:%s -> %s:%s' % (local_socket[0],
+                                                local_socket[1],
+                                                peer_socket[0],
+                                                peer_socket[1])
         self._loop = IOLoop(self._socket, self.on_error, self.on_read,
                             self._write_queue,
                             self._events,
