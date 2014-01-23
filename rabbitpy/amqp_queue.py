@@ -164,7 +164,7 @@ class Queue(base.AMQPClass):
         return isinstance(response, specification.Queue.BindOk)
 
     @contextlib.contextmanager
-    def consumer(self, no_ack=False, prefetch=100, priority=None):
+    def consumer(self, no_ack=False, prefetch=None, priority=None):
         """Consumer message context manager, returns a consumer message
         generator.
 
@@ -180,7 +180,7 @@ class Queue(base.AMQPClass):
         self.consuming = True
         yield Consumer(self)
 
-    def consume_messages(self, no_ack=False, prefetch=100, priority=None):
+    def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator:
 
         ```
