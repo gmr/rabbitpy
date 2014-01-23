@@ -127,6 +127,16 @@ class Message(base.AMQPClass):
         return self.method.delivery_tag if self.method else None
 
     @property
+    def routing_key(self):
+        """Return the routing_key for a message that was delivered or gotten
+        from RabbitMQ.
+
+        :rtype: int or None
+
+        """
+        return self.method.routing_key if self.method else None
+
+    @property
     def _base_properties(self):
         """Return a base set of properties if no properties were passed into
         the constructor.
