@@ -120,20 +120,10 @@ class Connection(base.StatefulObject):
         it's an exception or what.
 
         """
-        if DEBUG:
-            LOGGER.debug('In __exit__ (%s, %s)', exc_type, exc_val)
-
-
-        self.close()
-
         if exc_type:
-            if DEBUG:
-                LOGGER.debug('Connection context manager closed on %s '
-                             'exception', exc_type, exc_info=True)
-            LOGGER.info('Shutting down connection on unhandled exception')
-            self._shutdown_connection()
-            if exc_type != KeyboardInterrupt:
-                raise exc_type(exc_val)
+            LOGGER.error('Shutting down connection on unhandled exception: %s',
+                         exc_type)
+        self.close()
 
     @property
     def blocked(self):
