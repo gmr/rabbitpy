@@ -79,10 +79,9 @@ class Channel(base.AMQPChannel):
 
         """
         if exc_val:
-            LOGGER.error('Channel context manager closed on %r exception',
+            LOGGER.error('Channel context manager closing on %s' %
                          exc_val, exc_info=True)
-            raise exc_type(exc_val)
-        if not self.closing and not self.closed:
+        if self.open:
             self.close()
 
     def close(self):
@@ -97,11 +96,13 @@ class Channel(base.AMQPChannel):
                              self._channel_id)
             return
         self._set_state(self.CLOSING)
-        for queue_obj in self._consumers:
-            self._cancel_consumer(queue_obj)
 
         # Empty the queue and nack the max id (and all previous)
         if self._consumers:
+
+            for queue_obj in self._consumers:
+                self._cancel_consumer(queue_obj)
+
             if DEBUG:
                 LOGGER.debug('Channel %i purging read queue & nacking msgs',
                              self._channel_id)
@@ -121,6 +122,7 @@ class Channel(base.AMQPChannel):
                 self._multi_nack(delivery_tag)
             if DEBUG:
                 LOGGER.debug('Discarded %i pending frames', discard_counter)
+
         super(Channel, self).close()
 
     def enable_publisher_confirms(self):
@@ -253,6 +255,10 @@ class Channel(base.AMQPChannel):
         """
         frame_value = specification.Basic.Cancel(consumer_tag=obj.consumer_tag)
         self._write_frame(frame_value)
+        if not self.closed:
+            self._wait_on_frame(specification.Basic.CancelOk)
+            if DEBUG:
+                LOGGER.debug('Basic.CancelOk received')
 
     def _consume(self, obj, no_ack, priority):
         """Register a Queue object as a consumer, issuing Basic.Consume.
@@ -375,6 +381,12 @@ class Channel(base.AMQPChannel):
         """
         if DEBUG:
             LOGGER.debug('Waiting on ContentHeader')
+
+        if self.closing or self.closed:
+            if DEBUG:
+                LOGGER.debug('Exiting from waiting for content frames')
+            return None
+
         header_value = self._wait_on_frame('ContentHeader')
         if not header_value:
             if DEBUG:

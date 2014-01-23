@@ -123,6 +123,9 @@ class Connection(base.StatefulObject):
         if DEBUG:
             LOGGER.debug('In __exit__ (%s, %s)', exc_type, exc_val)
 
+
+        self.close()
+
         if exc_type:
             if DEBUG:
                 LOGGER.debug('Connection context manager closed on %s '
@@ -131,7 +134,6 @@ class Connection(base.StatefulObject):
             self._shutdown_connection()
             if exc_type != KeyboardInterrupt:
                 raise exc_type(exc_val)
-        self.close()
 
     @property
     def blocked(self):
@@ -168,10 +170,6 @@ class Connection(base.StatefulObject):
         """Close the connection, including all open channels"""
         if not self.closed:
             self._set_state(self.CLOSING)
-
-            # Close any channels if they're open
-            if self._channels:
-                self._close_channels()
 
             # Shutdown the IO thread and socket
             self._shutdown_connection()
@@ -465,7 +463,9 @@ class Connection(base.StatefulObject):
                 LOGGER.debug('Cant shutdown connection, IO is no longer alive')
             return
 
-        for chan_id in self._channels:
+        # Close any open channels
+        for chan_id in [chan_id for chan_id in self._channels
+                        if not self._channels[chan_id].closed]:
             self._channels[chan_id].close()
 
         # If the connection is still established, close it

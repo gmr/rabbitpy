@@ -169,9 +169,8 @@ class AMQPChannel(StatefulObject):
     def close(self):
         if self.closed:
             if DEBUG:
-                LOGGER.debug('Channel %i bypassing close, %s already closed',
-                             self._channel_id,
-                             self.CLOSE_REQUEST_FRAME.name.split('.')[0])
+                LOGGER.debug('AMQPChannel %i close invoked and already closed',
+                             self._channel_id)
             return
         if DEBUG:
             LOGGER.debug('Channel %i close invoked while %s',
@@ -292,7 +291,7 @@ class AMQPChannel(StatefulObject):
                     return value
                 self._read_queue.put(value)
 
-            if not self._exceptions.empty():
+            if not self._exceptions.empty() and not self.closing:
                 if DEBUG:
                     LOGGER.debug('Exiting due to exceptions')
                 break
