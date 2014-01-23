@@ -37,7 +37,7 @@ class IOLoop(object):
     ERROR = 0x008 | 0x010
 
     def __init__(self, fd, error_callback, read_callback, write_queue,
-                 event_obj, write_trigger):
+                 event_obj, write_trigger, exceptions):
         self._data = threading.local()
         self._data.fd = fd
         self._data.error_callback = error_callback
@@ -48,6 +48,7 @@ class IOLoop(object):
         self._data.ssl = hasattr(fd, 'read')
         self._data.events = event_obj
         self._data.write_trigger = write_trigger
+        self._exceptions = exceptions
 
         # Materialized lists for select
         self._data.read_only = [[fd, write_trigger], [], [fd], POLL_TIMEOUT]
@@ -59,8 +60,9 @@ class IOLoop(object):
             try:
                 self._poll()
             except (KeyboardInterrupt, SystemExit) as exception:
-                LOGGER.warning('Exiting IOLoop.run due to %s', exception)
-                break
+                LOGGER.error('Received %r', exception)
+                self._exceptions.put(exception)
+                pass
             except EnvironmentError as exception:
                 if (getattr(exception, 'errno', None) == errno.EINTR or
                     (isinstance(getattr(exception, 'args', None), tuple) and
@@ -458,7 +460,8 @@ class IO(threading.Thread, base.StatefulObject):
         self._loop = IOLoop(self._socket, self.on_error, self.on_read,
                             self._write_queue,
                             self._events,
-                            self._write_listener)
+                            self._write_listener,
+                            self._exceptions)
         self._loop.run()
 
     def _socketpair(self):
