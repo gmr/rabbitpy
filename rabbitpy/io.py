@@ -448,6 +448,8 @@ class IO(threading.Thread, base.StatefulObject):
         if DEBUG:
             LOGGER.debug('Socket connected')
 
+        LOGGER.debug('getsockname: %r', self._socket.getsockname())
+
         # Create the remote name
         address, port = self._socket.getsockname()
         peer_address, peer_port = self._socket.getpeername()
