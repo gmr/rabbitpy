@@ -291,6 +291,12 @@ class AMQPChannel(StatefulObject):
                 elif self._validate_frame_type(value, frame_type):
                     return value
                 self._read_queue.put(value)
+
+            if not self._exceptions.empty():
+                if DEBUG:
+                    LOGGER.debug('Exiting due to exceptions')
+                break
+
             time.sleep(0.1)
 
     def _write_frame(self, frame):
