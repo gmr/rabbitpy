@@ -166,6 +166,11 @@ class IO(threading.Thread, base.StatefulObject):
     CONNECTION_TIMEOUT = 3
     CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk', 'Basic.Return']
     READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
+    SSL_KWARGS = {'keyfile': 'ssl_key',
+                  'certfile': 'ssl_cert',
+                  'cert_reqs': 'ssl_validation',
+                  'ssl_version': 'ssl_version',
+                  'cacerts': 'ssl_cacert'}
 
     def __init__(self, group=None, target=None, name=None, args=(),
                  kwargs=None):
@@ -359,15 +364,14 @@ class IO(threading.Thread, base.StatefulObject):
         """
         sock = socket.socket(af, socktype, proto)
         if self._args['ssl']:
+            kwargs = {'sock': sock,
+                      'server_side': False}
+            for argv, key in self.SSL_KWARGS.iteritems():
+                if self._args[key]:
+                    kwargs[argv] = self._args[key]
             if DEBUG:
-                LOGGER.debug('Wrapping socket for SSL')
-            return ssl.wrap_socket(sock,
-                                   self._args['ssl_key'],
-                                   self._args['ssl_cert'],
-                                   False,
-                                   self._args['ssl_validation'],
-                                   self._args['ssl_version'],
-                                   self._args['ssl_cacert'])
+                LOGGER.debug('Wrapping socket for SSL: %r', kwargs)
+            return ssl.wrap_socket(**kwargs)
         return sock
 
     def _disconnect_socket(self):

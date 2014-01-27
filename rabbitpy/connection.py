@@ -26,6 +26,9 @@ from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
+AMQP = 'amqp'
+AMQPS = 'amqps'
+
 if ssl:
     SSL_CERT_MAP = {'ignore': ssl.CERT_NONE,
                     'optional': ssl.CERT_OPTIONAL,
@@ -413,8 +416,8 @@ class Connection(base.StatefulObject):
             use_ssl = False
 
         # Use the default ports if one is not specified
-        port = parsed.port or (self.PORTS['amqps'] if parsed.scheme == 'amqps'
-                               else self.PORTS['amqp'])
+        port = parsed.port or (self.PORTS[AMQPS] if parsed.scheme == AMQPS
+                               else self.PORTS[AMQP])
 
         # Set the vhost to be after the base slash if it was specified
         vhost = parsed.path[1:] if parsed.path else self.DEFAULT_VHOST
