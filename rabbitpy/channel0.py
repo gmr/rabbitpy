@@ -80,10 +80,7 @@ class Channel0(base.AMQPChannel):
                 err = exceptions.RemoteClosedException(value.reply_code,
                                                        value.reply_text)
             self._exceptions.put(err)
-            try:
-                self._write_trigger.send('0')
-            except socket.error:
-                pass
+            self._trigger_write()
         elif value.name == 'Connection.Blocked':
             LOGGER.warning('RabbitMQ has blocked the connection: %s',
                            value.reason)
@@ -104,6 +101,7 @@ class Channel0(base.AMQPChannel):
         elif value.name == 'Heartbeat':
             LOGGER.debug('Received Heartbeat, sending one back')
             self._write_frame(heartbeat.Heartbeat())
+            self._trigger_write()
         else:
             LOGGER.warning('Unexpected Channel0 Frame: %r', value)
             raise specification.AMQPUnexpectedFrame(value)

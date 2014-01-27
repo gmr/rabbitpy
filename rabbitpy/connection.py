@@ -481,13 +481,20 @@ class Connection(base.StatefulObject):
             self._events.set(events.SOCKET_CLOSE)
 
             # Break out of select waiting
-            try:
-                self._io.write_trigger.send('0')
-            except socket.error:
-                pass
+            self._trigger_write()
 
             if DEBUG:
                 LOGGER.debug('Waiting on socket to close')
             self._events.wait(events.SOCKET_CLOSED, 0.1)
             while self._io.is_alive():
                 time.sleep(0.25)
+
+    def _trigger_write(self):
+        """Notifies the IO loop we need to write a frame by writing a byte
+        to a local socket.
+
+        """
+        try:
+            self._io.write_trigger.send(b'0')
+        except socket.error:
+            pass

@@ -229,6 +229,16 @@ class AMQPChannel(StatefulObject):
                 LOGGER.debug('Queue size: %s', self._read_queue.qsize())
             return self._read_queue.get(True)
 
+    def _trigger_write(self):
+        """Notifies the IO loop we need to write a frame by writing a byte
+        to a local socket.
+
+        """
+        try:
+            self._write_trigger.send(b'0')
+        except socket.error:
+            pass
+
     def _validate_frame_type(self, frame_value, frame_type):
         """Validate the frame value against the frame type. The frame type can
         be an individual frame type or a list of frame types.
@@ -316,7 +326,4 @@ class AMQPChannel(StatefulObject):
             raise exception
 
         self._write_queue.put((self._channel_id, frame))
-        try:
-            self._write_trigger.send('0')
-        except socket.error:
-            pass
+        self._trigger_write()
