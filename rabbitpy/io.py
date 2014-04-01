@@ -225,7 +225,8 @@ class IO(threading.Thread, base.StatefulObject):
         del self._socket
         del self._channels
         del self._buffer
-        LOGGER.info('Exiting IO.run')
+        if DEBUG:
+            LOGGER.debug('Exiting IO.run')
 
     def on_error(self, exception):
         """Common functions when a socket error occurs. Make sure to set closed
