@@ -92,7 +92,7 @@ class Exchange(base.AMQPClass):
         """
         if hasattr(source, 'name'):
             source = source.name
-        self._rpc(specification.Exchange.Bind(destination=self.name,
+        self._rpc(specification.Exchange.Unbind(destination=self.name,
                                               source=source,
                                               routing_key=routing_key))
 
