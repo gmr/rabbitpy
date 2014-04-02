@@ -275,7 +275,7 @@ class Queue(base.AMQPClass):
         if hasattr(source, 'name'):
             source = source.name
         routing_key = routing_key or self.name
-        self._rpc(specification.Queue.Bind(queue=self.name, exchange=source,
+        self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
                                            routing_key=routing_key))
 
     def _declare(self, passive=False):
