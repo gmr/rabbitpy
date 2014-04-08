@@ -220,6 +220,7 @@ class Connection(base.StatefulObject):
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
+            self._events.wait(events.SOCKET_OPENED)
 
         # If the socket could not be opened, return instead of waiting
         if self.closed:
