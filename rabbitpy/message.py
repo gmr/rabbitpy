@@ -165,7 +165,7 @@ class Message(base.AMQPClass):
         """Force properties to be set to the correct data type"""
         for key in self.properties:
             _type = getattr(specification.Basic.Properties, key)
-            LOGGER.debug('Type: %s, %s', _type, type(self.properties[key]))
+            #LOGGER.debug('Type: %s, %s', _type, type(self.properties[key]))
             if _type == 'shortstr' and not isinstance(self.properties[key],
                                                       basestring):
                 LOGGER.warning('Coercing property %s to bytes', key)

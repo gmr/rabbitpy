@@ -143,7 +143,6 @@ class Queue(base.AMQPClass):
         # Set the value
         super(Queue, self).__setattr__(name, value)
 
-
     def bind(self, source, routing_key=None, arguments=None):
         """Bind the queue to the specified exchange or routing key.
 

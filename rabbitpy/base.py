@@ -275,12 +275,10 @@ class AMQPChannel(StatefulObject):
             frame_type = frame_type[0]
         start_state = self.state
         while not self.closed and start_state == self.state:
-            LOGGER.debug('Closed: %r, start: %r, state: %r',
-                         self.closed, start_state, self.state)
             value = self._read_from_queue()
-            LOGGER.debug('Read %r from queue', value)
+            #LOGGER.debug('Read %r from queue', value)
             if value is not None:
-                LOGGER.debug('Expecting %s, received %s', frame_type, value)
+                #LOGGER.debug('Expecting %s, received %s', frame_type, value)
                 self._read_queue.task_done()
                 if not frame_type:
                     return value
