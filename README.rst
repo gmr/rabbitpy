@@ -6,7 +6,7 @@ AMQP/RabbitMQ library that supports Python 2.6+ and Python 3.2+.
 rabbitpy aims to provide a simple and easy to use API for interfacing with
 RabbitMQ, minimizing the programming overhead often found in other libraries.
 
-|PyPI version| |Downloads| |Build Status|
+|PyPI version| |Build Status|
 
 Installation
 ------------
@@ -161,9 +161,7 @@ Version History
 - 0.5.1: Installer/setup fix
 - 0.5.0: Bugfix release including low level socket sending fix and connection timeouts.
 
-.. |PyPI version| image:: https://badge.fury.io/py/rabbitpy.png
+.. |PyPI version| image:: https://badge.fury.io/py/rabbitpy.svg
    :target: http://badge.fury.io/py/rabbitpy
-.. |Downloads| image:: https://pypip.in/d/rabbitpy/badge.png
-   :target: https://crate.io/packages/rabbitpy
-.. |Build Status| image:: https://travis-ci.org/gmr/rabbitpy.png?branch=master
+.. |Build Status| image:: https://travis-ci.org/gmr/rabbitpy.svg?branch=master
    :target: https://travis-ci.org/gmr/rabbitpy
