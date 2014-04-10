@@ -97,29 +97,45 @@ class Channel(base.AMQPChannel):
 
         # Empty the queue and nack the max id (and all previous)
         if self._consumers:
-
-            for queue_obj in self._consumers:
-                self._cancel_consumer(queue_obj)
-
-            LOGGER.debug('Channel %i purging read queue & nacking msgs',
-                         self._channel_id)
             delivery_tag = 0
             discard_counter = 0
-            while not self._read_queue.empty():
-                try:
-                    frame_value = self._read_queue.get(False)
-                    self._read_queue.task_done()
-                except queue.Empty:
-                    break
-                if frame_value.name == 'Basic.Deliver':
-                    if delivery_tag < frame_value.delivery_tag:
-                        delivery_tag = frame_value.delivery_tag
-                discard_counter += 1
-            if delivery_tag:
-                self._multi_nack(delivery_tag)
-            LOGGER.debug('Discarded %i pending frames', discard_counter)
+            ack_tags = []
+            for queue_obj, no_ack in self._consumers:
+                self._cancel_consumer(queue_obj)
+                if not no_ack:
+                    LOGGER.debug('Channel %i will nack messages for %s',
+                                 self._channel_id, queue_obj.consumer_tag)
+                    ack_tags.append(queue_obj.consumer_tag)
+
+            # If there are any ack tags, get the last msg to nack
+            if ack_tags:
+                while not self._read_queue.empty():
+                    frame_value = self._get_from_read_queue()
+                    if not frame_value:
+                        break
+                    if (frame_value.name == 'Basic.Deliver' and
+                            frame_value.consumer_tag in ack_tags):
+                        if delivery_tag < frame_value.delivery_tag:
+                            delivery_tag = frame_value.delivery_tag
+                    discard_counter += 1
+                if delivery_tag:
+                    self._multi_nack(delivery_tag)
 
         super(Channel, self).close()
+
+    def _get_from_read_queue(self):
+        """Fetch a frame from the read queue and return it, otherwise return
+        None
+
+        :rtype: pamqp.specification.Frame
+
+        """
+        try:
+            frame_value = self._read_queue.get(False)
+            self._read_queue.task_done()
+        except queue.Empty:
+            return None
+        return frame_value
 
     def enable_publisher_confirms(self):
         """Turn on Publisher Confirms. If confirms are turned on, the
@@ -153,6 +169,8 @@ class Channel(base.AMQPChannel):
         """
         self._set_state(self.REMOTE_CLOSED)
         if value.reply_code in exceptions.AMQP:
+            LOGGER.error('Received remote close (%s): %s',
+                         value.reply_code, value.reply_text)
             raise exceptions.AMQP[value.reply_code](value)
         else:
             raise exceptions.RemoteClosedChannelException(self._channel_id,
@@ -272,7 +290,7 @@ class Channel(base.AMQPChannel):
                                              consumer_tag=obj.consumer_tag,
                                              no_ack=no_ack,
                                              arguments=args))
-        self._consumers.append(obj)
+        self._consumers.append((obj, no_ack))
 
     def _consume_message(self):
         """Get a message from the stack, blocking while doing so.
