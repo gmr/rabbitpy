@@ -15,10 +15,12 @@ import uuid
 
 from pamqp import body
 from pamqp import header
+from pamqp import PYTHON3
 from pamqp import specification
 
 from rabbitpy import base
 from rabbitpy import exceptions
+from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -166,8 +168,8 @@ class Message(base.AMQPClass):
         for key in self.properties:
             _type = getattr(specification.Basic.Properties, key)
             #LOGGER.debug('Type: %s, %s', _type, type(self.properties[key]))
-            if _type == 'shortstr' and not isinstance(self.properties[key],
-                                                      basestring):
+            if _type == 'shortstr' and \
+                    not utils.is_string(self.properties[key]):
                 LOGGER.warning('Coercing property %s to bytes', key)
                 self.properties[key] = bytes(self.properties[key])
             elif _type == 'octet' and not isinstance(self.properties[key],
@@ -270,6 +272,10 @@ class Message(base.AMQPClass):
         header_frame = header.ContentHeader(body_size=len(self.body),
                                             properties=self._properties)
         self.channel._write_frame(header_frame)
+
+        if PYTHON3 and isinstance(self.body, str):
+            self.body = bytes(self.body.encode('UTF-8'))
+
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
 
