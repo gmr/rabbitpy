@@ -141,7 +141,7 @@ More complex examples and the rabbitpy API documentation are available at https:
 
 Version History
 ---------------
-- 0.16.0: Fix an issue with no_ack=True consumer cancellation, exchange and queue unbinding and add wait on the SOCKET_OPENED event when connecting.
+- 0.16.0: Fix an issue with no_ack=True consumer cancellation, exchange and queue unbinding and add wait on the SOCKET_OPENED event when connecting. Deal with str message body values in Python 3 by casting to bytes and encoding as UTF-8.
 - 0.15.1: Fix an issue with Python 3 IO write trigger (#18)
 - 0.15.0: Change default durability for Exchange and Queue to False, Fix a SSL connection issue
 - 0.14.2: Fix an issue when IPv6 is the default protocol for the box rabbitpy is being used on
