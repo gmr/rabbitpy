@@ -14,7 +14,6 @@ except ImportError:
     ssl = None
 import time
 
-from rabbitpy import DEBUG
 from rabbitpy import base
 from rabbitpy import io
 from rabbitpy import channel
@@ -187,8 +186,7 @@ class Connection(base.StatefulObject):
         :param rabbitpy.base.AMQPChannel: The channel to add
 
         """
-        if DEBUG:
-            LOGGER.debug('Adding channel %s to io', int(channel_id))
+        LOGGER.debug('Adding channel %s to io', int(channel_id))
         self._io.add_channel(channel_id, channel_queue)
 
     @property
@@ -453,8 +451,7 @@ class Connection(base.StatefulObject):
         #
         if not self._io.is_alive():
             self._set_state(self.CLOSED)
-            if DEBUG:
-                LOGGER.debug('Cant shutdown connection, IO is no longer alive')
+            LOGGER.debug('Cant shutdown connection, IO is no longer alive')
             return
 
         # Close any open channels
@@ -467,25 +464,21 @@ class Connection(base.StatefulObject):
             self._channel0.close()
 
             # Loop while Channel 0 closes
-            if DEBUG:
-                LOGGER.debug('Waiting on channel0 to close')
+            LOGGER.debug('Waiting on channel0 to close')
             while not self._channel0.closed:
                 time.sleep(0.1)
-            if DEBUG:
-                LOGGER.debug('channel0 closed')
+            LOGGER.debug('channel0 closed')
 
         # Close the socket
         if (self._events.is_set(events.SOCKET_OPENED) and
                 not self._events.is_set(events.SOCKET_CLOSED)):
-            if DEBUG:
-                LOGGER.debug('Requesting IO socket close')
+            LOGGER.debug('Requesting IO socket close')
             self._events.set(events.SOCKET_CLOSE)
 
             # Break out of select waiting
             self._trigger_write()
 
-            if DEBUG:
-                LOGGER.debug('Waiting on socket to close')
+            LOGGER.debug('Waiting on socket to close')
             self._events.wait(events.SOCKET_CLOSED, 0.1)
             while self._io.is_alive():
                 time.sleep(0.25)

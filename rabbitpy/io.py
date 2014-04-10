@@ -19,7 +19,6 @@ from pamqp import frame
 from pamqp import exceptions as pamqp_exceptions
 from pamqp import specification
 
-from rabbitpy import DEBUG
 from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
@@ -71,11 +70,9 @@ class IOLoop(object):
                     continue
 
             if self._data.events.is_set(events.SOCKET_CLOSE):
-                if DEBUG:
-                    LOGGER.debug('Exiting due to closed socket')
+                LOGGER.debug('Exiting due to closed socket')
                 break
-        if DEBUG:
-            LOGGER.debug('Exiting IOLoop.run')
+        LOGGER.debug('Exiting IOLoop.run')
 
     def stop(self):
         LOGGER.info('Stopping IOLoop')
@@ -87,8 +84,7 @@ class IOLoop(object):
 
     def _poll(self):
         # Poll select with the materialized lists
-        #if DEBUG:
-        #    LOGGER.debug('Polling')
+        #LOGGER.debug('Polling')
         if not self._data.running:
             LOGGER.info('Exiting poll')
 
@@ -109,13 +105,11 @@ class IOLoop(object):
             self._read()
         if write:
             self._write()
-        #if DEBUG:
-        #    LOGGER.debug('End of poll')
+        #LOGGER.debug('End of poll')
 
     def _read(self):
         if not self._data.running:
-            if DEBUG:
-                LOGGER.debug('Skipping read, not running')
+            LOGGER.debug('Skipping read, not running')
             return
         try:
             if self._data.ssl:
@@ -148,8 +142,7 @@ class IOLoop(object):
 
     def _write_frame(self, channel, value):
         if not self._data.running:
-            if DEBUG:
-                LOGGER.debug('Skipping write frame, not running')
+            LOGGER.debug('Skipping write frame, not running')
             return
         frame_data = frame.marshal(value, channel)
         try:
@@ -225,8 +218,7 @@ class IO(threading.Thread, base.StatefulObject):
         del self._socket
         del self._channels
         del self._buffer
-        if DEBUG:
-            LOGGER.debug('Exiting IO.run')
+        LOGGER.debug('Exiting IO.run')
 
     def on_error(self, exception):
         """Common functions when a socket error occurs. Make sure to set closed
@@ -264,8 +256,7 @@ class IO(threading.Thread, base.StatefulObject):
             if self._buffer and value[0] is None:
                 break
 
-            if DEBUG:
-                LOGGER.debug('Received (%i) %r', value[0], value[1])
+            LOGGER.debug('Received (%i) %r', value[0], value[1])
 
             # If it's channel 0, call the Channel0 directly
             if value[0] == 0:
@@ -302,9 +293,7 @@ class IO(threading.Thread, base.StatefulObject):
         :param pamqp.specification.Frame frame_value: The frame to add
 
         """
-        if DEBUG:
-            LOGGER.debug('Adding %s to channel %s',
-                         frame_value.name, channel_id)
+        LOGGER.debug('Adding %s to channel %s', frame_value.name, channel_id)
         self._channels[channel_id][1].put(frame_value)
 
     def _close(self):
@@ -317,8 +306,7 @@ class IO(threading.Thread, base.StatefulObject):
 
     def _connect_socket(self, sock, address):
         """Connect the socket to the specified host and port."""
-        if DEBUG:
-            LOGGER.debug('Connecting to %r', address)
+        LOGGER.debug('Connecting to %r', address)
         sock.settimeout(self.CONNECTION_TIMEOUT)
         sock.connect(address)
 
@@ -337,8 +325,7 @@ class IO(threading.Thread, base.StatefulObject):
                 self._connect_socket(sock, sockaddr)
                 break
             except socket.error as error:
-                if DEBUG:
-                    LOGGER.debug('Error connecting to %r: %s', sockaddr, error)
+                LOGGER.debug('Error connecting to %r: %s', sockaddr, error)
                 sock = None
                 continue
 
@@ -367,8 +354,7 @@ class IO(threading.Thread, base.StatefulObject):
             for argv, key in self.SSL_KWARGS.iteritems():
                 if self._args[key]:
                     kwargs[argv] = self._args[key]
-            if DEBUG:
-                LOGGER.debug('Wrapping socket for SSL: %r', kwargs)
+            LOGGER.debug('Wrapping socket for SSL: %r', kwargs)
             return ssl.wrap_socket(**kwargs)
         return sock
 
@@ -409,8 +395,7 @@ class IO(threading.Thread, base.StatefulObject):
             return value, None, None
         except specification.AMQPFrameError as error:
             LOGGER.error('Failed to demarshal: %r', error, exc_info=True)
-            if DEBUG:
-                LOGGER.debug(value)
+            LOGGER.debug(value)
             return value, None, None
         return value[byte_count:], channel_id, frame_in
 
@@ -449,8 +434,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._connect()
-        if DEBUG:
-            LOGGER.debug('Socket connected')
+        LOGGER.debug('Socket connected')
 
         # Create the remote name
         local_socket = self._socket.getsockname()

@@ -11,7 +11,6 @@ import socket
 from pamqp import specification
 import time
 
-from rabbitpy import DEBUG
 from rabbitpy import exceptions
 from rabbitpy import utils
 
@@ -88,9 +87,8 @@ class StatefulObject(object):
         """
         if value not in list(self.STATES.keys()):
             raise ValueError('Invalid state value: %r' % value)
-        if DEBUG:
-            LOGGER.debug('%s setting state to %r', self.__class__.__name__,
-                         self.STATES[value])
+        LOGGER.debug('%s setting state to %r',
+                     self.__class__.__name__, self.STATES[value])
         self._state = value
 
     @property
@@ -168,23 +166,19 @@ class AMQPChannel(StatefulObject):
 
     def close(self):
         if self.closed:
-            if DEBUG:
-                LOGGER.debug('AMQPChannel %i close invoked and already closed',
-                             self._channel_id)
+            LOGGER.debug('AMQPChannel %i close invoked and already closed',
+                         self._channel_id)
             return
-        if DEBUG:
-            LOGGER.debug('Channel %i close invoked while %s',
-                         self._channel_id, self.state_description)
+        LOGGER.debug('Channel %i close invoked while %s',
+                     self._channel_id, self.state_description)
         if not self.closing:
             self._set_state(self.CLOSING)
         frame_value = self._build_close_frame()
-        if DEBUG:
-            LOGGER.debug('Channel %i Waiting for a valid response for %s',
-                         self._channel_id, frame_value.name)
+        LOGGER.debug('Channel %i Waiting for a valid response for %s',
+                     self._channel_id, frame_value.name)
         self.rpc(frame_value)
         self._set_state(self.CLOSED)
-        if DEBUG:
-            LOGGER.debug('Channel #%i closed', self._channel_id)
+        LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def rpc(self, frame_value):
         """Send a RPC command to the remote server.
@@ -225,8 +219,7 @@ class AMQPChannel(StatefulObject):
         """
         self._check_for_exceptions()
         if not self._read_queue.empty():
-            if DEBUG:
-                LOGGER.debug('Queue size: %s', self._read_queue.qsize())
+            LOGGER.debug('Queue size: %s', self._read_queue.qsize())
             return self._read_queue.get(True)
 
     def _trigger_write(self):
@@ -250,8 +243,7 @@ class AMQPChannel(StatefulObject):
 
         """
         if frame_value is None:
-            if DEBUG:
-                LOGGER.debug('Frame value is none?')
+            LOGGER.debug('Frame value is none?')
             return False
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
@@ -278,22 +270,17 @@ class AMQPChannel(StatefulObject):
         :rtype: Frame
 
         """
-        if DEBUG:
-            LOGGER.debug('Waiting on %r', frame_type)
+        LOGGER.debug('Waiting on %r', frame_type)
         if isinstance(frame_type, list) and len(frame_type) == 1:
             frame_type = frame_type[0]
         start_state = self.state
         while not self.closed and start_state == self.state:
-            if DEBUG:
-                LOGGER.debug('Closed: %r, start: %r, state: %r',
-                             self.closed, start_state, self.state)
+            LOGGER.debug('Closed: %r, start: %r, state: %r',
+                         self.closed, start_state, self.state)
             value = self._read_from_queue()
-            if DEBUG:
-                LOGGER.debug('Read %r from queue', value)
+            LOGGER.debug('Read %r from queue', value)
             if value is not None:
-                if DEBUG:
-                    LOGGER.debug('Expecting %s, received %s',
-                                 frame_type, value)
+                LOGGER.debug('Expecting %s, received %s', frame_type, value)
                 self._read_queue.task_done()
                 if not frame_type:
                     return value
@@ -302,8 +289,7 @@ class AMQPChannel(StatefulObject):
                 self._read_queue.put(value)
 
             if not self._exceptions.empty() and not self.closing:
-                if DEBUG:
-                    LOGGER.debug('Exiting due to exceptions')
+                LOGGER.debug('Exiting due to exceptions')
                 break
 
             time.sleep(0.1)
@@ -316,9 +302,8 @@ class AMQPChannel(StatefulObject):
 
         """
         if self.closed:
-            if DEBUG:
-                LOGGER.debug('Not writing frame, channel closed')
-                return
+            LOGGER.debug('Not writing frame, channel closed')
+            return
 
         if not self._exceptions.empty():
             self._set_state(self.CLOSED)

@@ -9,14 +9,13 @@ try:
     import queue
 except ImportError:
     import Queue as queue
-import socket
 import sys
 
 from pamqp import header
 from pamqp import heartbeat
 from pamqp import specification
 
-from rabbitpy import __version__, DEBUG
+from rabbitpy import __version__
 from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
@@ -67,8 +66,7 @@ class Channel0(base.AMQPChannel):
         :param pamqp.message.Message value: The message value
 
         """
-        if DEBUG:
-            LOGGER.debug('Received frame: %r', value)
+        LOGGER.debug('Received frame: %r', value)
         if value.name == 'Connection.Close':
             LOGGER.warning('RabbitMQ closed the connection (%s): %s',
                            value.reply_code, value.reply_text)
@@ -93,8 +91,7 @@ class Channel0(base.AMQPChannel):
             self._on_connection_start(value)
         elif value.name == 'Connection.Tune':
             self._on_connection_tune(value)
-            if DEBUG:
-                LOGGER.debug('Adding frame to read queue: %r', value)
+            LOGGER.debug('Adding frame to read queue: %r', value)
         elif value.name == 'Connection.Unblocked':
             LOGGER.info('Connection is no longer blocked')
             self._events.clear(events.CONNECTION_BLOCKED)
@@ -151,8 +148,7 @@ class Channel0(base.AMQPChannel):
                                                self._heartbeat)
 
     def _on_connection_open_ok(self):
-        if DEBUG:
-            LOGGER.debug('Connection opened')
+        LOGGER.debug('Connection opened')
         self._set_state(self.OPEN)
         self._events.set(events.CHANNEL0_OPENED)
 
