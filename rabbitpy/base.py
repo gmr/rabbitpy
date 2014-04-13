@@ -211,7 +211,7 @@ class AMQPChannel(StatefulObject):
             exception = self._exceptions.get()
             raise exception
 
-    def _read_from_queue(self):
+    def _read_from_queue(self, timeout=0.0):
         """Check to see if a frame is in the queue and if so, return it
 
         :rtype: amqp.specification.Frame or None
@@ -220,7 +220,7 @@ class AMQPChannel(StatefulObject):
         self._check_for_exceptions()
         if not self._read_queue.empty():
             LOGGER.debug('Queue size: %s', self._read_queue.qsize())
-            return self._read_queue.get(True)
+            return self._read_queue.get(True, timeout)
 
     def _trigger_write(self):
         """Notifies the IO loop we need to write a frame by writing a byte
@@ -275,7 +275,7 @@ class AMQPChannel(StatefulObject):
             frame_type = frame_type[0]
         start_state = self.state
         while not self.closed and start_state == self.state:
-            value = self._read_from_queue()
+            value = self._read_from_queue(0.1)
             #LOGGER.debug('Read %r from queue', value)
             if value is not None:
                 #LOGGER.debug('Expecting %s, received %s', frame_type, value)
@@ -289,8 +289,6 @@ class AMQPChannel(StatefulObject):
             if not self._exceptions.empty() and not self.closing:
                 LOGGER.debug('Exiting due to exceptions')
                 break
-
-            time.sleep(0.1)
 
     def _write_frame(self, frame):
         """Put the frame in the write queue for the IOWriter object to write to
