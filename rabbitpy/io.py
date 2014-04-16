@@ -71,7 +71,7 @@ class IOLoop(object):
         LOGGER.debug('Exiting IOLoop.run')
 
     def stop(self):
-        LOGGER.info('Stopping IOLoop')
+        LOGGER.debug('Stopping IOLoop')
         self._data.running = False
         try:
             self._data.write_trigger.close()
@@ -82,7 +82,7 @@ class IOLoop(object):
         # Poll select with the materialized lists
         #LOGGER.debug('Polling')
         if not self._data.running:
-            LOGGER.info('Exiting poll')
+            LOGGER.debug('Exiting poll')
 
         if self._data.write_queue.empty() and not self._data.failed_write:
             read, write, err = select.select(*self._data.read_only)
