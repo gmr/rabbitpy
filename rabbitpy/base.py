@@ -9,7 +9,6 @@ except ImportError:
     import Queue as queue
 import socket
 from pamqp import specification
-import time
 
 from rabbitpy import exceptions
 from rabbitpy import utils
@@ -209,7 +208,20 @@ class AMQPChannel(StatefulObject):
         """
         if not self._exceptions.empty():
             exception = self._exceptions.get()
+            self._exceptions.task_done()
             raise exception
+
+    def _check_for_rpc_request(self, value):
+        """Implement in child objects to inspect frames for channel specific
+        RPC requests from RabbitMQ.
+
+        """
+        pass
+
+    def _force_close(self):
+        """Force the channel to mark itself as closed"""
+        self._set_state(self.CLOSED)
+        LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def _read_from_queue(self):
         """Check to see if a frame is in the queue and if so, return it
@@ -218,9 +230,13 @@ class AMQPChannel(StatefulObject):
 
         """
         self._check_for_exceptions()
-        if not self._read_queue.empty():
-            LOGGER.debug('Queue size: %s', self._read_queue.qsize())
-            return self._read_queue.get(True)
+        try:
+            value = self._read_queue.get(True, .1)
+            self._read_queue.task_done()
+            return value
+        except queue.Empty:
+            pass
+        return None
 
     def _trigger_write(self):
         """Notifies the IO loop we need to write a frame by writing a byte
@@ -270,27 +286,16 @@ class AMQPChannel(StatefulObject):
         :rtype: Frame
 
         """
-        LOGGER.debug('Waiting on %r', frame_type)
         if isinstance(frame_type, list) and len(frame_type) == 1:
             frame_type = frame_type[0]
         start_state = self.state
         while not self.closed and start_state == self.state:
             value = self._read_from_queue()
-            #LOGGER.debug('Read %r from queue', value)
             if value is not None:
-                #LOGGER.debug('Expecting %s, received %s', frame_type, value)
-                self._read_queue.task_done()
-                if not frame_type:
-                    return value
-                elif self._validate_frame_type(value, frame_type):
+                self._check_for_rpc_request(value)
+                if frame_type and self._validate_frame_type(value, frame_type):
                     return value
                 self._read_queue.put(value)
-
-            if not self._exceptions.empty() and not self.closing:
-                LOGGER.debug('Exiting due to exceptions')
-                break
-
-            time.sleep(0.1)
 
     def _write_frame(self, frame):
         """Put the frame in the write queue for the IOWriter object to write to
@@ -300,13 +305,7 @@ class AMQPChannel(StatefulObject):
 
         """
         if self.closed:
-            LOGGER.debug('Not writing frame, channel closed')
             return
-
-        if not self._exceptions.empty():
-            self._set_state(self.CLOSED)
-            exception = self._exceptions.get()
-            raise exception
-
+        self._check_for_exceptions()
         self._write_queue.put((self._channel_id, frame))
         self._trigger_write()
