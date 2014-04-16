@@ -159,44 +159,6 @@ class Channel(base.AMQPChannel):
     def maximum_frame_size(self):
         return self._maximum_frame_size
 
-    def on_remote_close(self, value):
-        """Invoked by rabbitpy.connection.Connection when a remote channel
-        close is issued.
-
-        :param value: The Channel.Close method frame
-        :type value: pamqp.specification.Channel.Close
-
-        """
-        self._set_state(self.REMOTE_CLOSED)
-        if value.reply_code in exceptions.AMQP:
-            LOGGER.error('Received remote close (%s): %s',
-                         value.reply_code, value.reply_text)
-            raise exceptions.AMQP[value.reply_code](value)
-        else:
-            raise exceptions.RemoteClosedChannelException(self._channel_id,
-                                                          value.reply_code,
-                                                          value.reply_text)
-
-    def on_basic_cancel(self, frame_value):
-        """Invoked by rabbit.py.io._run when a Basic.Return is delivered from
-        RabbitMQ.
-
-        :param frame_value: The Basic.Return method frame
-        :type frame_value: pamqp.specification.Basic.Return
-
-        """
-        self._process_basic_return(self._wait_for_content_frames(frame_value))
-
-    def on_basic_return(self, frame_value):
-        """Invoked by rabbit.py.io._run when a Basic.Return is delivered from
-        RabbitMQ.
-
-        :param frame_value: The Basic.Return method frame
-        :type frame_value: pamqp.specification.Basic.Return
-
-        """
-        self._process_basic_return(self._wait_for_content_frames(frame_value))
-
     def open(self):
         """Open the channel, invoked directly upon creation by the Connection
 
@@ -271,6 +233,16 @@ class Channel(base.AMQPChannel):
         if not self.closed:
             self._wait_on_frame(specification.Basic.CancelOk)
             LOGGER.debug('Basic.CancelOk received')
+
+    def _check_for_rpc_request(self, value):
+
+        if isinstance(value, specification.Channel.Close):
+            self._on_remote_close(value)
+        elif isinstance(value, specification.Basic.Cancel):
+            pass
+
+        elif isinstance(value, specification.Basic.Return):
+            self._on_basic_return(self._wait_for_content_frames(value))
 
     def _consume(self, obj, no_ack, priority):
         """Register a Queue object as a consumer, issuing Basic.Consume.
@@ -351,7 +323,7 @@ class Channel(base.AMQPChannel):
                                           multiple=True,
                                           requeue=True))
 
-    def _process_basic_return(self, msg):
+    def _on_basic_return(self, msg):
         """Raise a MessageReturnedException so the publisher can handle
         returned messages.
 
@@ -367,6 +339,23 @@ class Channel(base.AMQPChannel):
         raise exceptions.MessageReturnedException(message_id,
                                                   msg.method.reply_code,
                                                   msg.method.reply_text)
+
+    def _on_remote_close(self, value):
+        """Handle RabbitMQ remotely closing the channel
+
+        :param value: The Channel.Close method frame
+        :type value: pamqp.specification.Channel.Close
+
+        """
+        self._set_state(self.REMOTE_CLOSED)
+        if value.reply_code in exceptions.AMQP:
+            LOGGER.error('Received remote close (%s): %s',
+                         value.reply_code, value.reply_text)
+            raise exceptions.AMQP[value.reply_code](value)
+        else:
+            raise exceptions.RemoteClosedChannelException(self._channel_id,
+                                                          value.reply_code,
+                                                          value.reply_text)
 
     def _wait_for_confirmation(self):
         """Used by the Message.publish method when publisher confirmations are
@@ -387,17 +376,12 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.Message
 
         """
-        LOGGER.debug('Waiting on ContentHeader')
         if self.closing or self.closed:
-            LOGGER.debug('Exiting from waiting for content frames')
             return None
-
         header_value = self._wait_on_frame('ContentHeader')
         if not header_value:
-            LOGGER.debug('No header value')
             return self._create_message(method_frame, None, None)
         body_value = bytes() if PYTHON3 else str()
-        LOGGER.debug('Waiting for %i body bytes', header_value.body_size)
         while len(body_value) < header_value.body_size:
             body_part = self._wait_on_frame('ContentBody')
             if not body_part:
@@ -406,6 +390,5 @@ class Channel(base.AMQPChannel):
             if len(body_value) == header_value.body_size:
                 break
             if self.closing or self.closed:
-                LOGGER.debug('Exiting from waiting for content frames')
                 return None
         return self._create_message(method_frame, header_value, body_value)
