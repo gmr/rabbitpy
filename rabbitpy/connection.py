@@ -125,7 +125,8 @@ class Connection(base.StatefulObject):
         if exc_type:
             LOGGER.error('Shutting down connection on unhandled exception: %s',
                          exc_type)
-        self.close()
+        self._set_state(self.CLOSED)
+        self._shutdown_connection(True)
 
     @property
     def blocked(self):
@@ -235,7 +236,7 @@ class Connection(base.StatefulObject):
                 exception = self._exceptions.get()
                 self._io.stop()
                 raise exception
-            time.sleep(0.1)
+            time.sleep(0.01)
 
         # Set the maximum frame size for channel use
         self._maximum_frame_size = self._channel0.maximum_frame_size
@@ -446,10 +447,13 @@ class Connection(base.StatefulObject):
                 'ssl_validation': self._get_ssl_validation(query_values),
                 'ssl_version': self._get_ssl_version(query_values)}
 
-    def _shutdown_connection(self):
-        """Tell Channel0 and IO to stop if they are not stopped."""
-        #
-        if not self._io.is_alive():
+    def _shutdown_connection(self, force=False):
+        """Tell Channel0 and IO to stop if they are not stopped.
+
+        :param bool force: Force the connection to shutdown without AMQP negotiation
+
+        """
+        if not force and not self._io.is_alive():
             self._set_state(self.CLOSED)
             LOGGER.debug('Cant shutdown connection, IO is no longer alive')
             return
@@ -457,15 +461,19 @@ class Connection(base.StatefulObject):
         # Close any open channels
         for chan_id in [chan_id for chan_id in self._channels
                         if not self._channels[chan_id].closed]:
-            self._channels[chan_id].close()
+            if force:
+                self._channels[chan_id]._force_close()
+            else:
+                self._channels[chan_id].close()
 
         # If the connection is still established, close it
-        if self._channel0.open:
+        if self._channel0.open and not self._events.is_set(events.CHANNEL0_CLOSED):
             self._channel0.close()
 
             # Loop while Channel 0 closes
             LOGGER.debug('Waiting on channel0 to close')
-            while not self._channel0.closed:
+            while not self._channel0.closed and self._io.is_alive():
+                LOGGER.debug('Waiting on channel0 to close')
                 time.sleep(0.1)
             LOGGER.debug('channel0 closed')
 
