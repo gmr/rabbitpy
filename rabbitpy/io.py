@@ -23,8 +23,8 @@ from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
 
-MAX_READ = 4096
-MAX_WRITE = 32
+MAX_READ = 16
+MAX_WRITE = 16
 POLL_TIMEOUT = 3600.0
 
 
@@ -36,7 +36,7 @@ class IOLoop(object):
     ERROR = 0x008 | 0x010
 
     def __init__(self, fd, error_callback, read_callback, write_queue,
-                 event_obj, write_trigger, exceptions):
+                 event_obj, write_trigger, exception_stack):
         self._data = threading.local()
         self._data.fd = fd
         self._data.error_callback = error_callback
@@ -47,7 +47,7 @@ class IOLoop(object):
         self._data.ssl = hasattr(fd, 'read')
         self._data.events = event_obj
         self._data.write_trigger = write_trigger
-        self._exceptions = exceptions
+        self._exceptions = exception_stack
 
         # Materialized lists for select
         self._data.read_only = [[fd, write_trigger], [], [fd], POLL_TIMEOUT]
@@ -58,10 +58,6 @@ class IOLoop(object):
         while self._data.running:
             try:
                 self._poll()
-            except (KeyboardInterrupt, SystemExit) as exception:
-                LOGGER.error('Received %r', exception)
-                self._exceptions.put(exception)
-                pass
             except EnvironmentError as exception:
                 if (getattr(exception, 'errno', None) == errno.EINTR or
                     (isinstance(getattr(exception, 'args', None), tuple) and
@@ -180,6 +176,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._write_listener, self._write_trigger = self._socketpair()
 
         self._buffer = bytes()
+        self._lock = threading.RLock()
         self._channels = dict()
         self._remote_name = None
         self._socket = None
@@ -200,24 +197,22 @@ class IO(threading.Thread, base.StatefulObject):
         """
 
         """
-        try:
-            self._run()
-        except socket.error as exception:
-            LOGGER.error('Exiting due to socket.error: %s', exception)
-        except Exception as exception:
-            LOGGER.error('Unhandled exception: %s', exception, exc_info=True)
-            self._exceptions.put(exception)
-            if self._events.is_set(events.CHANNEL0_OPENED):
-                self._events.set(events.CHANNEL0_CLOSE)
-                self._events.wait(events.CHANNEL0_CLOSED)
-            if self.open:
-                self._close()
-            self._events.set(events.EXCEPTION_RAISED)
+        self._connect()
+        LOGGER.debug('Socket connected')
 
-        del self._loop
-        del self._socket
-        del self._channels
-        del self._buffer
+        # Create the remote name
+        local_socket = self._socket.getsockname()
+        peer_socket = self._socket.getpeername()
+        self._remote_name = '%s:%s -> %s:%s' % (local_socket[0],
+                                                local_socket[1],
+                                                peer_socket[0],
+                                                peer_socket[1])
+        self._loop = IOLoop(self._socket, self.on_error, self.on_read,
+                            self._write_queue,
+                            self._events,
+                            self._write_listener,
+                            self._exceptions)
+        self._loop.run()
         LOGGER.debug('Exiting IO.run')
 
     def on_error(self, exception):
@@ -233,15 +228,7 @@ class IO(threading.Thread, base.StatefulObject):
             self._exceptions.put(exceptions.ConnectionResetException(*args))
         else:
             self._exceptions.put(exceptions.ConnectionException(*args))
-        self._set_state(self.CLOSED)
-        self._loop.stop()
-        self._trigger_write()
-        self._events.clear(events.SOCKET_OPENED)
-        self._events.set(events.SOCKET_CLOSED)
         self._events.set(events.EXCEPTION_RAISED)
-        if self.open:
-            self._close()
-        self._channels[0][0]._set_state(self._channels[0][0].CLOSED)
 
     def on_read(self, data):
         # Append the data to the buffer
@@ -260,20 +247,12 @@ class IO(threading.Thread, base.StatefulObject):
 
             # If it's channel 0, call the Channel0 directly
             if value[0] == 0:
+                self._lock.acquire(True)
                 self._channels[0][0].on_frame(value[1])
+                self._lock.release()
                 continue
 
-            # Close the channel if it's a Channel.Close frame
-            if isinstance(value[1], specification.Channel.Close):
-                self._remote_close_channel(value[0], value[1])
-
-            # Let the channel know a message was returned
-            elif isinstance(value[1], specification.Basic.Return):
-                self._notify_of_basic_return(value[0], value[1])
-
-            # Add the frame to the channel queue
-            else:
-                self._add_frame_to_queue(value[0], value[1])
+            self._add_frame_to_queue(value[0], value[1])
 
     def stop(self):
         """Stop the IO Layer due to exception or other problem.
@@ -427,28 +406,6 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._channels[channel_id][0].on_remote_close(frame_value)
-
-    def _run(self):
-        """Start the thread, which will connect to the socket and run the
-        event loop.
-
-        """
-        self._connect()
-        LOGGER.debug('Socket connected')
-
-        # Create the remote name
-        local_socket = self._socket.getsockname()
-        peer_socket = self._socket.getpeername()
-        self._remote_name = '%s:%s -> %s:%s' % (local_socket[0],
-                                                local_socket[1],
-                                                peer_socket[0],
-                                                peer_socket[1])
-        self._loop = IOLoop(self._socket, self.on_error, self.on_read,
-                            self._write_queue,
-                            self._events,
-                            self._write_listener,
-                            self._exceptions)
-        self._loop.run()
 
     def _socketpair(self):
         """Return a socket pair regardless of platform.
