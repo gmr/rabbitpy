@@ -161,7 +161,8 @@ Version History
 - 0.5.1: Installer/setup fix
 - 0.5.0: Bugfix release including low level socket sending fix and connection timeouts.
 
-.. |PyPI Version| image:: https://badge.fury.io/py/rabbitpy.svg
+
+.. |PyPI Version| image:: https://badge.fury.io/py/rabbitpy.svg?
    :target: http://badge.fury.io/py/rabbitpy
 
 .. |Build Status| image:: https://travis-ci.org/gmr/rabbitpy.svg?branch=master
