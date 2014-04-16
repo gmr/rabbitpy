@@ -9,7 +9,7 @@ desc = ('A pure python, thread-safe, minimalistic and pythonic RabbitMQ '
         'client library')
 
 setuptools.setup(name='rabbitpy',
-                 version='0.16.0',
+                 version='0.17.0',
                  description=desc,
                  long_description=open('README.rst').read(),
                  author='Gavin M. Roy',
@@ -32,6 +32,7 @@ setuptools.setup(name='rabbitpy',
                               'Programming Language :: Python :: 3',
                               'Programming Language :: Python :: 3.2',
                               'Programming Language :: Python :: 3.3',
+                              'Programming Language :: Python :: 3.4',
                               'Programming Language :: Python :: Implementation :: CPython',
                               'Programming Language :: Python :: Implementation :: PyPy',
                               'Topic :: Communications',
