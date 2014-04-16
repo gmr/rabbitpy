@@ -72,6 +72,7 @@ class Channel0(base.AMQPChannel):
                            value.reply_code, value.reply_text)
             self._set_state(self.CLOSED)
             self._events.set(events.SOCKET_CLOSE)
+            self._events.set(events.CHANNEL0_CLOSED)
             if value.reply_code in exceptions.AMQP:
                 err = exceptions.AMQP[value.reply_code](value.reply_text)
             else:
@@ -85,6 +86,7 @@ class Channel0(base.AMQPChannel):
             self._events.set(events.CONNECTION_BLOCKED)
         elif value.name == 'Connection.CloseOk':
             self._set_state(self.CLOSED)
+            self._events.set(events.CHANNEL0_CLOSED)
         elif value.name == 'Connection.OpenOk':
             self._on_connection_open_ok()
         elif value.name == 'Connection.Start':
