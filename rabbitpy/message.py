@@ -128,6 +128,16 @@ class Message(base.AMQPClass):
         return self.method.delivery_tag if self.method else None
 
     @property
+    def redelivered(self):
+        """Indicates if this message may have been delivered before (but not
+        acknowledged)"
+
+        :rtype: bool or None
+
+        """
+        return self.method.redelivered if self.method else None
+
+    @property
     def routing_key(self):
         """Return the routing_key for a message that was delivered or gotten
         from RabbitMQ.
