@@ -212,6 +212,7 @@ class Connection(base.StatefulObject):
 
         # Create and start the IO object that reads, writes & dispatches frames
         self._io = self._create_io_thread()
+        self._io.daemon = True
         self._io.start()
 
         # Wait for IO to connect to the socket or raise an exception
