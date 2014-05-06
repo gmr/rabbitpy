@@ -231,7 +231,7 @@ class AMQPChannel(StatefulObject):
         """
         self._check_for_exceptions()
         try:
-            value = self._read_queue.get(True, .1)
+            value = self._read_queue.get(True, 1)
             self._read_queue.task_done()
             return value
         except queue.Empty:
