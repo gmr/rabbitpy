@@ -14,7 +14,7 @@ Due to the way that channels events are managed, it is recommend that you restri
 the use of a channel to an individual thread. By not sharing channels across
 threads, you will ensure that you do not accidentally create issues with
 channel state in the AMQP protocol. As an asynchronous RPC style protocol, when
-you issues commands, such as a queue declaration, or are publishing a message,
+you issue commands, such as a queue declaration, or are publishing a message,
 there are expectations in the conversation on a channel about the order of
 events and frames sent and received.
 
