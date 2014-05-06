@@ -5,7 +5,7 @@
 
 rabbitpy: RabbitMQ Simplified
 =============================
-rabbitpy is a pure python, thread-safe, and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6+ and 3.2+. rabbitpy aims to provide a simple and easy to use API for interfacing with RabbitMQ, minimizing the programming overhead often found in other libraries.
+rabbitpy is a pure python, thread-safe [#]_, and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6+ and 3.2+. rabbitpy aims to provide a simple and easy to use API for interfacing with RabbitMQ, minimizing the programming overhead often found in other libraries.
 
 |Version| |Downloads|
 
@@ -61,13 +61,6 @@ And consuming is nearly as simple:
 
     'This is my test message'
 
-Creating queues and exchanges is just as easy:
-
-.. code:: python
-
->>> rabbitpy.create_queue('amqp://guest:guest@localhost:5672/%2f', 'test-queue')
->>> rabbitpy.create_topic_exchange('amqp://guest:guest@localhost:5672/%2f', 'my-exchange')
-
 See `examples with other libraries <https://gist.github.com/gmr/5259929>`_ and the rest of :doc:`the simple api <simple>`, but note the simple api **is good for one-off tasks**. For more complex tasks or applications, there is a more complete, object oriented api available for your use.
 
 API Documentation
@@ -89,6 +82,8 @@ And by using the core objects:
    :maxdepth: 1
 
    api/*
+
+.. [#] If you're looking to use rabbitpy in a multi-threaded application, you should the notes about multi-threaded use in :doc:`threads`.
 
 Examples
 --------

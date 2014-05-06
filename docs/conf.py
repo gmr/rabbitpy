@@ -88,7 +88,8 @@ pygments_style = 'sphinx'
 #modindex_common_prefix = []
 
 intersphinx_mapping = {'pamqp': ('https://pamqp.readthedocs.org/en/latest/',
-                                 None)}
+                                 None),
+                       'python': ('https://docs.python.org/2/', None)}
 
 # -- Options for HTML output ---------------------------------------------------
 
