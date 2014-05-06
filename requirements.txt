@@ -1,3 +1,5 @@
 pamqp>=1.2.0
+coverage
 nose
 mock
+python-coveralls
