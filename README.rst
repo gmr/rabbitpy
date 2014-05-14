@@ -58,29 +58,6 @@ The simple publisher is ideal for sending one off messages:
                          routing_key='example',
                          body='This is my test message')
 
-If you want to add properties:
-
-.. code:: python
-
-    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
-                         exchange='test',
-                         routing_key='example',
-                         body='This is my test message',
-                         properties={'content_type': 'text/plain'})
-
-And publisher confirms:
-
-.. code:: python
-
-    >>> rabbitpy.publish('amqp://guest:guest@localhost:5672/%2f',
-                         exchange='test',
-                         routing_key='example',
-                         body='This is my test message',
-                         properties={'content_type': 'text/plain'},
-                         confirm=True)
-    True
-    >>>
-
 Simple Getter
 #############
 
@@ -130,7 +107,7 @@ represent either the AMQ Model or RabbitMQ concepts. These include:
 - Connections
 - Channels
 - Exchanges
-- Messsages
+- Messages
 - Policies [@TODO]
 - Queues
 - Transactions
@@ -141,7 +118,7 @@ More complex examples and the rabbitpy API documentation are available at https:
 
 Version History
 ---------------
-Available at https://rabbitpy.readthedocs.org
+Available at https://rabbitpy.readthedocs.org/en/latest/history.html
 
 .. |Version| image:: https://badge.fury.io/py/rabbitpy.svg?
    :target: http://badge.fury.io/py/rabbitpy

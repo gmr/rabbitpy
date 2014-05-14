@@ -1,24 +1,67 @@
 Version History
 ---------------
 
-- 0.17.0: Refactor cross-thread communication for RabbitMQ invoked RPC methods, fix unclean shutdown conditions and cross-thread exceptions
-- 0.16.0: Fix an issue with no_ack=True consumer cancellation, exchange and queue unbinding and add wait on the SOCKET_OPENED event when connecting. Deal with str message body values in Python 3 by casting to bytes and encoding as UTF-8.
-- 0.15.1: Fix an issue with Python 3 IO write trigger
-- 0.15.0: Change default durability for Exchange and Queue to False, Fix a SSL connection issue
-- 0.14.2: Fix an issue when IPv6 is the default protocol for the box rabbitpy is being used on
-- 0.14.1: Assign queue name for RabbitMQ named queues in rabbitpy.Queue.declare
-- 0.14.0: Add support for authentication_failure_close and consumer priorities, Exception cleanup, Queue consuming via Queue.__iter__, Queue & Exchange attributes are no longer private, Tx objects can be used as a context manager, and experimental support for Windows.
-- 0.13.0: Validate heartbeat is always an integer, add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
-- 0.12.3: Minor Message.pprint() reformatting
-- 0.12.2: Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
-- 0.12.1: Fix exception with pika.exceptions.AMQP
-- 0.12.0: Updated simple consumer to potential one-liner, added rabbitpy.Message.pprint()
-- 0.11.0: Major bugfix focused on receiving multiple AMQP frames at the same time. Add auto-coersion of property data-types.
-- 0.10.0: Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes
-- 0.9.0: Major performance improvements, CPU usage reduction, minor bug-fixes
-- 0.8.0: Major bugfixes, IPv6 support
-- 0.7.0: Bugfixes and code cleanup. Most notable fix around Basic.Return and recursion in Channel._wait_on_frame.
-- 0.6.0: Bugfix with Queue.get(), RPC requests expecting multiple responses and the new Queue.consume_messages() method.
-- 0.5.1: Installer/setup fix
-- 0.5.0: Bugfix release including low level socket sending fix and connection timeouts.
-- < 0.5.0: Previously called rmqid
+ - 0.18.0  - released *2014-05-15*
+  - Make IO thread daemonic
+  - block on RPC reads for 1 second instead of 100ms
+  - add the Message.redelivered property
+ - 0.17.0  - released *2014-04-16*
+  - Refactor cross-thread communication for RabbitMQ invoked RPC methods
+  - fix unclean shutdown conditions and cross-thread exceptions
+ - 0.16.0  - released *2014-04-10*
+  - Fix an issue with no_ack=True consumer cancellation
+  - Fix exchange and queue unbinding
+  - Add wait on the SOCKET_OPENED event when connecting
+  - Deal with str message body values in Python 3 by casting to bytes and encoding as UTF-8.
+ - 0.15.1  - released *2014-01-27*
+  - Fix an issue with Python 3 IO write trigger
+ - 0.15.0  - released *2014-01-27*
+  - Change default durability for Exchange and Queue to False
+  - Fix a SSL connection issue
+ - 0.14.2  - released *2014-01-23*
+  - Fix an issue when IPv6 is the default protocol for the box rabbitpy is being used on
+ - 0.14.1  - released *2014-01-23*
+  - Assign queue name for RabbitMQ named queues in rabbitpy.Queue.declare
+ - 0.14.0  - released *2014-01-22*
+  - Add support for authentication_failure_close
+  - Add consumer priorities
+  - Exception cleanup
+  - Queue consuming via Queue.__iter__
+  - Queue & Exchange attributes are no longer private
+  - Tx objects can be used as a context manager
+  - Experimental support for Windows.
+ - 0.13.0  - released *2014-01-17*
+  - Validate heartbeat is always an integer
+  - add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
+ - 0.12.3  - released *2013-12-23*
+  - Minor Message.pprint() reformatting
+ - 0.12.2  - released *2013-12-23*
+  - Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
+ - 0.12.1  - released *2013-12-19*
+  - Fix exception with pika.exceptions.AMQP
+ - 0.12.0  - released *2013-12-19*
+  - Updated simple consumer to potential one-liner
+  - Added rabbitpy.Message.pprint()
+ - 0.11.0  - released *2013-12-19*
+  - Major bugfix focused on receiving multiple AMQP frames at the same time.
+  - Add auto-coercion of property data-types.
+ - 0.10.0  - released *2013-12-11*
+  - Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes
+ - 0.9.0  - released *2013-10-02*
+  - Major performance improvements, CPU usage reduction, minor bug-fixes
+ - 0.8.0  - released *2013-10-01*
+  - Major bugfixes
+  - IPv6 support
+ - 0.7.0  - released *2013-10-01*
+  - Bugfixes and code cleanup.
+  - Most notable fix around Basic.Return and recursion in Channel._wait_on_frame.
+ - 0.6.0  - released *2013-09-30*
+  - Bugfix with Queue.get()
+  - Bugfix with RPC requests expecting multiple responses
+  - Add Queue.consume_messages() method.
+ - 0.5.1  - released *2013-09-24*
+  - Installer/setup fix
+ - 0.5.0  - released *2013-09-23*
+  - Bugfix release including low level socket sending fix and connection timeouts.
+ - < 0.5.0
+  - Previously called rmqid
