@@ -283,8 +283,12 @@ class Message(base.AMQPClass):
                                             properties=self._properties)
         self.channel._write_frame(header_frame)
 
-        if PYTHON3 and isinstance(self.body, str):
-            self.body = bytes(self.body.encode('UTF-8'))
+        if PYTHON3:
+            if isinstance(self.body, str):
+                self.body = bytes(self.body.encode('UTF-8'))
+        else:
+            if isinstance(self.body, unicode):
+                self.body = self.body.encode('UTF-8')
 
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
