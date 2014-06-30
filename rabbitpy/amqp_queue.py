@@ -187,6 +187,10 @@ class Queue(base.AMQPClass):
                 message.ack()
         ```
 
+        You can use this message instead of the queue object as an iterator
+        if you need to alter the prefect count, set the consumer priority or
+        consume in no_ack mode.
+
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
@@ -275,7 +279,7 @@ class Queue(base.AMQPClass):
             source = source.name
         routing_key = routing_key or self.name
         self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
-                                           routing_key=routing_key))
+                                             routing_key=routing_key))
 
     def _declare(self, passive=False):
         """Return a specification.Queue.Declare class pre-composed for the rpc
@@ -313,7 +317,7 @@ class Queue(base.AMQPClass):
 
 
 class Consumer(object):
-    """The Consumer class implements an interator that will retrieve the next
+    """The Consumer class implements an iterator that will retrieve the next
     message from the stack of messages RabbitMQ has delivered until the client
     exists the iterator. It should be used with the
     :py:meth:`Queue.consumer() <rabbitpy.queue.Queue.consumer>` method which
