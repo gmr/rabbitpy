@@ -1,5 +1,8 @@
 Version History
 ---------------
+ - 0.19.0 - released *2014-06-30*
+  - Fix the socket read/write buffer size (#35)
+  - Add new flag in channels to use blocking queue.get operations increasing throughput and lowering overhead.
  - 0.18.1 - released *2014-05-15*
   - Fix unicode message body encoding in Python 2
  - 0.18.0 - released *2014-05-15*

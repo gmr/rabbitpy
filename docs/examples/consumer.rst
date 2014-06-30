@@ -12,11 +12,8 @@ until CTRL-C is pressed::
             # Exit on CTRL-C
             try:
                 # Consume the message
-                for message in queue.consume_messages():
-                    print 'Message:'
-                    print ' ID: %s' % message.properties['message_id']
-                    print ' Time: %s' % message.properties['timestamp']
-                    print ' Body: %s' % message.body
+                for message in queue:
+                    message.pprint(true)
                     message.ack()
 
             except KeyboardInterrupt:
