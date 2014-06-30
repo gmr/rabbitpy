@@ -151,8 +151,9 @@ class AMQPChannel(StatefulObject):
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
 
-    def __init__(self, exception_queue, write_trigger):
+    def __init__(self, exception_queue, write_trigger, blocking_read=False):
         super(AMQPChannel, self).__init__()
+        self.blocking_read = blocking_read
         self._channel_id = None
         self._exceptions = exception_queue
         self._state = self.CLOSED
@@ -229,14 +230,16 @@ class AMQPChannel(StatefulObject):
         :rtype: amqp.specification.Frame or None
 
         """
-        self._check_for_exceptions()
-        try:
-            value = self._read_queue.get(True, 1)
+        if self.blocking_read:
+            value = self._read_queue.get()
             self._read_queue.task_done()
-            return value
-        except queue.Empty:
-            pass
-        return None
+        else:
+            try:
+                value = self._read_queue.get(True, .5)
+                self._read_queue.task_done()
+            except queue.Empty:
+                value = None
+        return value
 
     def _trigger_write(self):
         """Notifies the IO loop we need to write a frame by writing a byte
@@ -296,6 +299,7 @@ class AMQPChannel(StatefulObject):
                 if frame_type and self._validate_frame_type(value, frame_type):
                     return value
                 self._read_queue.put(value)
+            self._check_for_exceptions()
 
     def _write_frame(self, frame):
         """Put the frame in the write queue for the IOWriter object to write to

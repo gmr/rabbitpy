@@ -42,8 +42,12 @@ class Channel(base.AMQPChannel):
 
     def __init__(self, channel_id, events,
                  exception_queue, read_queue, write_queue,
-                 maximum_frame_size, write_trigger):
+                 maximum_frame_size, write_trigger, blocking_read=False):
         """Create a new instance of the Channel class
+
+        To improve performance, pass blocking_read to True. Note that doing
+        so prevents KeyboardInterrupt/CTRL-C from exiting the Python
+        interpreter.
 
         :param int channel_id: The channel # to use for this instance
         :param events rabbitpy.Events: Event management object
@@ -52,9 +56,11 @@ class Channel(base.AMQPChannel):
         :param queue.Queue write_queue: Queue to write pending AMQP objs to
         :param int maximum_frame_size: The max frame size for msg bodies
         :param socket write_trigger: Write to this socket to break IO waiting
+        :param bool blocking: Use blocking Queue.get to improve performance
 
         """
-        super(Channel, self).__init__(exception_queue, write_trigger)
+        super(Channel, self).__init__(exception_queue, write_trigger,
+                                      blocking_read)
         self._channel_id = channel_id
         self._consumers = []
         self._events = events

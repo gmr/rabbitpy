@@ -144,8 +144,18 @@ class Connection(base.StatefulObject):
         """
         return self._events.is_set(events.CONNECTION_BLOCKED)
 
-    def channel(self):
-        """Create a new channel"""
+    def channel(self, blocking_read=False):
+        """Create a new channel
+
+        If blocking_read is True, the cross-thread Queue.get use will use
+        blocking operations that lower resource utilization and increase
+        throughput. However, due to how Python's blocking Queue.get is
+        implemented, KeyboardInterrupt is not raised when CTRL-C is
+        pressed.
+
+        :param bool blocking_read: Enable for higher throughput
+
+        """
         channel_id = self._get_next_channel_id()
         channel_frames = queue.Queue()
         self._channels[channel_id] = channel.Channel(channel_id,
@@ -154,7 +164,8 @@ class Connection(base.StatefulObject):
                                                      channel_frames,
                                                      self._write_queue,
                                                      self._maximum_frame_size,
-                                                     self._io.write_trigger)
+                                                     self._io.write_trigger,
+                                                     blocking_read)
         self._add_channel_to_io(self._channels[channel_id], channel_frames)
         self._channels[channel_id].open()
         return self._channels[channel_id]
