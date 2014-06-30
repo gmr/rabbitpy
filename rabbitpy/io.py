@@ -23,8 +23,8 @@ from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
 
-MAX_READ = 16
-MAX_WRITE = 16
+MAX_READ = specification.FRAME_MAX_SIZE
+MAX_WRITE = specification.FRAME_MAX_SIZE
 POLL_TIMEOUT = 3600.0
 
 
