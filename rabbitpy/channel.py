@@ -129,20 +129,6 @@ class Channel(base.AMQPChannel):
 
         super(Channel, self).close()
 
-    def _get_from_read_queue(self):
-        """Fetch a frame from the read queue and return it, otherwise return
-        None
-
-        :rtype: pamqp.specification.Frame
-
-        """
-        try:
-            frame_value = self._read_queue.get(False)
-            self._read_queue.task_done()
-        except queue.Empty:
-            return None
-        return frame_value
-
     def enable_publisher_confirms(self):
         """Turn on Publisher Confirms. If confirms are turned on, the
         Message.publish command will return a bool indicating if a message has
@@ -302,6 +288,20 @@ class Channel(base.AMQPChannel):
         msg.method = method_frame
         msg.name = method_frame.name
         return msg
+
+    def _get_from_read_queue(self):
+        """Fetch a frame from the read queue and return it, otherwise return
+        None
+
+        :rtype: pamqp.specification.Frame
+
+        """
+        try:
+            frame_value = self._read_queue.get(False)
+            self._read_queue.task_done()
+        except queue.Empty:
+            return None
+        return frame_value
 
     def _get_message(self):
         """Try and get a delivered message from the connection's message stack.
