@@ -148,6 +148,16 @@ class Message(base.AMQPClass):
         return self.method.routing_key if self.method else None
 
     @property
+    def exchange(self):
+        """Return the source exchange for a message that was delivered or
+        gotten from RabbitMQ.
+
+        :rtype: string or None
+
+        """
+        return self.method.exchange if self.method else None
+
+    @property
     def _base_properties(self):
         """Return a base set of properties if no properties were passed into
         the constructor.
