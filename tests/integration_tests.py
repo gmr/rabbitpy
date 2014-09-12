@@ -26,7 +26,7 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
         self.queue.bind(self.exchange, 'test.#')
 
         for iteration in range(0, self.ITERATIONS):
-            message = rabbitpy.Message(self.channel, bytes(uuid.uuid4()))
+            message = rabbitpy.Message(self.channel, str(uuid.uuid4()))
             if not message.publish(self.exchange, 'test.publish.pql'):
                 LOGGER.error('Error publishing message %i', iteration)
 
@@ -39,9 +39,6 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
 
 
 class PublishAndGetTest(unittest.TestCase):
-    app_id = 'PublishAndGetTest'
-    message_body = bytes(uuid.uuid4())
-    message_type = 'test'
 
     def setUp(self):
         self.connection = rabbitpy.Connection()
@@ -52,35 +49,36 @@ class PublishAndGetTest(unittest.TestCase):
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
-        self.message = rabbitpy.Message(self.channel,
-                                        self.message_body,
-                                        {'app_id': self.app_id,
-                                         'message_id': str(uuid.uuid4()),
-                                         'timestamp': int(time.time()),
-                                         'message_type': self.message_type})
-        self.message.publish(self.exchange, 'test.publish.get')
+        self.app_id = 'PublishAndGetTest'
+        self.message_body = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        self.message_type = 'test'
+
+        self.msg = rabbitpy.Message(self.channel,
+                                    self.message_body,
+                                    {'app_id': self.app_id,
+                                     'message_id': str(uuid.uuid4()),
+                                     'timestamp': int(time.time()),
+                                     'message_type': self.message_type})
+        self.msg.publish(self.exchange, 'test.publish.get')
 
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
 
     def test_get_returns_expected_message(self):
-        message = self.queue.get(True)
-        self.assertEqual(message.body, self.message_body)
-        self.assertEqual(message.properties['app_id'],
-                         self.message.properties['app_id'])
-        self.assertEqual(message.properties['message_id'],
-                         self.message.properties['message_id'])
-        self.assertEqual(message.properties['timestamp'],
-                         self.message.properties['timestamp'])
-        self.assertEqual(message.properties['message_type'],
-                         self.message.properties['message_type'])
+        msg = self.queue.get(True)
+        self.assertEqual(msg.body.decode('utf-8'), self.message_body)
+        self.assertEqual(msg.properties['app_id'].decode('utf-8'),
+                         self.msg.properties['app_id'])
+        self.assertEqual(msg.properties['message_id'].decode('utf-8'),
+                         self.msg.properties['message_id'])
+        self.assertEqual(msg.properties['timestamp'],
+                         self.msg.properties['timestamp'])
+        self.assertEqual(msg.properties['message_type'].decode('utf-8'),
+                         self.msg.properties['message_type'])
 
 
 class PublishAndConsumeIteratorTest(unittest.TestCase):
-    app_id = 'PublishAndConsumeIteratorTest'
-    message_body = bytes(uuid.uuid4())
-    message_type = 'test'
 
     def setUp(self):
         self.connection = rabbitpy.Connection()
@@ -91,27 +89,31 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
-        self.message = rabbitpy.Message(self.channel,
-                                        self.message_body,
-                                        {'app_id': self.app_id,
-                                         'message_id': str(uuid.uuid4()),
-                                         'timestamp': int(time.time()),
-                                         'message_type': self.message_type})
-        self.message.publish(self.exchange, 'test.publish.consume')
+        self.app_id = 'PublishAndConsumeIteratorTest'
+        self.message_body = 'ABC1234567890'
+        self.message_type = 'test'
+
+        self.msg = rabbitpy.Message(self.channel,
+                                    self.message_body,
+                                    {'app_id': self.app_id,
+                                     'message_id': str(uuid.uuid4()),
+                                     'timestamp': int(time.time()),
+                                     'message_type': self.message_type})
+        self.msg.publish(self.exchange, 'test.publish.consume')
 
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
 
     def test_get_returns_expected_message(self):
-        for message in self.queue:
-            self.assertEqual(message.body, self.message_body)
-            self.assertEqual(message.properties['app_id'],
-                             self.message.properties['app_id'])
-            self.assertEqual(message.properties['message_id'],
-                             self.message.properties['message_id'])
-            self.assertEqual(message.properties['timestamp'],
-                             self.message.properties['timestamp'])
-            self.assertEqual(message.properties['message_type'],
-                             self.message.properties['message_type'])
+        for msg in self.queue:
+            self.assertEqual(msg.body.decode('utf-8'), self.message_body)
+            self.assertEqual(msg.properties['app_id'].decode('utf-8'),
+                             self.msg.properties['app_id'])
+            self.assertEqual(msg.properties['message_id'].decode('utf-8'),
+                             self.msg.properties['message_id'])
+            self.assertEqual(msg.properties['timestamp'],
+                             self.msg.properties['timestamp'])
+            self.assertEqual(msg.properties['message_type'].decode('utf-8'),
+                             self.msg.properties['message_type'])
             break
