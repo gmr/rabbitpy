@@ -77,6 +77,7 @@ class Message(base.AMQPClass):
     :param str or dict or list body_value: The message body
     :param dict properties: A dictionary of message properties
     :param bool auto_id: Add a message id if no properties were passed in.
+    :raises KeyError: Raised when an invalid property is passed in
 
     """
     method = None
@@ -86,36 +87,28 @@ class Message(base.AMQPClass):
         """Create a new instance of the Message object."""
         super(Message, self).__init__(channel, 'Message')
 
-        if isinstance(body_value, dict) or isinstance(body_value, list):
-            body_value = json.dumps(body_value, ensure_ascii=False)
-            if properties is None:
-                properties = {'content_type': 'application/json'}
-            else:
-                properties['content_type'] = 'application/json'
-        self.body = body_value
-        self.properties = properties or self._base_properties
+        # Always have a dict of properties set
+        self.properties = properties or {}
+
+        # Assign the body value
+        self.body = self._auto_serialize(body_value)
+
+        # Add a message id if auto_id is not turned off and it is not set
         if auto_id and 'message_id' not in self.properties:
             self._add_auto_message_id()
+
+        # Always add a timestamp
         if 'timestamp' not in self.properties:
             self._add_timestamp()
-        if isinstance(self.properties['timestamp'], time.struct_time):
-            self.properties['timestamp'] = self._timestamp_from_struct_time()
 
-    def _add_auto_message_id(self):
-        """Set the message_id property to a new UUID."""
-        self.properties['message_id'] = str(uuid.uuid4())
+        # Enforce datetime timestamps
+        self.properties['timestamp'] = \
+            self._as_datetime(self.properties['timestamp'])
 
-    def _add_timestamp(self):
-        """Add the timestamp to the properties"""
-        self.properties['timestamp'] = datetime.datetime.now()
-
-    def _timestamp_from_struct_time(self):
-        """Return a datetime.datetime object from struct_time
-
-        :rtype: datetime.datetime
-
-        """
-        return datetime.datetime(*self.properties['timestamp'][:6])
+        # Don't let invalid property keys in
+        if self._invalid_properties:
+            msg = 'Invalid property: %s' % self._invalid_properties[0]
+            raise KeyError(msg)
 
     @property
     def delivery_tag(self):
@@ -156,65 +149,6 @@ class Message(base.AMQPClass):
 
         """
         return self.method.exchange if self.method else None
-
-    @property
-    def _base_properties(self):
-        """Return a base set of properties if no properties were passed into
-        the constructor.
-
-        :rtype: dict
-
-        """
-        return {"message_id": str(uuid.uuid4()),
-                "timestamp": datetime.datetime.now()}
-
-    @property
-    def _properties(self):
-        """Return a new Basic.Properties object representing the message
-        properties.
-
-        :rtype: pamqp.specification.Basic.Properties
-
-        """
-        invalid_keys = [key for key in self.properties
-                        if key not in
-                        specification.Basic.Properties.attributes]
-        self._prune_invalid_properties(invalid_keys)
-        self._coerce_properties()
-        return specification.Basic.Properties(**self.properties)
-
-    def _coerce_properties(self):
-        """Force properties to be set to the correct data type"""
-        for key in self.properties:
-            _type = getattr(specification.Basic.Properties, key)
-            #LOGGER.debug('Type: %s, %s', _type, type(self.properties[key]))
-            if _type == 'shortstr' and \
-                    not utils.is_string(self.properties[key]):
-                LOGGER.warning('Coercing property %s to bytes', key)
-                self.properties[key] = bytes(self.properties[key])
-            elif _type == 'octet' and not isinstance(self.properties[key],
-                                                     int):
-                LOGGER.warning('Coercing property %s to int', key)
-                self.properties[key] = int(self.properties[key])
-            elif _type == 'table' and not isinstance(self.properties[key],
-                                                     dict):
-                LOGGER.warning('Resetting invalid value for %s to None', key)
-                self.properties[key] = {}
-            elif _type == 'timestamp' and isinstance(self.properties[key],
-                                                     int):
-                LOGGER.warning('Coercing property %s to datetime', key)
-                self.properties[key] = \
-                    datetime.datetime.fromtimestamp(self.properties[key])
-
-    def _prune_invalid_properties(self, invalid_keys):
-        """Remove invalid properties from the message properties.
-
-        :param list invalid_keys: A list of invalid property names to remove
-
-        """
-        for key in invalid_keys:
-            LOGGER.warning('Removing invalid property "%s"', key)
-            del self.properties[key]
 
     def ack(self, all_previous=False):
         """Acknowledge receipt of the message to RabbitMQ. Will raise an
@@ -335,3 +269,102 @@ class Message(base.AMQPClass):
         basic_reject = specification.Basic.Reject(self.method.delivery_tag,
                                                   requeue=requeue)
         self.channel._write_frame(basic_reject)
+
+    def _add_auto_message_id(self):
+        """Set the message_id property to a new UUID."""
+        LOGGER.info('Adding message id')
+        self.properties['message_id'] = str(uuid.uuid4())
+
+    def _add_timestamp(self):
+        """Add the timestamp to the properties"""
+        self.properties['timestamp'] = datetime.datetime.now()
+
+    def _as_datetime(self, value):
+        """Return the passed in value as a ``datetime.datetime`` value.
+
+        :param value: The value to convert or pass through
+        :type value: datetime.datetime
+        :type value: time.struct_time
+        :type value: int
+        :type value: float
+        :type value: str
+        :type value: bytes
+        :type value: unicode
+        :rtype: datetime.datetime
+        :raises: ValueError
+
+        """
+        if isinstance(value, datetime.datetime):
+            return value
+
+        if isinstance(value, time.struct_time):
+            return datetime.datetime(*value[:6])
+
+        if utils.is_string(value):
+            value = int(value)
+
+        if isinstance(value, float) or isinstance(value, int):
+            return datetime.datetime.fromtimestamp(value)
+
+        raise ValueError('Could not cast a %s value to a datetime.datetime' %
+                         type(value))
+
+    def _auto_serialize(self, body_value):
+        """Automatically serialize the body as JSON if it is a dict or list.
+
+        :param mixed body_value: The message body passed into the constructor
+        :return: str or bytes or unicode or None
+
+        """
+        if isinstance(body_value, dict) or isinstance(body_value, list):
+            self.properties['content_type'] = 'application/json'
+            return json.dumps(body_value, ensure_ascii=False)
+        return body_value
+
+    def _coerce_properties(self):
+        """Force properties to be set to the correct data type"""
+        for key in self.properties:
+            _type = getattr(specification.Basic.Properties, key)
+            if _type == 'shortstr' and \
+                    not utils.is_string(self.properties[key]):
+                LOGGER.warning('Coercing property %s to bytes', key)
+                self.properties[key] = bytes(self.properties[key])
+            elif _type == 'octet' and not isinstance(self.properties[key],
+                                                     int):
+                LOGGER.warning('Coercing property %s to int', key)
+                self.properties[key] = int(self.properties[key])
+            elif _type == 'table' and not isinstance(self.properties[key],
+                                                     dict):
+                LOGGER.warning('Resetting invalid value for %s to None', key)
+                self.properties[key] = {}
+            if key == 'timestamp':
+                self.properties[key] = self._as_datetime(self.properties[key])
+
+    @property
+    def _invalid_properties(self):
+        """Return a list of invalid properties that currently exist in the the
+        properties that are set.
+
+        :rtype: list
+
+        """
+        return [key for key in self.properties
+                if key not in specification.Basic.Properties.attributes]
+
+    @property
+    def _properties(self):
+        """Return a new Basic.Properties object representing the message
+        properties.
+
+        :rtype: pamqp.specification.Basic.Properties
+
+        """
+        self._prune_invalid_properties()
+        self._coerce_properties()
+        return specification.Basic.Properties(**self.properties)
+
+    def _prune_invalid_properties(self):
+        """Remove invalid properties from the message properties."""
+        for key in self._invalid_properties:
+            LOGGER.warning('Removing invalid property "%s"', key)
+            del self.properties[key]
