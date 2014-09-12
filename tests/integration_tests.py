@@ -26,7 +26,7 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
         self.queue.bind(self.exchange, 'test.#')
 
         for iteration in range(0, self.ITERATIONS):
-            message = rabbitpy.Message(self.channel, str(uuid.uuid4()))
+            message = rabbitpy.Message(self.channel, bytes(uuid.uuid4()))
             if not message.publish(self.exchange, 'test.publish.pql'):
                 LOGGER.error('Error publishing message %i', iteration)
 
@@ -40,7 +40,7 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
 
 class PublishAndGetTest(unittest.TestCase):
     app_id = 'PublishAndGetTest'
-    message_body = str(uuid.uuid4())
+    message_body = bytes(uuid.uuid4())
     message_type = 'test'
 
     def setUp(self):
@@ -79,7 +79,7 @@ class PublishAndGetTest(unittest.TestCase):
 
 class PublishAndConsumeIteratorTest(unittest.TestCase):
     app_id = 'PublishAndConsumeIteratorTest'
-    message_body = str(uuid.uuid4())
+    message_body = bytes(uuid.uuid4())
     message_type = 'test'
 
     def setUp(self):
