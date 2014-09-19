@@ -14,3 +14,12 @@ after_success:
   - coveralls
 services:
   - rabbitmq
+deploy:
+  provider: pypi
+  user: crad
+  on:
+    python: 2.7
+    tags: true
+    all_branches: true
+  password:
+    secure: "ls9ja4J6bcirOvWVCvPAWboaOK6O0Pr/aZmHiifUYKEBqUg8D9PB7JyeXybMthXSx+jkHrFp6pL/IjYGrMYQ3gomZ+fsQTavNLxZxEHyLxDf7LVBxQ0KMNNh+GyF7qi9U749MlZBf9JgBFbAgnwCZRnlzCM8j7PxcFevYv4gouE="
