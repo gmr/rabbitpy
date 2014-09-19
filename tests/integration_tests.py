@@ -117,3 +117,30 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
             self.assertEqual(msg.properties['message_type'].decode('utf-8'),
                              self.msg.properties['message_type'])
             break
+
+
+class RedeliveredFlagTest(unittest.TestCase):
+
+    def setUp(self):
+        self.connection = rabbitpy.Connection()
+        self.channel = self.connection.channel()
+        self.queue = rabbitpy.Queue(self.channel, 'redeliver-test')
+        self.queue.declare()
+
+        # Publish the message that will be rejected
+        message = rabbitpy.Message(self.channel, 'Payload Value')
+        message.publish('', 'redeliver-test')
+
+        # Get and reject the message
+        msg1 = self.queue.get()
+        msg1.reject(requeue=True)
+
+    def tearDown(self):
+        self.queue.delete()
+        self.channel.close()
+        self.connection.close()
+
+    def test_redelivered_flag_is_set(self):
+        msg = self.queue.get()
+        msg.ack()
+        self.assertTrue(msg.redelivered)
