@@ -294,6 +294,9 @@ class Message(base.AMQPClass):
         :raises: ValueError
 
         """
+        if value is None:
+            return None
+
         if isinstance(value, datetime.datetime):
             return value
 
