@@ -190,7 +190,7 @@ class Message(base.AMQPClass):
                                               multiple=all_previous)
         self.channel._write_frame(basic_nack)
 
-    def pprint(self, properties=False):
+    def pprint(self, properties=False):  # pragma: no cover
         """Print a formatted representation of the message.
 
         :param bool properties: Include properties in the representation
@@ -207,6 +207,16 @@ class Message(base.AMQPClass):
     def publish(self, exchange, routing_key='', mandatory=False):
         """Publish the message to the exchange with the specified routing
         key.
+
+        In Python 2 if the message is a ``unicode`` value it will be converted
+        to a ``str`` using ``str.encode('UTF-8')``. If you do not want the
+        auto-conversion to take place, set the body to a ``str`` or ``bytes``
+        value prior to publishing.
+
+        In Python 3 if the message is a ``str`` value it will be converted to
+        a ``bytes`` value using ``bytes(value.encode('UTF-8'))``. If you do
+        not want the auto-conversion to take place, set the body to a
+        ``bytes`` value prior to publishing.
 
         :param exchange: The exchange to publish the message to
         :type exchange: str or :class:`rabbitpy.Exchange`

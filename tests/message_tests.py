@@ -12,7 +12,14 @@ except ImportError:
     import unittest
 import uuid
 
+import mock
+from pamqp import body
+from pamqp import header
+from pamqp import specification
+
 from rabbitpy import channel
+from rabbitpy import exceptions
+from rabbitpy import exchange
 from rabbitpy import message
 
 
@@ -87,6 +94,42 @@ class TestMessageCreationWithIntTimestamp(unittest.TestCase):
                               datetime.datetime)
 
 
+class TestMessageCreationWithInvalidTimestampType(unittest.TestCase):
+
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+
+    def test_message_timestamp_property_is_datetime(self):
+        self.assertRaises(ValueError,
+                          message.Message,
+                          self.chan,
+                          str(uuid.uuid4()),
+                          {'timestamp': ['Ohai']})
+
+
+class TestMessageCreationWithNoneTimestamp(unittest.TestCase):
+
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.msg = message.Message(self.chan, str(uuid.uuid4()),
+                                   {'timestamp': None})
+
+    def test_message_timestamp_property_is_datetime(self):
+        self.assertIsNone(self.msg.properties['timestamp'])
+
+
+class TestMessageCreationWithStrTimestamp(unittest.TestCase):
+
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.msg = message.Message(self.chan, str(uuid.uuid4()),
+                                   {'timestamp': str(int(time.time()))})
+
+    def test_message_timestamp_property_is_datetime(self):
+        self.assertIsInstance(self.msg.properties['timestamp'],
+                              datetime.datetime)
+
+
 class TestMessageCreationWithDictBodyAndProperties(unittest.TestCase):
 
     def setUp(self):
@@ -153,3 +196,254 @@ class TestMessageInvalidPropertyHandling(unittest.TestCase):
                           message.Message,
                           self.chan,
                           str(uuid.uuid4()), {'invalid': True})
+
+
+class TestDeliveredMessageObject(unittest.TestCase):
+
+    BODY = '{"foo": "bar", "val": 1}'
+    PROPERTIES = {'message_type': 'test'}
+    CONSUMER_TAG = 'ctag0'
+    DELIVERY_TAG = 100
+    REDELIVERED = True
+    EXCHANGE = 'test-exchange'
+    ROUTING_KEY = 'test-routing-key'
+
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.method = specification.Basic.Deliver(self.CONSUMER_TAG,
+                                                  self.DELIVERY_TAG,
+                                                  self.REDELIVERED,
+                                                  self.EXCHANGE,
+                                                  self.ROUTING_KEY)
+        self.msg = message.Message(self.chan, self.BODY, self.PROPERTIES)
+        self.msg.method = self.method
+        self.msg.name = self.method.name
+
+    def test_delivery_tag_property(self):
+        self.assertEqual(self.msg.delivery_tag, self.DELIVERY_TAG)
+
+    def test_redelivered_property(self):
+        self.assertEqual(self.msg.redelivered, self.REDELIVERED)
+
+    def test_routing_key_property(self):
+        self.assertEqual(self.msg.routing_key, self.ROUTING_KEY)
+
+    def test_exchange_property(self):
+        self.assertEqual(self.msg.exchange, self.EXCHANGE)
+
+    def test_json_body_value(self):
+        self.assertDictEqual(self.msg.json(), json.loads(self.BODY))
+
+    def test_ack_invokes_channel_write_frame(self):
+        with mock.patch.object(self.chan, '_write_frame') as write_frame:
+            self.msg.ack()
+            write_frame.assert_called_once()
+
+    def test_ack_channel_write_frame_type(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.ack()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertIsInstance(frame_value, specification.Basic.Ack)
+
+    def test_ack_channel_write_frame_delivery_tag_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.ack()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertEqual(frame_value.delivery_tag,
+                             self.DELIVERY_TAG)
+
+    def test_ack_channel_write_frame_multiple_false_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.ack()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertFalse(frame_value.multiple)
+
+    def test_ack_channel_write_frame_multiple_true_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.ack(True)
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertTrue(frame_value.multiple)
+
+    def test_nack_invokes_channel_write_frame(self):
+        with mock.patch.object(self.chan, '_write_frame') as write_frame:
+            self.msg.nack()
+            write_frame.assert_called_once()
+
+    def test_nack_channel_write_frame_type(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.nack()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertIsInstance(frame_value, specification.Basic.Nack)
+
+    def test_nack_channel_write_frame_delivery_tag_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.nack()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertEqual(frame_value.delivery_tag,
+                             self.DELIVERY_TAG)
+
+    def test_nack_channel_write_frame_requeue_false_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.nack(requeue=False)
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertFalse(frame_value.requeue)
+
+    def test_nack_channel_write_frame_requeue_true_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.nack(requeue=True)
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertTrue(frame_value.requeue)
+
+    def test_nack_channel_write_frame_multiple_false_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.nack()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertFalse(frame_value.multiple)
+
+    def test_nack_channel_write_frame_multiple_true_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.nack(all_previous=True)
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertTrue(frame_value.multiple)
+
+    def test_reject_invokes_channel_write_frame(self):
+        with mock.patch.object(self.chan, '_write_frame') as write_frame:
+            self.msg.reject()
+            write_frame.assert_called_once()
+
+    def test_reject_channel_write_frame_type(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.reject()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertIsInstance(frame_value, specification.Basic.Reject)
+
+    def test_reject_channel_write_frame_delivery_tag_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.reject()
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertEqual(frame_value.delivery_tag,
+                             self.DELIVERY_TAG)
+
+    def test_reject_channel_write_frame_requeue_false_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.reject(requeue=False)
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertFalse(frame_value.requeue)
+
+    def test_reject_channel_write_frame_requeue_true_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.reject(requeue=True)
+            frame_value = wframe.mock_calls[0][1][0]
+            self.assertTrue(frame_value.requeue)
+
+
+class TestNonDeliveredMessageObject(unittest.TestCase):
+
+    BODY = {'foo': str(uuid.uuid4()),
+            'bar': 'baz',
+            'qux': 1}
+
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.body = self.BODY
+        self.msg = message.Message(self.chan, self.body, {'app_id': 'foo'})
+
+    def test_ack_raises_action_exception(self):
+        self.assertRaises(exceptions.ActionException, self.msg.ack)
+
+    def test_nack_raises_action_exception(self):
+        self.assertRaises(exceptions.ActionException, self.msg.nack)
+
+    def test_reject_raises_action_exception(self):
+        self.assertRaises(exceptions.ActionException, self.msg.reject)
+
+    def test_prune_invalid_properties_removes_bogus_property(self):
+        self.msg.properties['invalid'] = True
+        self.msg._prune_invalid_properties()
+        self.assertNotIn('invalid', self.msg.properties)
+
+    def test_coerce_property_int_to_str(self):
+        self.msg.properties['expiration'] = 123
+        self.msg._coerce_properties()
+        self.assertIsInstance(self.msg.properties['expiration'], bytes)
+
+    def test_coerce_property_str_to_int(self):
+        self.msg.properties['priority'] = '9'
+        self.msg._coerce_properties()
+        self.assertIsInstance(self.msg.properties['priority'], int)
+
+    def test_coerce_property_str_to_empty_dict(self):
+        self.msg.properties['headers'] = '9'
+        self.msg._coerce_properties()
+        self.assertDictEqual(self.msg.properties['headers'], dict())
+
+    def test_coerce_property_str_timestamp(self):
+        self.msg.properties['timestamp'] = str(int(time.time()))
+        self.msg._coerce_properties()
+        self.assertIsInstance(self.msg.properties['timestamp'],
+                              datetime.datetime)
+
+
+class TestMessagePublishing(unittest.TestCase):
+
+    BODY = {'foo': str(uuid.uuid4()),
+            'bar': 'baz',
+            'qux': 1}
+    EXCHANGE = 'foo'
+    ROUTING_KEY = 'bar.baz'
+
+    @mock.patch('rabbitpy.channel.Channel._write_frame')
+    def setUp(self, write_frame):
+        self.write_frame = write_frame
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.msg = message.Message(self.chan, self.BODY, {'app_id': 'foo'})
+        self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
+
+    def test_publish_invokes_write_frame_with_basic_publish(self):
+        self.assertIsInstance(self.write_frame.mock_calls[0][1][0],
+                              specification.Basic.Publish)
+
+    def test_publish_with_exchange_object(self):
+        _exchange = exchange.Exchange(self.chan, self.EXCHANGE)
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.publish(_exchange, self.ROUTING_KEY)
+            self.assertEqual(wframe.mock_calls[0][1][0].exchange,
+                             self.EXCHANGE)
+
+    def test_publish_with_exchange_str(self):
+        self.assertEqual(self.write_frame.mock_calls[0][1][0].exchange,
+                         self.EXCHANGE)
+
+    def test_publish_routing_key_value(self):
+        self.assertEqual(self.write_frame.mock_calls[0][1][0].routing_key,
+                         self.ROUTING_KEY)
+
+    def test_publish_mandatory_false_value(self):
+        self.assertFalse(self.write_frame.mock_calls[0][1][0].mandatory)
+
+    def test_publish_mandatory_true_value(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+            self.msg.publish(self.EXCHANGE, self.ROUTING_KEY, True)
+            self.assertTrue(wframe.mock_calls[0][1][0].mandatory)
+
+    def test_publish_invokes_write_frame_with_content_header(self):
+        self.assertIsInstance(self.write_frame.mock_calls[1][1][0],
+                              header.ContentHeader)
+
+    def test_content_header_frame_body_size(self):
+        self.assertEqual(self.write_frame.mock_calls[1][1][0].body_size,
+                         len(self.msg.body))
+
+    def test_content_header_frame_properties(self):
+        value = self.write_frame.mock_calls[1][1][0].properties
+        for key in self.msg.properties:
+            self.assertEqual(self.msg.properties[key],
+                             getattr(value, key))
+
+    def test_publish_invokes_write_frame_with_body(self):
+        self.assertIsInstance(self.write_frame.mock_calls[2][1][0],
+                              body.ContentBody)
+
+    def test_content_body_value(self):
+        self.assertEqual(self.write_frame.mock_calls[2][1][0].value,
+                         bytes(json.dumps(self.BODY).encode('utf-8')))
