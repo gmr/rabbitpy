@@ -466,7 +466,10 @@ class TestJSONDeserialization(BaseTestCase):
 
 class TestPublishingUnicode(BaseTestCase):
 
-    BODY = u'☢'
+    try:
+        BODY = u'☢'
+    except SyntaxError:
+        BODY = '☢'
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
