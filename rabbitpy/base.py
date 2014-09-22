@@ -296,6 +296,8 @@ class AMQPChannel(StatefulObject):
             value = self._read_from_queue()
             if value is not None:
                 self._check_for_rpc_request(value)
+                if isinstance(value, InternalCommand):
+                    return value
                 if frame_type and self._validate_frame_type(value, frame_type):
                     return value
                 self._read_queue.put(value)
@@ -313,3 +315,7 @@ class AMQPChannel(StatefulObject):
         self._check_for_exceptions()
         self._write_queue.put((self._channel_id, frame))
         self._trigger_write()
+
+
+class InternalCommand(object):
+    pass

@@ -106,12 +106,12 @@ class Channel(base.AMQPChannel):
             delivery_tag = 0
             discard_counter = 0
             ack_tags = []
-            for queue_obj, no_ack in self._consumers:
-                self._cancel_consumer(queue_obj)
-                if not no_ack:
+            for consumer in self._consumers:
+                self._cancel_consumer(consumer)
+                if not consumer.no_ack:
                     LOGGER.debug('Channel %i will nack messages for %s',
-                                 self._channel_id, queue_obj.consumer_tag)
-                    ack_tags.append(queue_obj.consumer_tag)
+                                 self._channel_id, consumer.tag)
+                    ack_tags.append(consumer.tag)
 
             # If there are any ack tags, get the last msg to nack
             if ack_tags:
@@ -214,17 +214,20 @@ class Channel(base.AMQPChannel):
         """
         return specification.Channel.Open()
 
-    def _cancel_consumer(self, obj):
+    def _cancel_consumer(self, consumer):
         """Cancel the consuming of a queue.
 
-        :param rabbitpy.amqp_queue.Queue obj: The queue to cancel
+        :param rabbitpy.amqp_queue.Consumer consumer: The consumer to cancel
 
         """
-        frame_value = specification.Basic.Cancel(consumer_tag=obj.consumer_tag)
+        frame_value = specification.Basic.Cancel(consumer_tag=consumer.tag)
         self._write_frame(frame_value)
         if not self.closed:
             self._wait_on_frame(specification.Basic.CancelOk)
             LOGGER.debug('Basic.CancelOk received')
+        consumer.consuming = False
+        self._consumers.remove(consumer)
+        self._read_queue.put(CancelConsumer())
 
     def _check_for_rpc_request(self, value):
 
@@ -236,10 +239,10 @@ class Channel(base.AMQPChannel):
         elif isinstance(value, specification.Basic.Return):
             self._on_basic_return(self._wait_for_content_frames(value))
 
-    def _consume(self, obj, no_ack, priority):
-        """Register a Queue object as a consumer, issuing Basic.Consume.
+    def _consume(self, consumer, no_ack, priority):
+        """Register a Consumer object, issuing Basic.Consume.
 
-        :param rabbitpy.amqp_queue.Queue obj: The queue to consume
+        :param rabbitpy.amqp_queue.Consumer consumer: The consumer object
         :param bool no_ack: no_ack mode
         :param int priority: Consumer priority
         :raises: ValueError
@@ -250,11 +253,12 @@ class Channel(base.AMQPChannel):
             if not isinstance(priority, int):
                 raise ValueError('Consumer priority must be an int')
             args['x-priority'] = priority
-        self.rpc(specification.Basic.Consume(queue=obj.name,
-                                             consumer_tag=obj.consumer_tag,
+        self.rpc(specification.Basic.Consume(queue=consumer.queue.name,
+                                             consumer_tag=consumer.tag,
                                              no_ack=no_ack,
                                              arguments=args))
-        self._consumers.append((obj, no_ack))
+        consumer.consuming = True
+        self._consumers.append(consumer)
 
     def _consume_message(self):
         """Get a message from the stack, blocking while doing so.
@@ -262,7 +266,9 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.message.Message
 
         """
-        frame_value = self._wait_on_frame('Basic.Deliver')
+        frame_value = self._wait_on_frame(['Basic.Deliver', CancelConsumer])
+        if isinstance(frame_value, CancelConsumer):
+            return None
         return self._wait_for_content_frames(frame_value)
 
     def _create_message(self, method_frame, header_frame, body):
@@ -398,3 +404,7 @@ class Channel(base.AMQPChannel):
             if self.closing or self.closed:
                 return None
         return self._create_message(method_frame, header_value, body_value)
+
+
+class CancelConsumer(base.InternalCommand):
+    pass

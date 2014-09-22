@@ -23,7 +23,6 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`::
             message.ack()
 
 """
-import contextlib
 import logging
 from pamqp import specification
 
@@ -76,10 +75,6 @@ class Queue(base.AMQPClass):
 
         """
         super(Queue, self).__init__(channel, name)
-
-        # Defaults
-        self.consumer_tag = 'rabbitpy.%s.%s' % (self.channel.id, id(self))
-        self.consuming = False
 
         # Assign Arguments
         self.durable = durable
@@ -162,7 +157,6 @@ class Queue(base.AMQPClass):
         response = self._rpc(frame)
         return isinstance(response, specification.Queue.BindOk)
 
-    @contextlib.contextmanager
     def consumer(self, no_ack=False, prefetch=None, priority=None):
         """Consumer message context manager, returns a consumer message
         generator.
@@ -173,11 +167,8 @@ class Queue(base.AMQPClass):
         :rtype: :py:class:`Consumer <rabbitpy.queue.Consumer>`
 
         """
-        if prefetch is not None:
-            self.channel.prefetch_count(prefetch)
-        self.channel._consume(self, no_ack, priority)
-        self.consuming = True
-        yield Consumer(self)
+        return Consumer(self,
+                        no_ack=no_ack, prefetch=prefetch, priority=priority)
 
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator:
@@ -324,19 +315,30 @@ class Consumer(object):
     returns a context manager for consuming.
 
     """
-    def __init__(self, queue):
+    def __init__(self, queue, no_ack=False, prefetch=None, priority=None):
         self.queue = queue
+        self.channel = queue.channel
+        self.no_ack = no_ack
+        self.prefetch = prefetch
+        self.priority = priority
+        self.consuming = False  # updated by channel
+        self.tag = 'rabbitpy.%s.%s' % (self.queue.channel.id, id(self))
+
+    def __enter__(self):
+        self.consume()
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Called when exiting the consumer iterator
+        self.cancel()
 
-        """
-        self.queue.channel.rpc(self._basic_cancel)
-        self.queue.consuming = False
+    def consume(self):
+        if self.prefetch:
+            self.channel.prefetch_count(self.prefetch)
+        self.channel._consume(self, self.no_ack, self.priority)
 
-    @property
-    def _basic_cancel(self):
-        return specification.Basic.Cancel(consumer_tag=self.queue.consumer_tag)
+    def cancel(self):
+        if self.consuming:
+            self.channel._cancel_consumer(self)
 
     def next_message(self):
         """Retrieve the nest message from the queue as an iterator, blocking
@@ -345,5 +347,8 @@ class Consumer(object):
         :rtype: :py:class:`rabbitpy.message.Message`
 
         """
-        while self.queue.consuming:
-            yield self.queue.channel._consume_message()
+        while True:
+            message = self.channel._consume_message()
+            if message is None:
+                return
+            yield message
