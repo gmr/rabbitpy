@@ -172,7 +172,7 @@ class Message(base.AMQPClass):
         """
         try:
             return json.loads(self.body)
-        except (ValueError, TypeError):
+        except TypeError:
             return json.loads(self.body.decode('utf-8'))
 
     def nack(self, requeue=False, all_previous=False):
