@@ -467,8 +467,8 @@ class TestJSONDeserialization(BaseTestCase):
 class TestPublishingUnicode(BaseTestCase):
 
     try:
-        BODY = u'☢'
-    except SyntaxError:
+        BODY = '☢'.decode('utf-8')
+    except AttributeError:
         BODY = '☢'
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
@@ -478,11 +478,11 @@ class TestPublishingUnicode(BaseTestCase):
         super(TestPublishingUnicode, self).setUp()
         self.write_frame = write_frame
         self.msg = message.Message(self.chan, self.BODY)
-        self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
 
     def test_content_body_value(self):
         self.assertEqual(self.write_frame.mock_calls[2][1][0].value,
                          self.BODY.encode('utf-8'))
+        assert False
 
 
 class TestPublisherConfirms(BaseTestCase):
