@@ -448,3 +448,16 @@ class TestPublishing(BaseTestCase):
     def test_content_body_value(self):
         self.assertEqual(self.write_frame.mock_calls[2][1][0].value,
                          bytes(json.dumps(self.BODY).encode('utf-8')))
+
+
+class TestJSONDeserialization(BaseTestCase):
+
+    BODY = b'{"qux": 1, "foo": "d5525b9d", "bar": "baz"}'
+
+    def setUp(self):
+        super(TestJSONDeserialization, self).setUp()
+        self.expectation = json.loads(self.BODY.decode('utf-8'))
+        self.msg = message.Message(self.chan, self.BODY)
+
+    def test_json_body(self):
+        self.assertDictEqual(self.msg.json(), self.expectation)

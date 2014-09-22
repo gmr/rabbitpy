@@ -170,7 +170,10 @@ class Message(base.AMQPClass):
         :rtype: any
 
         """
-        return json.loads(self.body)
+        try:
+            return json.loads(self.body)
+        except (ValueError, TypeError):
+            return json.loads(self.body.decode('utf-8'))
 
     def nack(self, requeue=False, all_previous=False):
         """Negatively acknowledge receipt of the message to RabbitMQ. Will
