@@ -172,7 +172,7 @@ class Message(base.AMQPClass):
         """
         try:
             return json.loads(self.body)
-        except TypeError:
+        except TypeError:  # pragma: no cover
             return json.loads(self.body.decode('utf-8'))
 
     def nack(self, requeue=False, all_previous=False):
@@ -240,12 +240,7 @@ class Message(base.AMQPClass):
                                             properties=self._properties)
         self.channel._write_frame(header_frame)
 
-        if PYTHON3:
-            if isinstance(self.body, str):
-                self.body = bytes(self.body.encode('UTF-8'))
-        else:
-            if isinstance(self.body, unicode):
-                self.body = self.body.encode('UTF-8')
+        self._coerce_body()
 
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
@@ -336,6 +331,17 @@ class Message(base.AMQPClass):
             self.properties['content_type'] = 'application/json'
             return json.dumps(body_value, ensure_ascii=False)
         return body_value
+
+    def _coerce_body(self): # pragma: no cover
+        """Ensure that unicode body values are cast to strings or bytes.
+
+        """
+        try:
+            if isinstance(self.body, unicode):
+                self.body = self.body.encode('UTF-8')
+        except NameError:
+            if isinstance(self.body, str):
+                self.body = bytes(self.body.encode('UTF-8'))
 
     def _coerce_properties(self):
         """Force properties to be set to the correct data type"""

@@ -1,3 +1,4 @@
+ # -*- coding: utf-8 -*-
 """
 Test the rabbitpy.message.Message class
 
@@ -461,3 +462,49 @@ class TestJSONDeserialization(BaseTestCase):
 
     def test_json_body(self):
         self.assertDictEqual(self.msg.json(), self.expectation)
+
+
+class TestPublishingUnicode(BaseTestCase):
+
+    BODY = u'☢'
+    EXCHANGE = 'foo'
+    ROUTING_KEY = 'bar.baz'
+
+    @mock.patch('rabbitpy.channel.Channel._write_frame')
+    def setUp(self, write_frame):
+        super(TestPublishingUnicode, self).setUp()
+        self.write_frame = write_frame
+        self.msg = message.Message(self.chan, self.BODY)
+        self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
+
+    def test_content_body_value(self):
+        self.assertEqual(self.write_frame.mock_calls[2][1][0].value,
+                         self.BODY.encode('utf-8'))
+
+
+class TestPublisherConfirms(BaseTestCase):
+
+    BODY = 'confirm-this'
+    EXCHANGE = 'foo'
+    ROUTING_KEY = 'bar.baz'
+
+    @mock.patch('rabbitpy.channel.Channel._write_frame')
+    def setUp(self, write_frame):
+        super(TestPublisherConfirms, self).setUp()
+        self.write_frame = write_frame
+        self.chan._publisher_confirms = True
+        self.chan._wait_for_confirmation = self._confirm_wait = mock.Mock()
+        self.msg = message.Message(self.chan, self.BODY)
+
+    def test_confirm_ack_response_returns_true(self):
+        self._confirm_wait.return_value = specification.Basic.Ack()
+        self.assertTrue(self.msg.publish(self.EXCHANGE, self.ROUTING_KEY))
+
+    def test_confirm_nack_response_returns_false(self):
+        self._confirm_wait.return_value = specification.Basic.Nack()
+        self.assertFalse(self.msg.publish(self.EXCHANGE, self.ROUTING_KEY))
+
+    def test_confirm_other_raises(self):
+        self._confirm_wait.return_value = specification.Basic.Consume()
+        self.assertRaises(exceptions.UnexpectedResponseError,
+                          self.msg.publish, self.EXCHANGE, self.ROUTING_KEY)

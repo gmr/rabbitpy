@@ -65,9 +65,9 @@ class Channel(base.AMQPChannel):
         self._consumers = []
         self._events = events
         self._maximum_frame_size = maximum_frame_size
+        self._publisher_confirms = False
         self._read_queue = read_queue
         self._write_queue = write_queue
-        self._publisher_confirms = False
 
     def __enter__(self):
         """For use as a context manager, return a handle to this object
