@@ -2,6 +2,7 @@
 Core IO for rabbitpy
 
 """
+import collections
 import errno
 import logging
 try:
@@ -28,12 +29,106 @@ MAX_WRITE = specification.FRAME_MAX_SIZE
 POLL_TIMEOUT = 3600.0
 
 
-class IOLoop(object):
+class SelectPoller(object):
 
-    NONE = 0
-    READ = 0x001
-    WRITE = 0x004
-    ERROR = 0x008 | 0x010
+    def __init__(self, fd, write_trigger):
+        self.read = [[fd, write_trigger], [], [fd], POLL_TIMEOUT]
+        self.write = [[fd, write_trigger], [fd], [fd], POLL_TIMEOUT]
+
+    def poll(self, write_wanted):
+        if write_wanted:
+            rlist, wlist, xlist = select.select(*self.write)
+        else:
+            rlist, wlist, xlist = select.select(*self.read)
+        return ([sock.fileno() for sock in rlist],
+                [sock.fileno() for sock in wlist],
+                [sock.fileno() for sock in xlist])
+
+
+class KQueuePoller(object):
+
+    MAX_EVENTS = 1000
+
+    def __init__(self, fd, write_trigger):
+        self._fd = fd
+        self._kqueue = select.kqueue()
+        self._kqueue.control([select.kevent(fd,
+                                            select.KQ_FILTER_READ,
+                                            select.KQ_EV_ADD)], 0)
+        self._kqueue.control([select.kevent(write_trigger,
+                                            select.KQ_FILTER_READ,
+                                            select.KQ_EV_ADD)], 0)
+        self._write_trigger = write_trigger
+        self._write_in_last_poll = False
+
+    def poll(self, write_wanted):
+        self._update_kqueue(write_wanted)
+        rlist, wlist, xlist = [], [], []
+        events = self._kqueue.control(None, self.MAX_EVENTS, POLL_TIMEOUT)
+        for event in events:
+            if event.filter == select.KQ_FILTER_READ:
+                rlist.append(event.ident)
+            elif event.filter == select.KQ_FILTER_WRITE:
+                wlist.append(event.ident)
+            if event.flags & select.KQ_EV_ERROR:
+                xlist.append(event.ident)
+        return rlist, wlist, xlist
+
+    def _update_kqueue(self, write_wanted):
+        if self._write_in_last_poll:
+            if not write_wanted:
+                self._write_in_last_poll = False
+                self._kqueue.control([select.kevent(self._fd,
+                                                    select.KQ_FILTER_WRITE,
+                                                    select.KQ_EV_DELETE)], 0)
+        elif write_wanted:
+            self._write_in_last_poll = True
+            self._kqueue.control([select.kevent(self._fd,
+                                                select.KQ_FILTER_WRITE,
+                                                select.KQ_EV_ADD)], 0)
+
+
+class PollPoller(object):
+
+    # Register constants to prevent platform specific errors
+    POLLIN = 1
+    POLLOUT = 4
+    POLLERR = 8
+
+    READ = POLLIN | POLLERR
+    WRITE = POLLIN | POLLOUT | POLLERR
+
+    def __init__(self, fd, write_trigger):
+        self._fd = fd
+        self._poll = select.poll()
+        self._poll.register(fd, self.READ)
+        self._poll.register(write_trigger, self.READ)
+        self._write_in_last_poll = False
+
+    def _update_poll(self, write_wanted):
+        if self._write_in_last_poll:
+            if not write_wanted:
+                self._write_in_last_poll = False
+                self._poll.modify(self._fd, self.READ)
+        else:
+            self._write_in_last_poll = True
+            self._poll.modify(self._fd, self.WRITE)
+
+    def poll(self, write_wanted):
+        self._update_poll(write_wanted)
+        rlist, wlist, xlist = [], [], []
+        events = self._poll.poll(POLL_TIMEOUT * 1000)
+        for fileno, event in events:
+            if event & self.POLLIN:
+                rlist.append(fileno)
+            if event & self.POLLOUT:
+                wlist.append(fileno)
+            if event & self.POLLERR:
+                xlist.append(fileno)
+        return rlist, wlist, xlist
+
+
+class IOLoop(object):
 
     def __init__(self, fd, error_callback, read_callback, write_queue,
                  event_obj, write_trigger, exception_stack):
@@ -41,17 +136,26 @@ class IOLoop(object):
         self._data.fd = fd
         self._data.error_callback = error_callback
         self._data.read_callback = read_callback
-        self._data.write_queue = write_queue
         self._data.running = False
-        self._data.failed_write = None
         self._data.ssl = hasattr(fd, 'read')
         self._data.events = event_obj
+        self._data.write_buffer = collections.deque()
+        self._data.write_queue = write_queue
         self._data.write_trigger = write_trigger
         self._exceptions = exception_stack
+        self._poller = self._create_poller(fd, write_trigger)
 
-        # Materialized lists for select
-        self._data.read_only = [[fd, write_trigger], [], [fd], POLL_TIMEOUT]
-        self._data.read_write = [[fd, write_trigger], [fd], [fd], POLL_TIMEOUT]
+    @staticmethod
+    def _create_poller(fd, write_trigger):
+        if hasattr(select, 'poll'):
+            LOGGER.debug('Returning PollPoller')
+            return PollPoller(fd, write_trigger)
+        if hasattr(select, 'kqueue'):
+            LOGGER.debug('Returning KQueuePoller')
+            return KQueuePoller(fd, write_trigger)
+        else:
+            LOGGER.debug('Returning SelectPoller')
+            return SelectPoller(fd, write_trigger)
 
     def run(self):
         self._data.running = True
@@ -80,28 +184,33 @@ class IOLoop(object):
 
     def _poll(self):
         # Poll select with the materialized lists
-        #LOGGER.debug('Polling')
         if not self._data.running:
             LOGGER.debug('Exiting poll')
 
-        if self._data.write_queue.empty() and not self._data.failed_write:
-            read, write, err = select.select(*self._data.read_only)
-        else:
-            read, write, err = select.select(*self._data.read_write)
-        if err:
+        # Build the outbound write buffer of marshalled frames
+        while not self._data.write_queue.empty():
+            data = self._data.write_queue.get(False)
+            self._data.write_buffer.append(frame.marshal(data[1], data[0]))
+
+        # Poll the poller, passing in a bool if there is data to write
+        rlist, wlist, xlist = self._poller.poll(bool(self._data.write_buffer))
+
+        if xlist:
             self._data.running = False
             self._data.error_callback(None)
             return
 
         # Clear out the trigger socket
-        if self._data.write_trigger in read:
+        if self._data.write_trigger.fileno() in rlist:
             self._data.write_trigger.recv(1024)
 
-        if self._data.fd in read:
+        # Read if the data socket is in the read list
+        if self._data.fd.fileno() in rlist:
             self._read()
-        if write:
+
+        # Write if the data socket is writable
+        if wlist and self._data.write_buffer:
             self._write()
-        #LOGGER.debug('End of poll')
 
     def _read(self):
         if not self._data.running:
@@ -113,41 +222,30 @@ class IOLoop(object):
             else:
                 self._data.read_callback(self._data.fd.recv(MAX_READ))
         except socket.timeout:
-            pass
+            LOGGER.warning('Timed out reading from socket')
         except socket.error as exception:
             self._data.running = False
             self._data.error_callback(exception)
 
     def _write(self):
-        # If there is data that still needs to be sent, use it instead
-        if self._data.failed_write:
-            data = self._data.failed_write
-            self._data.failed_write = None
-            return self._write_frame(data[0], data[1])
-
-        frames = 0
-        while frames < MAX_WRITE:
-            try:
-                data = self._data.write_queue.get(False)
-            except queue.Empty:
-                break
-            self._write_frame(data[0], data[1])
-            frames += 1
-            if self._data.write_queue.empty():
-                break
-
-    def _write_frame(self, channel, value):
         if not self._data.running:
             LOGGER.debug('Skipping write frame, not running')
             return
-        frame_data = frame.marshal(value, channel)
+
+        frame_data = self._data.write_buffer.popleft()
         try:
-            self._data.fd.sendall(frame_data)
+            bytes_sent = self._data.fd.send(frame_data)
         except socket.timeout:
-            self._data.failed_write = channel, value
+            LOGGER.warning('Timed out writing %i bytes to socket',
+                           len(frame_data))
+            self._data.write_buffer.appendleft(frame_data)
         except socket.error as exception:
             self._data.running = False
             self._data.error_callback(exception)
+        else:
+            # If the entire frame could not be send, send the rest next time
+            if bytes_sent < len(frame_data):
+                self._data.write_buffer.appendleft(frame_data[bytes_sent:])
 
 
 class IO(threading.Thread, base.StatefulObject):
