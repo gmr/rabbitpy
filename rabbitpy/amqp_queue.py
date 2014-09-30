@@ -28,6 +28,7 @@ import logging
 from pamqp import specification
 
 from rabbitpy import base
+from rabbitpy import exceptions
 from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ class Queue(base.AMQPClass):
         # Defaults
         self.consumer_tag = 'rabbitpy.%s.%s' % (self.channel.id, id(self))
         self.consuming = False
+        self._consumer = None
 
         # Assign Arguments
         self.durable = durable
@@ -175,9 +177,10 @@ class Queue(base.AMQPClass):
         """
         if prefetch is not None:
             self.channel.prefetch_count(prefetch)
+        self._consumer = Consumer(self)
         self.channel._consume(self, no_ack, priority)
         self.consuming = True
-        yield Consumer(self)
+        yield self._consumer
 
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator:
@@ -266,6 +269,18 @@ class Queue(base.AMQPClass):
         """Purge the queue of all of its messages."""
         self._rpc(specification.Queue.Purge())
 
+    def stop_consuming(self):
+        """Stop consuming messages. This is usually invoked if you want to
+        cancel your consumer from outside the context manager or generator.
+
+        If you invoke this, there is a possibility that the generator method
+        will return None instead of a :py:class:`rabbitpy.Message`.
+
+        """
+        if not self._consumer:
+            raise exceptions.NotConsumingError
+        self._consumer.cancel()
+
     def unbind(self, source, routing_key=None):
         """Unbind queue from the specified exchange where it is bound the
         routing key. If routing key is None, use the queue name.
@@ -328,21 +343,27 @@ class Consumer(object):
         self.queue = queue
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Called when exiting the consumer iterator
-
-        """
-        self.queue.channel.rpc(self._basic_cancel)
-        self.queue.consuming = False
+        """Called when exiting the consumer iterator"""
+        self.cancel()
 
     @property
     def _basic_cancel(self):
         return specification.Basic.Cancel(consumer_tag=self.queue.consumer_tag)
 
+    def cancel(self):
+        """Cancel the consumer"""
+        self.queue.consuming = False
+        self.queue.channel.rpc(self._basic_cancel)
+
     def next_message(self):
         """Retrieve the nest message from the queue as an iterator, blocking
         until the next message is available.
 
-        :rtype: :py:class:`rabbitpy.message.Message`
+        You should check the return value to ensure it's not ``None``, as it
+        will be returned if your consumer is cancelled by invoking
+        :py:meth:`Queue.stop_consuming()` or :py:meth:`Consumer:cancel`.
+
+        :rtype: :py:class:`rabbitpy.message.Message` or None
 
         """
         while self.queue.consuming:

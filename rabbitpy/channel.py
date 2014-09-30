@@ -1,5 +1,8 @@
 """
-
+Implement the base channel construct that is used by rabbitpy objects
+such as :py:class:`Exchange <rabbitpy.Exchange>` or
+:py:class:`Exchange <rabbitpy.Queue>`. It is responsible for coordinating
+the communication between the IO thread and the higher-level objects.
 
 """
 import logging
@@ -227,12 +230,15 @@ class Channel(base.AMQPChannel):
             LOGGER.debug('Basic.CancelOk received')
 
     def _check_for_rpc_request(self, value):
+        """Inspect a frame to see if it's a RPC request from RabbitMQ.
 
+        :param specification.Frame value:
+
+        """
         if isinstance(value, specification.Channel.Close):
             self._on_remote_close(value)
         elif isinstance(value, specification.Basic.Cancel):
             pass
-
         elif isinstance(value, specification.Basic.Return):
             self._on_basic_return(self._wait_for_content_frames(value))
 
@@ -257,12 +263,17 @@ class Channel(base.AMQPChannel):
         self._consumers.append((obj, no_ack))
 
     def _consume_message(self):
-        """Get a message from the stack, blocking while doing so.
+        """Get a message from the stack, blocking while doing so. If a consumer
+        is cancelled out-of-band, we will receive a Basic.CancelOk
+        instead.
 
         :rtype: rabbitpy.message.Message
 
         """
-        frame_value = self._wait_on_frame('Basic.Deliver')
+        frame_value = self._wait_on_frame([specification.Basic.Deliver,
+                                           specification.Basic.CancelOk])
+        if isinstance(frame_value, specification.Basic.CancelOk):
+            return None
         return self._wait_for_content_frames(frame_value)
 
     def _create_message(self, method_frame, header_frame, body):
@@ -370,7 +381,8 @@ class Channel(base.AMQPChannel):
         :rtype: pamqp.frame.Frame
 
         """
-        return self._wait_on_frame(['Basic.Ack', 'Basic.Nack'])
+        return self._wait_on_frame([specification.Basic.Ack,
+                                    specification.Basic.Nack])
 
     def _wait_for_content_frames(self, method_frame):
         """Used by both Channel._get_message and Channel._consume_message for

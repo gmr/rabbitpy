@@ -80,6 +80,15 @@ class NoActiveTransactionError(Exception):
         return 'No active transaction for the request, channel closed'
 
 
+class NotConsumingError(Exception):
+    """Raised Queue.cancel_consumer() is invoked but the queue is not
+    actively consuming.
+
+    """
+    def __repr__(self):
+        return 'No active consumer to cancel'
+
+
 class TooManyChannelsError(Exception):
     """Raised if an application attempts to create a channel, exceeding the
     maximum number of channels (MAXINT or 2,147,483,647) available for a
