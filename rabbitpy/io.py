@@ -239,9 +239,13 @@ class IOLoop(object):
             LOGGER.warning('Timed out writing %i bytes to socket',
                            len(frame_data))
             self._data.write_buffer.appendleft(frame_data)
-        except socket.error as exception:
-            self._data.running = False
-            self._data.error_callback(exception)
+        except socket.error as error:
+            if error.errno == 35:
+                LOGGER.debug('socket resource temp unavailable')
+                self._data.write_buffer.appendleft(frame_data)
+            else:
+                self._data.running = False
+                self._data.error_callback(error)
         else:
             # If the entire frame could not be send, send the rest next time
             if bytes_sent < len(frame_data):
