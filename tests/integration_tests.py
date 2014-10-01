@@ -8,6 +8,8 @@ except ImportError:
 import uuid
 
 import rabbitpy
+from rabbitpy import exceptions
+from rabbitpy import simple
 
 LOGGER = logging.getLogger(__name__)
 
@@ -201,3 +203,164 @@ class UnnamedQueueDeclareTest(unittest.TestCase):
         self.queue.declare()
         matches = re.match(b'^amq\.gen\-[\w_\-]+$', self.queue.name)
         self.assertIsNotNone(matches)
+
+
+class SimpleCreateQueueTests(unittest.TestCase):
+
+    def test_create_queue(self):
+        name = 'simple-create-queue'
+        rabbitpy.create_queue(queue_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                queue = rabbitpy.Queue(channel, name)
+                response = queue.declare(True)
+                self.assertEqual(response, (0, 0))
+                queue.delete()
+
+
+class SimpleCreateDirectExchangeTests(unittest.TestCase):
+
+    def test_create(self):
+        name = 'direct-exchange-name'
+        rabbitpy.create_direct_exchange(exchange_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                obj = rabbitpy.DirectExchange(channel, name)
+                obj.declare(True)
+                obj.delete()
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.create_direct_exchange)
+
+
+class SimpleCreateFanoutExchangeTests(unittest.TestCase):
+
+    def test_create(self):
+        name = 'fanout-exchange-name'
+        rabbitpy.create_fanout_exchange(exchange_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                obj = rabbitpy.FanoutExchange(channel, name)
+                obj.declare(True)
+                obj.delete()
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.create_fanout_exchange)
+
+
+class SimpleCreateHeadersExchangeTests(unittest.TestCase):
+
+    def test_create(self):
+        name = 'headers-exchange-name'
+        rabbitpy.create_headers_exchange(exchange_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                obj = rabbitpy.HeadersExchange(channel, name)
+                obj.declare(True)
+                obj.delete()
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.create_headers_exchange)
+
+
+class SimpleCreateTopicExchangeTests(unittest.TestCase):
+
+    def test_create(self):
+        name = 'topic-exchange-name'
+        rabbitpy.create_topic_exchange(exchange_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                obj = rabbitpy.TopicExchange(channel, name)
+                obj.declare(True)
+                obj.delete()
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.create_topic_exchange)
+
+
+class SimpleDeleteExchangeTests(unittest.TestCase):
+
+    def test_delete(self):
+        name = 'delete-exchange-name'
+        rabbitpy.create_topic_exchange(exchange_name=name)
+        rabbitpy.delete_exchange(exchange_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                obj = rabbitpy.TopicExchange(channel, name)
+                self.assertRaises(exceptions.AMQPNotFound,
+                                  obj.declare, True)
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.delete_exchange)
+
+
+class SimpleDeleteQueueTests(unittest.TestCase):
+
+    def test_delete(self):
+        name = 'delete-queue-name'
+        rabbitpy.create_queue(queue_name=name)
+        rabbitpy.delete_queue(queue_name=name)
+        with rabbitpy.Connection() as conn:
+            with conn.channel() as channel:
+                obj = rabbitpy.Queue(channel, name)
+                self.assertRaises(exceptions.AMQPNotFound,
+                                  obj.declare, True)
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.delete_queue)
+
+
+class SimpleGetTests(unittest.TestCase):
+
+    def test_get_empty(self):
+        name = 'queue-name-get'
+        rabbitpy.create_queue(queue_name=name)
+        self.assertIsNone(rabbitpy.get(queue_name=name))
+        rabbitpy.delete_queue(queue_name=name)
+
+    def test_get_msg(self):
+        body = 'test-body'
+        name = 'queue-name-get'
+        rabbitpy.create_queue(queue_name=name)
+        rabbitpy.publish(routing_key=name, body=body)
+        result = rabbitpy.get(queue_name=name)
+        self.assertEqual(result.body, body)
+        rabbitpy.delete_queue(queue_name=name)
+
+    def test_raises_on_empty_name(self):
+        self.assertRaises(ValueError, rabbitpy.get)
+
+
+class SimplePublishTests(unittest.TestCase):
+
+    def test_publish_with_confirm(self):
+        body = 'test-body'
+        name = 'simple-publish'
+        rabbitpy.create_queue(queue_name=name)
+        self.assertTrue(rabbitpy.publish(routing_key=name, body=body,
+                                         confirm=True))
+        result = rabbitpy.get(queue_name=name)
+        self.assertEqual(result.body, body)
+        rabbitpy.delete_queue(queue_name=name)
+
+
+class SimpleConsumeTests(unittest.TestCase):
+
+    def test_publish_with_confirm(self):
+        body = 'test-body'
+        name = 'simple-publish'
+        rabbitpy.create_queue(queue_name=name)
+        self.assertTrue(rabbitpy.publish(routing_key=name, body=body,
+                                         confirm=True))
+        for message in rabbitpy.consume(queue_name=name, no_ack=True):
+            self.assertEqual(message.body, body)
+            break
+        rabbitpy.delete_queue(queue_name=name)
+
+    def test_raises_on_empty_name(self):
+        try:
+            for msg in rabbitpy.consume():
+                break
+            assert False, 'Did not raise ValueError'
+        except ValueError:
+            assert True

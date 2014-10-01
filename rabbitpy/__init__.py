@@ -39,5 +39,6 @@ from rabbitpy.simple import create_queue
 from rabbitpy.simple import delete_queue
 from rabbitpy.simple import create_direct_exchange
 from rabbitpy.simple import create_fanout_exchange
+from rabbitpy.simple import create_headers_exchange
 from rabbitpy.simple import create_topic_exchange
 from rabbitpy.simple import delete_exchange
