@@ -244,4 +244,101 @@ class QueueDeclareTests(unittest.TestCase):
         self.assertDictEqual(obj._declare(False).__dict__, expectation)
 
 
+class QueueAssignmentTests(unittest.TestCase):
 
+    def setUp(self):
+        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.queue = amqp_queue.Queue(self.chan)
+
+    def test_auto_delete_assign_true(self):
+        self.queue.auto_delete = True
+        self.assertTrue(self.queue.auto_delete)
+
+    def test_auto_delete_assign_false(self):
+        self.queue.auto_delete = False
+        self.assertFalse(self.queue.auto_delete)
+
+    def test_auto_delete_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.auto_delete = 'Hello'
+        self.assertRaises(ValueError, assign_value)
+
+    def test_durable_assign_true(self):
+        self.queue.durable = True
+        self.assertTrue(self.queue.durable)
+
+    def test_durable_assign_false(self):
+        self.queue.durable = False
+        self.assertFalse(self.queue.durable)
+
+    def test_durable_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.durable = 'Hello'
+        self.assertRaises(ValueError, assign_value)
+
+    def test_exclusive_assign_true(self):
+        self.queue.exclusive = True
+        self.assertTrue(self.queue.exclusive)
+
+    def test_exclusive_assign_false(self):
+        self.queue.exclusive = False
+        self.assertFalse(self.queue.exclusive)
+
+    def test_exclusive_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.exclusive = 'Hello'
+        self.assertRaises(ValueError, assign_value)
+
+    def test_expires_assign_value(self):
+        self.queue.expires = 100
+        self.assertEqual(self.queue.expires, 100)
+
+    def test_expires_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.expires = 'Hello'
+        self.assertRaises(ValueError, assign_value)
+
+    def test_max_length_assign_value(self):
+        self.queue.max_length = 100
+        self.assertEqual(self.queue.max_length, 100)
+
+    def test_max_length_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.max_length = 'Hello'
+        self.assertRaises(ValueError, assign_value)
+
+    def test_message_ttl_assign_value(self):
+        self.queue.message_ttl = 100
+        self.assertEqual(self.queue.message_ttl, 100)
+
+    def test_message_ttl_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.message_ttl = 'Hello'
+        self.assertRaises(ValueError, assign_value)
+
+    def test_dead_letter_exchange_assign_value(self):
+        self.queue.dead_letter_exchange = 'abcd'
+        self.assertEqual(self.queue.dead_letter_exchange, 'abcd')
+
+    def test_dead_letter_exchange_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.dead_letter_exchange = 1234
+        self.assertRaises(ValueError, assign_value)
+
+    def test_dead_letter_routing_key_assign_value(self):
+        self.queue.dead_letter_routing_key = 'abcd'
+        self.assertEqual(self.queue.dead_letter_routing_key, 'abcd')
+
+    def test_dead_letter_routing_key_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.dead_letter_routing_key = 1234
+        self.assertRaises(ValueError, assign_value)
+
+    def test_arguments_assign_value(self):
+        self.queue.arguments = {'foo': 'bar'}
+        self.assertDictEqual(self.queue.arguments, {'foo': 'bar'})
+
+    def test_arguments_assign_raises_type_error(self):
+        def assign_value():
+            self.queue.arguments = 1234
+        self.assertRaises(ValueError, assign_value)
