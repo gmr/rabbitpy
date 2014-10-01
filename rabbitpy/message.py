@@ -280,7 +280,6 @@ class Message(base.AMQPClass):
 
     def _add_auto_message_id(self):
         """Set the message_id property to a new UUID."""
-        LOGGER.info('Adding message id')
         self.properties['message_id'] = str(uuid.uuid4())
 
     def _add_timestamp(self):
