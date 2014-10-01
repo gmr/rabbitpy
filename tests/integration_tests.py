@@ -199,5 +199,5 @@ class UnnamedQueueDeclareTest(unittest.TestCase):
     def test_declaring_nameless_queue(self):
         self.queue = rabbitpy.Queue(self.channel)
         self.queue.declare()
-        matches = re.match(b'^amq\.gen\-[\w_]+$', self.queue.name)
+        matches = re.match(b'^amq\.gen\-[\w_\-]+$', self.queue.name)
         self.assertIsNotNone(matches)
