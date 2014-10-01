@@ -1,5 +1,14 @@
 Version History
 ---------------
+ - 0.20.0 - released *2014-10-01*
+  - Added support for KQueue and Poll in IOLoop for performance improvements
+  - Fixed issues with publishing large messages and socket resource availability errors (#37)
+  - Add exchange property to rabbitpy.Message (#40)
+  - Fix exception when timestamp is None in received Message (#41)
+  - Fix rabbitpy.Message.json() in Python 3.4 (#42)
+  - Add out-of-band consumer cancellation with Queue.stop_consuming() (#38, #39)
+  - Add new simple method rabbitpy.create_headers_exchange()
+  - Significantly increase test coverage
  - 0.19.0 - released *2014-06-30*
   - Fix the socket read/write buffer size (#35)
   - Add new flag in channels to use blocking queue.get operations increasing throughput and lowering overhead.
