@@ -319,7 +319,7 @@ class SimpleGetTests(unittest.TestCase):
         rabbitpy.delete_queue(queue_name=name)
 
     def test_get_msg(self):
-        body = 'test-body'
+        body = b'test-body'
         name = 'queue-name-get'
         rabbitpy.create_queue(queue_name=name)
         rabbitpy.publish(routing_key=name, body=body)
@@ -334,7 +334,7 @@ class SimpleGetTests(unittest.TestCase):
 class SimplePublishTests(unittest.TestCase):
 
     def test_publish_with_confirm(self):
-        body = 'test-body'
+        body = b'test-body'
         name = 'simple-publish'
         rabbitpy.create_queue(queue_name=name)
         self.assertTrue(rabbitpy.publish(routing_key=name, body=body,
@@ -347,8 +347,8 @@ class SimplePublishTests(unittest.TestCase):
 class SimpleConsumeTests(unittest.TestCase):
 
     def test_publish_with_confirm(self):
-        body = 'test-body'
-        name = 'simple-publish'
+        body = b'test-body'
+        name = 'simple-consume-tests'
         rabbitpy.create_queue(queue_name=name)
         self.assertTrue(rabbitpy.publish(routing_key=name, body=body,
                                          confirm=True))
