@@ -13,10 +13,10 @@ def consume(uri=None, queue_name=None, no_ack=False, prefetch=100,
             priority=None):
     """Consume messages from the queue as a generator:
 
-    ```
+    .. code:: python
+
         for message in rabbitpy.consume('amqp://localhost/%2F', 'my_queue'):
             message.ack()
-    ```
 
     :param str uri: AMQP connection URI
     :param str queue_name: The name of the queue to consume from
@@ -41,8 +41,7 @@ def get(uri=None, queue_name=None):
     """Get a message from RabbitMQ, auto-acknowledging with RabbitMQ if one
     is returned.
 
-    Invoke directly as rabbitpy.get()
-
+    Invoke directly as ``rabbitpy.get()``
 
     :param str uri: AMQP URI to connect to
     :param str queue_name: The queue name to get the message from
