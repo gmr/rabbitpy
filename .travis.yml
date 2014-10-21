@@ -15,6 +15,7 @@ after_success:
 services:
   - rabbitmq
 deploy:
+  distributions: sdist bdist_wheel
   provider: pypi
   user: crad
   on:
