@@ -8,6 +8,8 @@ try:
 except ImportError:
     import Queue as queue
 import socket
+import threading
+
 from pamqp import specification
 
 from rabbitpy import exceptions
@@ -158,6 +160,7 @@ class AMQPChannel(StatefulObject):
         self._exceptions = exception_queue
         self._state = self.CLOSED
         self._read_queue = None
+        self._write_lock = threading.Lock()
         self._write_queue = None
         self._write_trigger = write_trigger
 
@@ -311,5 +314,21 @@ class AMQPChannel(StatefulObject):
         if self.closed:
             return
         self._check_for_exceptions()
-        self._write_queue.put((self._channel_id, frame))
+        with self._write_lock:
+            self._write_queue.put((self._channel_id, frame))
+        self._trigger_write()
+
+    def _write_frames(self, frames):
+        """Add a list of frames for the IOWriter object to write to the socket
+        when it can.
+
+        :param list frames: The list of frame to write
+
+        """
+        if self.closed:
+            return
+        self._check_for_exceptions()
+        with self._write_lock:
+            [self._write_queue.put((self._channel_id, frame))
+             for frame in frames]
         self._trigger_write()
