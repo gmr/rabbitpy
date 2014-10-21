@@ -72,10 +72,10 @@ class Message(base.AMQPClass):
     is not specified when passing in ``properties``, the current Unix epoch
     value will be set in the message properties.
 
-    .. note:: As of 0.20.0 ``auto_id`` is deprecated in favor of
-    ``opinionated`` and it will be removed in 0.21.0. Additionally for
-    compatibility, ``0.20.0`` has ``opinionated`` defaulted to ``True``. This
-    will change to ``False`` in 0.21.0.
+    .. note:: As of 0.21.0 ``auto_id`` is deprecated in favor of
+    ``opinionated`` and it will be removed in 0.22.0. Additionally for
+    compatibility, ``0.21.0`` has ``opinionated`` defaulted to ``True``. This
+    will change to ``False`` in 0.22.0.
 
     :param channel: The channel object for the message object to act upon
     :type channel: :py:class:`rabbitpy.channel.Channel`
