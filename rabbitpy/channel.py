@@ -102,6 +102,7 @@ class Channel(base.AMQPChannel):
             LOGGER.debug('Channel %i close invoked when already closed',
                          self._channel_id)
             return
+
         self._set_state(self.CLOSING)
 
         # Empty the queue and nack the max id (and all previous)
@@ -396,12 +397,16 @@ class Channel(base.AMQPChannel):
         """
         if self.closing or self.closed:
             return None
-        header_value = self._wait_on_frame('ContentHeader')
+        header_value = self._wait_on_frame(['ContentHeader',
+                                            specification.Channel.CloseOk])
+        self._check_for_rpc_request(header_value)
         if not header_value:
             return self._create_message(method_frame, None, None)
         body_value = bytes() if PYTHON3 else str()
         while len(body_value) < header_value.body_size:
-            body_part = self._wait_on_frame('ContentBody')
+            body_part = self._wait_on_frame(['ContentBody',
+                                             specification.Channel.CloseOk])
+            self._check_for_rpc_request(body_part)
             if not body_part:
                 break
             body_value += body_part.value
