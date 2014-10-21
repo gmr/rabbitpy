@@ -1,5 +1,11 @@
 Version History
 ---------------
+ - 0.21.0 - released *2014-10-21*
+  - Address a possible edge case where message frames can be interspersed when publishing in a multi-threaded environment
+  - Add exception handling around select.error (#43)
+  - Check all frames for Channel.CloseOk when consuming
+  - Add a new ``opinionated`` flag in rabbitpy.Message construction that deprecates the ``auto_id`` flag
+  - Add wheel distribution
  - 0.20.0 - released *2014-10-01*
   - Added support for KQueue and Poll in IOLoop for performance improvements
   - Fixed issues with publishing large messages and socket resource availability errors (#37)
