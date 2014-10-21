@@ -48,7 +48,7 @@ class TestCreation(BaseTestCase):
         self.assertEqual(self.msg.body, self.body)
 
     def test_message_message_id_property_set(self):
-        self.assertIsNotNone(self.msg.properties['message_id'])
+        self.assertIn('message_id', self.msg.properties)
 
 
 class TestCreationWithDictBody(BaseTestCase):
@@ -161,7 +161,7 @@ class TestCreationWithNoAutoID(BaseTestCase):
         self.assertEqual(self.msg.body, self.body)
 
     def test_message_message_id_property_is_not_set(self):
-        self.assertNotIn('message_id', self.msg.properties)
+        self.assertIn('message_id', self.msg.properties)
 
 
 class TestWithPropertiesCreation(BaseTestCase):
@@ -394,60 +394,60 @@ class TestPublishing(BaseTestCase):
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
-    @mock.patch('rabbitpy.channel.Channel._write_frame')
-    def setUp(self, write_frame):
+    @mock.patch('rabbitpy.channel.Channel._write_frames')
+    def setUp(self, write_frames):
         super(TestPublishing, self).setUp()
-        self.write_frame = write_frame
+        self.write_frames = write_frames
         self.msg = message.Message(self.chan, self.BODY, {'app_id': 'foo'})
         self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
 
     def test_publish_invokes_write_frame_with_basic_publish(self):
-        self.assertIsInstance(self.write_frame.mock_calls[0][1][0],
+        self.assertIsInstance(self.write_frames.mock_calls[0][1][0][0],
                               specification.Basic.Publish)
 
     def test_publish_with_exchange_object(self):
         _exchange = exchange.Exchange(self.chan, self.EXCHANGE)
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel._write_frames') as wframes:
             self.msg.publish(_exchange, self.ROUTING_KEY)
-            self.assertEqual(wframe.mock_calls[0][1][0].exchange,
+            self.assertEqual(wframes.mock_calls[0][1][0][0].exchange,
                              self.EXCHANGE)
 
     def test_publish_with_exchange_str(self):
-        self.assertEqual(self.write_frame.mock_calls[0][1][0].exchange,
+        self.assertEqual(self.write_frames.mock_calls[0][1][0][0].exchange,
                          self.EXCHANGE)
 
     def test_publish_routing_key_value(self):
-        self.assertEqual(self.write_frame.mock_calls[0][1][0].routing_key,
+        self.assertEqual(self.write_frames.mock_calls[0][1][0][0].routing_key,
                          self.ROUTING_KEY)
 
     def test_publish_mandatory_false_value(self):
-        self.assertFalse(self.write_frame.mock_calls[0][1][0].mandatory)
+        self.assertFalse(self.write_frames.mock_calls[0][1][0][0].mandatory)
 
     def test_publish_mandatory_true_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel._write_frames') as wframes:
             self.msg.publish(self.EXCHANGE, self.ROUTING_KEY, True)
-            self.assertTrue(wframe.mock_calls[0][1][0].mandatory)
+            self.assertTrue(wframes.mock_calls[0][1][0][0].mandatory)
 
     def test_publish_invokes_write_frame_with_content_header(self):
-        self.assertIsInstance(self.write_frame.mock_calls[1][1][0],
+        self.assertIsInstance(self.write_frames.mock_calls[0][1][0][1],
                               header.ContentHeader)
 
     def test_content_header_frame_body_size(self):
-        self.assertEqual(self.write_frame.mock_calls[1][1][0].body_size,
+        self.assertEqual(self.write_frames.mock_calls[0][1][0][1].body_size,
                          len(self.msg.body))
 
     def test_content_header_frame_properties(self):
-        value = self.write_frame.mock_calls[1][1][0].properties
+        value = self.write_frames.mock_calls[0][1][0][1].properties
         for key in self.msg.properties:
             self.assertEqual(self.msg.properties[key],
                              getattr(value, key))
 
     def test_publish_invokes_write_frame_with_body(self):
-        self.assertIsInstance(self.write_frame.mock_calls[2][1][0],
+        self.assertIsInstance(self.write_frames.mock_calls[0][1][0][2],
                               body.ContentBody)
 
     def test_content_body_value(self):
-        self.assertEqual(self.write_frame.mock_calls[2][1][0].value,
+        self.assertEqual(self.write_frames.mock_calls[0][1][0][2].value,
                          bytes(json.dumps(self.BODY).encode('utf-8')))
 
 
@@ -473,15 +473,15 @@ class TestPublishingUnicode(BaseTestCase):
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
-    @mock.patch('rabbitpy.channel.Channel._write_frame')
-    def setUp(self, write_frame):
+    @mock.patch('rabbitpy.channel.Channel._write_frames')
+    def setUp(self, write_frames):
         super(TestPublishingUnicode, self).setUp()
-        self.write_frame = write_frame
+        self.write_frames = write_frames
         self.msg = message.Message(self.chan, self.BODY)
         self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
 
     def test_content_body_value(self):
-        self.assertEqual(self.write_frame.mock_calls[2][1][0].value,
+        self.assertEqual(self.write_frames.mock_calls[0][1][0][2].value,
                          self.BODY.encode('utf-8'))
 
 
@@ -491,10 +491,10 @@ class TestPublisherConfirms(BaseTestCase):
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
-    @mock.patch('rabbitpy.channel.Channel._write_frame')
-    def setUp(self, write_frame):
+    @mock.patch('rabbitpy.channel.Channel._write_frames')
+    def setUp(self, write_frames):
         super(TestPublisherConfirms, self).setUp()
-        self.write_frame = write_frame
+        self.write_frames = write_frames
         self.chan._publisher_confirms = True
         self.chan._wait_for_confirmation = self._confirm_wait = mock.Mock()
         self.msg = message.Message(self.chan, self.BODY)

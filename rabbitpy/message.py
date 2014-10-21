@@ -62,28 +62,36 @@ class Message(base.AMQPClass):
     **Automated features**
 
     When passing in the body value, if it is a dict or list, it will
-    automatically be JSON serialized and the content type "application/json"
+    automatically be JSON serialized and the content type ``application/json``
     will be set on the message properties.
 
-    When publishing a message to RabbitMQ, if the auto_id value is True and no
-    message_id value was passed in as a property, a UUID will be generated and
-    specified as a property of the message.
+    When publishing a message to RabbitMQ, if the opinionated value is ``True``
+    and no ``message_id`` value was passed in as a property, a UUID will be
+    generated and specified as a property of the message.
 
-    If a timestamp is not specified when passing in properties, the current
-    Unix epoch value will be set in the message properties.
+    Additionally, if opinionated is ``True`` and the ``timestamp`` property
+    is not specified when passing in ``properties``, the current Unix epoch
+    value will be set in the message properties.
+
+    .. note:: As of 0.20.0 ``auto_id`` is deprecated in favor of
+    ``opinionated`` and it will be removed in 0.21.0. Additionally for
+    compatibility, ``0.20.0`` has ``opinionated`` defaulted to ``True``. This
+    will change to ``False`` in 0.21.0.
 
     :param channel: The channel object for the message object to act upon
     :type channel: :py:class:`rabbitpy.channel.Channel`
     :param str or dict or list body_value: The message body
     :param dict properties: A dictionary of message properties
     :param bool auto_id: Add a message id if no properties were passed in.
+    :param bool opinionated: Automatically populate properties if True
     :raises KeyError: Raised when an invalid property is passed in
 
     """
     method = None
     name = 'Message'
 
-    def __init__(self, channel, body_value, properties=None, auto_id=True):
+    def __init__(self, channel, body_value, properties=None,
+                 auto_id=False, opinionated=True):
         """Create a new instance of the Message object."""
         super(Message, self).__init__(channel, 'Message')
 
@@ -94,16 +102,19 @@ class Message(base.AMQPClass):
         self.body = self._auto_serialize(body_value)
 
         # Add a message id if auto_id is not turned off and it is not set
-        if auto_id and 'message_id' not in self.properties:
+        if (opinionated or auto_id) and 'message_id' not in self.properties:
+            if auto_id:
+                raise DeprecationWarning('Use opinionated instead of auto_id')
             self._add_auto_message_id()
 
-        # Always add a timestamp
-        if 'timestamp' not in self.properties:
-            self._add_timestamp()
+        if opinionated:
+            if 'timestamp' not in self.properties:
+                self._add_timestamp()
 
         # Enforce datetime timestamps
-        self.properties['timestamp'] = \
-            self._as_datetime(self.properties['timestamp'])
+        if 'timestamp' in self.properties:
+            self.properties['timestamp'] = \
+                self._as_datetime(self.properties['timestamp'])
 
         # Don't let invalid property keys in
         if self._invalid_properties:
@@ -231,17 +242,17 @@ class Message(base.AMQPClass):
         """
         if isinstance(exchange, base.AMQPClass):
             exchange = exchange.name
-        method_frame = specification.Basic.Publish(exchange=exchange,
-                                                   routing_key=
-                                                   routing_key or '',
-                                                   mandatory=mandatory)
-        self.channel._write_frame(method_frame)
-        header_frame = header.ContentHeader(body_size=len(self.body),
-                                            properties=self._properties)
-        self.channel._write_frame(header_frame)
 
+        frames = [specification.Basic.Publish(exchange=exchange,
+                                              routing_key=routing_key or '',
+                                              mandatory=mandatory),
+                  header.ContentHeader(body_size=len(self.body),
+                                       properties=self._properties)]
+
+        # Coerce the body to the proper type
         self._coerce_body()
 
+        # Calculate how many body frames are needed
         pieces = int(math.ceil(len(self.body) /
                                float(self.channel.maximum_frame_size)))
 
@@ -251,7 +262,10 @@ class Message(base.AMQPClass):
             end = start + self.channel.maximum_frame_size
             if end > len(self.body):
                 end = len(self.body)
-            self.channel._write_frame(body.ContentBody(self.body[start:end]))
+            frames.append(body.ContentBody(self.body[start:end]))
+
+        # Write the frames out
+        self.channel._write_frames(frames)
 
         # If publisher confirmations are enabled, wait for the response
         if self.channel.publisher_confirms:
@@ -280,7 +294,7 @@ class Message(base.AMQPClass):
 
     def _add_auto_message_id(self):
         """Set the message_id property to a new UUID."""
-        LOGGER.info('Adding message id')
+        LOGGER.debug('Adding message id')
         self.properties['message_id'] = str(uuid.uuid4())
 
     def _add_timestamp(self):
