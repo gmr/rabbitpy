@@ -36,10 +36,13 @@ class SelectPoller(object):
         self.write = [[fd, write_trigger], [fd], [fd], POLL_TIMEOUT]
 
     def poll(self, write_wanted):
-        if write_wanted:
-            rlist, wlist, xlist = select.select(*self.write)
-        else:
-            rlist, wlist, xlist = select.select(*self.read)
+        try:
+            if write_wanted:
+                rlist, wlist, xlist = select.select(*self.write)
+            else:
+                rlist, wlist, xlist = select.select(*self.read)
+        except select.error:
+            return [], [], []
         return ([sock.fileno() for sock in rlist],
                 [sock.fileno() for sock in wlist],
                 [sock.fileno() for sock in xlist])
@@ -64,7 +67,10 @@ class KQueuePoller(object):
     def poll(self, write_wanted):
         self._update_kqueue(write_wanted)
         rlist, wlist, xlist = [], [], []
-        events = self._kqueue.control(None, self.MAX_EVENTS, POLL_TIMEOUT)
+        try:
+            events = self._kqueue.control(None, self.MAX_EVENTS, POLL_TIMEOUT)
+        except select.error:
+            return [], [], []
         for event in events:
             if event.filter == select.KQ_FILTER_READ:
                 rlist.append(event.ident)
@@ -117,7 +123,10 @@ class PollPoller(object):
     def poll(self, write_wanted):
         self._update_poll(write_wanted)
         rlist, wlist, xlist = [], [], []
-        events = self._poll.poll(POLL_TIMEOUT * 1000)
+        try:
+            events = self._poll.poll(POLL_TIMEOUT * 1000)
+        except select.error:
+            return [], [], []
         for fileno, event in events:
             if event & self.POLLIN:
                 rlist.append(fileno)
