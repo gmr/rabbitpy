@@ -2,7 +2,7 @@
 rabbitpy, a pythonic RabbitMQ client
 
 """
-__version__ = '0.19.0'
+__version__ = '0.20.0'
 version = __version__
 import logging
 
@@ -39,5 +39,6 @@ from rabbitpy.simple import create_queue
 from rabbitpy.simple import delete_queue
 from rabbitpy.simple import create_direct_exchange
 from rabbitpy.simple import create_fanout_exchange
+from rabbitpy.simple import create_headers_exchange
 from rabbitpy.simple import create_topic_exchange
 from rabbitpy.simple import delete_exchange

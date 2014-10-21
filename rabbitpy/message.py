@@ -15,7 +15,6 @@ import uuid
 
 from pamqp import body
 from pamqp import header
-from pamqp import PYTHON3
 from pamqp import specification
 
 from rabbitpy import base
@@ -294,7 +293,6 @@ class Message(base.AMQPClass):
 
     def _add_auto_message_id(self):
         """Set the message_id property to a new UUID."""
-        LOGGER.debug('Adding message id')
         self.properties['message_id'] = str(uuid.uuid4())
 
     def _add_timestamp(self):

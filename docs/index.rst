@@ -99,7 +99,7 @@ Please report any issues to the Github repo at `https://github.com/gmr/rabbitpy/
 
 Source
 ------
-rabbitpy source is available on Github at  `https://github.com/pika/rabbitpy <https://github.com/gmr/rabbitpy>`_
+rabbitpy source is available on Github at  `https://github.com/gmr/rabbitpy <https://github.com/gmr/rabbitpy>`_
 
 |Status|
 
