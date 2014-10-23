@@ -123,8 +123,8 @@ class Connection(base.StatefulObject):
 
         """
         if exc_type:
-            LOGGER.error('Shutting down connection on unhandled exception: %s',
-                         exc_type)
+            self._set_state(self.CLOSED)
+            raise exc_type(exc_val)
         self._set_state(self.CLOSED)
         self._shutdown_connection(True)
 
