@@ -86,9 +86,9 @@ class Channel(base.AMQPChannel):
         it's  an exception or what.
 
         """
-        if exc_val:
-            LOGGER.error('Shutting down channel on unhandled exception: %s',
-                         exc_type)
+        if exc_type:
+            self._set_state(self.CLOSED)
+            raise exc_type(exc_val)
         if self.open:
             self.close()
 

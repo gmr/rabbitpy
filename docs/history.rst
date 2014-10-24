@@ -1,5 +1,12 @@
 Version History
 ---------------
+ - 0.21.1 - released *2014-10-23*
+  - Clean up KQueue issues found when troubleshooting #44, checking for socket EOF in flags to detect connection reset
+  - Remove sockets from KQueue when in error state
+  - Change behavior when there is a poll exception list
+  - Handle socket connect errors more cleanly (#44)
+  - Handle bug for how we pull the error string from an exception in IO.on_error (#44)
+  - Re-raise exceptions causing the exit of Connection or Channel so they can be cleanly caught (#44)
  - 0.21.0 - released *2014-10-21*
   - Address a possible edge case where message frames can be interspersed when publishing in a multi-threaded environment
   - Add exception handling around select.error (#43)

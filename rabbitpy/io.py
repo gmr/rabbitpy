@@ -54,6 +54,7 @@ class KQueuePoller(object):
 
     def __init__(self, fd, write_trigger):
         self._fd = fd
+        self._write_trigger = write_trigger
         self._kqueue = select.kqueue()
         self._kqueue.control([select.kevent(fd,
                                             select.KQ_FILTER_READ,
@@ -61,15 +62,15 @@ class KQueuePoller(object):
         self._kqueue.control([select.kevent(write_trigger,
                                             select.KQ_FILTER_READ,
                                             select.KQ_EV_ADD)], 0)
-        self._write_trigger = write_trigger
         self._write_in_last_poll = False
 
     def poll(self, write_wanted):
-        self._update_kqueue(write_wanted)
         rlist, wlist, xlist = [], [], []
         try:
-            events = self._kqueue.control(None, self.MAX_EVENTS, POLL_TIMEOUT)
-        except select.error:
+            events = self._kqueue.control(self._changelist(write_wanted),
+                                          self.MAX_EVENTS, POLL_TIMEOUT)
+        except select.error as error:
+            LOGGER.debug('kqueue.control error: %s', error)
             return [], [], []
         for event in events:
             if event.filter == select.KQ_FILTER_READ:
@@ -78,20 +79,36 @@ class KQueuePoller(object):
                 wlist.append(event.ident)
             if event.flags & select.KQ_EV_ERROR:
                 xlist.append(event.ident)
+            if event.flags & select.KQ_EV_EOF == select.KQ_EV_EOF:
+                xlist.append(event.data)
+        if xlist:
+            self._cleanup()
         return rlist, wlist, xlist
 
-    def _update_kqueue(self, write_wanted):
-        if self._write_in_last_poll:
-            if not write_wanted:
-                self._write_in_last_poll = False
-                self._kqueue.control([select.kevent(self._fd,
-                                                    select.KQ_FILTER_WRITE,
-                                                    select.KQ_EV_DELETE)], 0)
-        elif write_wanted:
+    def _changelist(self, write_wanted):
+        if write_wanted and not self._write_in_last_poll:
             self._write_in_last_poll = True
-            self._kqueue.control([select.kevent(self._fd,
-                                                select.KQ_FILTER_WRITE,
-                                                select.KQ_EV_ADD)], 0)
+            return [select.kevent(self._fd,
+                    select.KQ_FILTER_WRITE,
+                    select.KQ_EV_ADD)]
+        elif self._write_in_last_poll and not write_wanted:
+            self._write_in_last_poll = False
+            return [select.kevent(self._fd,
+                                  select.KQ_FILTER_WRITE,
+                                  select.KQ_EV_DELETE)]
+        return None
+
+    def _cleanup(self):
+        self._kqueue.control([select.kevent(self._fd,
+                                            select.KQ_FILTER_READ,
+                                            select.KQ_EV_DELETE)], 0)
+        self._kqueue.control([select.kevent(self._write_trigger,
+                                            select.KQ_FILTER_READ,
+                                            select.KQ_EV_DELETE)], 0)
+        if self._write_in_last_poll:
+            return [select.kevent(self._fd,
+                                  select.KQ_FILTER_WRITE,
+                                  select.KQ_EV_DELETE)]
 
 
 class PollPoller(object):
@@ -177,7 +194,6 @@ class IOLoop(object):
                      len(exception.args) == 2 and
                      exception.args[0] == errno.EINTR)):
                     continue
-
             if self._data.events.is_set(events.SOCKET_CLOSE):
                 LOGGER.debug('Exiting due to closed socket')
                 break
@@ -205,8 +221,9 @@ class IOLoop(object):
         rlist, wlist, xlist = self._poller.poll(bool(self._data.write_buffer))
 
         if xlist:
-            self._data.running = False
-            self._data.error_callback(None)
+            LOGGER.debug('Poll errors: %r', xlist)
+            self._data.events.set(events.SOCKET_CLOSE)
+            self._data.error_callback('Connection reset')
             return
 
         # Clear out the trigger socket
@@ -309,6 +326,11 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._connect()
+        if not self._socket:
+            LOGGER.warning('Could not connect to %s:%s',
+                           self._args['host'], self._args['port'])
+            return
+
         LOGGER.debug('Socket connected')
 
         # Create the remote name
@@ -324,6 +346,9 @@ class IO(threading.Thread, base.StatefulObject):
                             self._write_listener,
                             self._exceptions)
         self._loop.run()
+        if not self._exceptions.empty() and \
+                not self._events.is_set(events.EXCEPTION_RAISED):
+            self._events.set(events.EXCEPTION_RAISED)
         LOGGER.debug('Exiting IO.run')
 
     def on_error(self, exception):
@@ -333,8 +358,7 @@ class IO(threading.Thread, base.StatefulObject):
         :param socket.error exception: The socket error
 
         """
-        LOGGER.error('Socket error: %s', exception, exc_info=True)
-        args = [self._args['host'], self._args['port'], exception[1]]
+        args = [self._args['host'], self._args['port'], str(exception)]
         if self._channels[0][0].open:
             self._exceptions.put(exceptions.ConnectionResetException(*args))
         else:
