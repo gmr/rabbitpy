@@ -24,11 +24,6 @@ But there's always easy_install:
 
     easy_install rabbitpy
 
-rmqid Compatibility
--------------------
-
-rabbitpy is API compatible with rmqid.
-
 Documentation
 -------------
 
