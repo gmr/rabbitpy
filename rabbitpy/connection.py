@@ -124,7 +124,7 @@ class Connection(base.StatefulObject):
         """
         if exc_type:
             self._set_state(self.CLOSED)
-            raise exc_type(exc_val)
+            raise
         self._set_state(self.CLOSED)
         self._shutdown_connection(True)
 
