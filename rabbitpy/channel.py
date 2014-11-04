@@ -88,7 +88,7 @@ class Channel(base.AMQPChannel):
         """
         if exc_type:
             self._set_state(self.CLOSED)
-            raise exc_type(exc_val)
+            raise
         if self.open:
             self.close()
 
