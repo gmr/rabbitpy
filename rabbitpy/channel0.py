@@ -184,16 +184,32 @@ class Channel0(base.AMQPChannel):
         :param specification.Connection.Tune frame_value: Tune frame
 
         """
-        self._maximum_channels = frame_value.channel_max
-        if frame_value.frame_max != self.maximum_frame_size:
-            self.maximum_frame_size = frame_value.frame_max
-        if frame_value.heartbeat:
-            if self._heartbeat is None:
-                self._heartbeat = frame_value.heartbeat
-            elif self._heartbeat > frame_value.heartbeat:
-                self._heartbeat = frame_value.heartbeat
+        self.maximum_frame_size = self._negotiate(self.maximum_frame_size,
+                                                  frame_value.frame_max)
+        self._maximum_channels = self._negotiate(self.maximum_channels,
+                                                 frame_value.channel_max)
+        self._heartbeat = self._negotiate(self._heartbeat,
+                                          frame_value.heartbeat)
         self._write_frame(self._build_tune_ok_frame())
         self._write_frame(self._build_open_frame())
+
+    @staticmethod
+    def _negotiate(client_value, server_value):
+        """Return the negotiated value between what the client has requested
+        and the server has requested for how the two will communicate.
+
+        :param int client_value:
+        :param int server_value:
+        :return: int
+
+        """
+        if client_value == server_value:
+            return server_value
+        if client_value == 0 or server_value == 0:
+            return max(client_value, server_value)
+        else:
+            return min(client_value, server_value)
+
 
     @property
     def _credentials(self):
