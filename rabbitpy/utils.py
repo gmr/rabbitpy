@@ -16,6 +16,16 @@ Parsed = collections.namedtuple('Parsed',
                                 'username,password,hostname,port')
 
 
+def maybe_utf8_encode(value):
+    if PYTHON3:
+        if not isinstance(value, bytes):
+            return bytes(value, 'utf-8')
+        return value
+    if isinstance(value, unicode):
+        return value.encode('utf-8')
+    return value
+
+
 def parse_qs(query_string):
     return _urlparse.parse_qs(query_string)
 

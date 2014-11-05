@@ -241,26 +241,26 @@ class Message(base.AMQPClass):
         if isinstance(exchange, base.AMQPClass):
             exchange = exchange.name
 
+        # Coerce the body to the proper type
+        payload = utils.maybe_utf8_encode(self.body)
+
         frames = [specification.Basic.Publish(exchange=exchange,
                                               routing_key=routing_key or '',
                                               mandatory=mandatory),
-                  header.ContentHeader(body_size=len(self.body),
+                  header.ContentHeader(body_size=len(payload),
                                        properties=self._properties)]
 
-        # Coerce the body to the proper type
-        self._coerce_body()
-
         # Calculate how many body frames are needed
-        pieces = int(math.ceil(len(self.body) /
+        pieces = int(math.ceil(len(payload) /
                                float(self.channel.maximum_frame_size)))
 
         # Send the message
         for offset in range(0, pieces):
             start = self.channel.maximum_frame_size * offset
             end = start + self.channel.maximum_frame_size
-            if end > len(self.body):
-                end = len(self.body)
-            frames.append(body.ContentBody(self.body[start:end]))
+            if end > len(payload):
+                end = len(payload)
+            frames.append(body.ContentBody(payload[start:end]))
 
         # Write the frames out
         self.channel._write_frames(frames)
@@ -310,7 +310,7 @@ class Message(base.AMQPClass):
         :type value: bytes
         :type value: unicode
         :rtype: datetime.datetime
-        :raises: ValueError
+        :raises: TypeError
 
         """
         if value is None:
@@ -328,7 +328,7 @@ class Message(base.AMQPClass):
         if isinstance(value, float) or isinstance(value, int):
             return datetime.datetime.fromtimestamp(value)
 
-        raise ValueError('Could not cast a %s value to a datetime.datetime' %
+        raise TypeError('Could not cast a %s value to a datetime.datetime' %
                          type(value))
 
     def _auto_serialize(self, body_value):
@@ -343,35 +343,23 @@ class Message(base.AMQPClass):
             return json.dumps(body_value, ensure_ascii=False)
         return body_value
 
-    def _coerce_body(self): # pragma: no cover
-        """Ensure that unicode body values are cast to strings or bytes.
-
-        """
-        try:
-            if isinstance(self.body, unicode):
-                self.body = self.body.encode('UTF-8')
-        except NameError:
-            if isinstance(self.body, str):
-                self.body = bytes(self.body.encode('UTF-8'))
-
     def _coerce_properties(self):
         """Force properties to be set to the correct data type"""
-        for key in self.properties:
+        for key, value in self.properties.items():
             _type = getattr(specification.Basic.Properties, key)
-            if _type == 'shortstr' and \
-                    not utils.is_string(self.properties[key]):
-                LOGGER.warning('Coercing property %s to bytes', key)
-                self.properties[key] = bytes(self.properties[key])
-            elif _type == 'octet' and not isinstance(self.properties[key],
-                                                     int):
+            if _type == 'shortstr':
+                if not utils.is_string(value):
+                    LOGGER.warning('Coercing property %s to bytes', key)
+                    value = str(value)
+                self.properties[key] = utils.maybe_utf8_encode(value)
+            elif _type == 'octet' and not isinstance(value, int):
                 LOGGER.warning('Coercing property %s to int', key)
-                self.properties[key] = int(self.properties[key])
-            elif _type == 'table' and not isinstance(self.properties[key],
-                                                     dict):
+                self.properties[key] = int(value)
+            elif _type == 'table' and not isinstance(value, dict):
                 LOGGER.warning('Resetting invalid value for %s to None', key)
                 self.properties[key] = {}
             if key == 'timestamp':
-                self.properties[key] = self._as_datetime(self.properties[key])
+                self.properties[key] = self._as_datetime(value)
 
     @property
     def _invalid_properties(self):

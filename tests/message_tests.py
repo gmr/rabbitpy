@@ -105,7 +105,7 @@ class TestCreationWithIntTimestamp(BaseTestCase):
 class TestCreationWithInvalidTimestampType(BaseTestCase):
 
     def test_message_timestamp_property_is_datetime(self):
-        self.assertRaises(ValueError,
+        self.assertRaises(TypeError,
                           message.Message,
                           self.chan,
                           str(uuid.uuid4()),
