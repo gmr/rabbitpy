@@ -73,9 +73,8 @@ class Message(base.AMQPClass):
     value will be set in the message properties.
 
     .. note:: As of 0.21.0 ``auto_id`` is deprecated in favor of
-    ``opinionated`` and it will be removed in 0.22.0. Additionally for
-    compatibility, ``0.21.0`` has ``opinionated`` defaulted to ``True``. This
-    will change to ``False`` in 0.22.0.
+    ``opinionated`` and it will be removed in a future version. As of
+    0.22.0 ``opinionated`` is defaulted to ``False``.
 
     :param channel: The channel object for the message object to act upon
     :type channel: :py:class:`rabbitpy.channel.Channel`
@@ -90,7 +89,7 @@ class Message(base.AMQPClass):
     name = 'Message'
 
     def __init__(self, channel, body_value, properties=None,
-                 auto_id=False, opinionated=True):
+                 auto_id=False, opinionated=False):
         """Create a new instance of the Message object."""
         super(Message, self).__init__(channel, 'Message')
 
