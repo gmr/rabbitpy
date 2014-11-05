@@ -39,7 +39,7 @@ class TestCreation(BaseTestCase):
     def setUp(self):
         super(TestCreation, self).setUp()
         self.body = uuid.uuid4()
-        self.msg = message.Message(self.chan, self.body)
+        self.msg = message.Message(self.chan, self.body, opinionated=True)
 
     def test_channel_assignment(self):
         self.assertEqual(self.msg.channel, self.chan)
@@ -150,18 +150,21 @@ class TestCreationWithDictBodyAndProperties(BaseTestCase):
                          'application/json')
 
 
-class TestCreationWithNoAutoID(BaseTestCase):
+class TestNonOpinionatedCreation(BaseTestCase):
 
     def setUp(self):
-        super(TestCreationWithNoAutoID, self).setUp()
+        super(TestNonOpinionatedCreation, self).setUp()
         self.body = str(uuid.uuid4())
-        self.msg = message.Message(self.chan, self.body, auto_id=False)
+        self.msg = message.Message(self.chan, self.body)
 
     def test_message_body(self):
         self.assertEqual(self.msg.body, self.body)
 
     def test_message_message_id_property_is_not_set(self):
-        self.assertIn('message_id', self.msg.properties)
+        self.assertNotIn('message_id', self.msg.properties)
+
+    def test_message_timestamp_property_is_not_set(self):
+        self.assertNotIn('timestamp', self.msg.properties)
 
 
 class TestWithPropertiesCreation(BaseTestCase):
