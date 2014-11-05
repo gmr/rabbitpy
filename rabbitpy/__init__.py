@@ -2,7 +2,7 @@
 rabbitpy, a pythonic RabbitMQ client
 
 """
-__version__ = '0.21.1'
+__version__ = '0.22.0'
 version = __version__
 import logging
 

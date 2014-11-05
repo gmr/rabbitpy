@@ -1,5 +1,11 @@
 Version History
 ---------------
+ - 0.22.0 - released *2014-11-4*
+  - Address an issue when RabbitMQ is configured with a max-frame-size of 0 (#48)
+  - Do not lose the traceback when exiting a context manager due to a an exception (#46)
+  - Adds server capability checking in rabbitpy.Channel methods that require RabbitMQ enhancements to the AMQP protocol (Publisher confirms, consumer priorities, & Baisc.Nack). If unsupported functionality is used, a rabbitpy.exceptions.NotSupportedError exception will be raised.
+  - Pin pamqp version range to >= 1.4, < 2.0
+  - Fix wheel distribution
  - 0.21.1 - released *2014-10-23*
   - Clean up KQueue issues found when troubleshooting #44, checking for socket EOF in flags to detect connection reset
   - Remove sockets from KQueue when in error state
