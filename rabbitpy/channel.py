@@ -259,7 +259,7 @@ class Channel(base.AMQPChannel):
         args = dict()
         if priority is not None:
             if not self._supports_consumer_priorities:
-                raise NotImplementedError('consumer_priorities')
+                raise exceptions.NotSupportedError('consumer_priorities')
             if not isinstance(priority, int):
                 raise ValueError('Consumer priority must be an int')
             args['x-priority'] = priority
@@ -425,21 +425,47 @@ class Channel(base.AMQPChannel):
         return self._create_message(method_frame, header_value, body_value)
 
     @property
+    def _supports_basic_nack(self):
+        """Indicates if the server supports Basic.Nack
+
+        :rtype: bool
+
+        """
+        return self._server_capabilities.get(b'basic_nack', False)
+
+    @property
     def _supports_consumer_cancel_notify(self):
+        """Indicates if the server supports sending consumer cancellation
+        notifications
+
+        :rtype: bool
+
+        """
         return self._server_capabilities.get(b'consumer_cancel_notify', False)
 
     @property
     def _supports_consumer_priorities(self):
+        """Indicates if the server supports consumer priorities
+
+        :rtype: bool
+
+        """
         return self._server_capabilities.get(b'consumer_priorities', False)
 
     @property
-    def _supports_basic_nack(self):
-        return self._server_capabilities.get(b'basic_nack', False)
-
-    @property
     def _supports_per_consumer_qos(self):
+        """Indicates if the server supports per consumer qos
+
+        :rtype: bool
+
+        """
         return self._server_capabilities.get(b'per_consumer_qos', False)
 
     @property
     def _supports_publisher_confirms(self):
+        """Indicates if the server supports publisher confirmations
+
+        :rtype: bool
+
+        """
         return self._server_capabilities.get(b'publisher_confirms', False)
