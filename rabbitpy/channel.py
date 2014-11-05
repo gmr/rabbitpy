@@ -43,7 +43,7 @@ class Channel(base.AMQPChannel):
     STATES = base.AMQPChannel.STATES
     STATES[0x04] = 'Remotely Closed'
 
-    def __init__(self, channel_id, events,
+    def __init__(self, channel_id, server_capabilities, events,
                  exception_queue, read_queue, write_queue,
                  maximum_frame_size, write_trigger, blocking_read=False):
         """Create a new instance of the Channel class
@@ -53,6 +53,7 @@ class Channel(base.AMQPChannel):
         interpreter.
 
         :param int channel_id: The channel # to use for this instance
+        :param dict server_capabilities: Features the server supports
         :param events rabbitpy.Events: Event management object
         :param queue.Queue exception_queue: Exception queue
         :param queue.Queue read_queue: Queue to read pending frames from
@@ -71,6 +72,7 @@ class Channel(base.AMQPChannel):
         self._publisher_confirms = False
         self._read_queue = read_queue
         self._write_queue = write_queue
+        self._server_capabilities = server_capabilities
 
     def __enter__(self):
         """For use as a context manager, return a handle to this object
@@ -139,6 +141,8 @@ class Channel(base.AMQPChannel):
         been successfully published.
 
         """
+        if not self._supports_publisher_confirms:
+            raise exceptions.NotSupportedError('Confirm.Select')
         self.rpc(specification.Confirm.Select())
         self._publisher_confirms = True
 
@@ -254,6 +258,8 @@ class Channel(base.AMQPChannel):
         """
         args = dict()
         if priority is not None:
+            if not self._supports_consumer_priorities:
+                raise NotImplementedError('consumer_priorities')
             if not isinstance(priority, int):
                 raise ValueError('Consumer priority must be an int')
             args['x-priority'] = priority
@@ -336,6 +342,8 @@ class Channel(base.AMQPChannel):
         :param int delivery_tag: The delivery tag for this channel
 
         """
+        if not self._supports_basic_nack:
+            raise exceptions.NotSupportedError('Basic.Nack')
         LOGGER.debug('Sending Basic.Nack with requeue')
         self.rpc(specification.Basic.Nack(delivery_tag=delivery_tag,
                                           multiple=True,
@@ -415,3 +423,23 @@ class Channel(base.AMQPChannel):
             if self.closing or self.closed:
                 return None
         return self._create_message(method_frame, header_value, body_value)
+
+    @property
+    def _supports_consumer_cancel_notify(self):
+        return self._server_capabilities.get('consumer_cancel_notify', False)
+
+    @property
+    def _supports_consumer_priorities(self):
+        return self._server_capabilities.get('consumer_priorities', False)
+
+    @property
+    def _supports_basic_nack(self):
+        return self._server_capabilities.get('basic_nack', False)
+
+    @property
+    def _supports_per_consumer_qos(self):
+        return self._server_capabilities.get('per_consumer_qos', False)
+
+    @property
+    def _supports_publisher_confirms(self):
+        return self._server_capabilities.get('publisher_confirms', False)

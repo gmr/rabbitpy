@@ -18,7 +18,7 @@ from rabbitpy import exchange
 class TxTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_declare(self, rpc):
@@ -76,7 +76,7 @@ class TxTests(unittest.TestCase):
 class DirectExchangeCreationTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_init_creates_direct_exchange(self):
         obj = exchange.DirectExchange(self.chan, 'direct-test')
@@ -86,7 +86,7 @@ class DirectExchangeCreationTests(unittest.TestCase):
 class FanoutExchangeCreationTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_init_creates_direct_exchange(self):
         obj = exchange.FanoutExchange(self.chan, 'fanout-test')
@@ -96,7 +96,7 @@ class FanoutExchangeCreationTests(unittest.TestCase):
 class HeadersExchangeCreationTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_init_creates_direct_exchange(self):
         obj = exchange.HeadersExchange(self.chan, 'headers-test')
@@ -106,10 +106,8 @@ class HeadersExchangeCreationTests(unittest.TestCase):
 class TopicExchangeCreationTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_init_creates_direct_exchange(self):
         obj = exchange.TopicExchange(self.chan, 'topic-test')
         self.assertEqual(obj.type, 'topic')
-
-

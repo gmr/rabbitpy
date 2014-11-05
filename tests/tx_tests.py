@@ -18,7 +18,7 @@ from rabbitpy import tx
 class TxTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_obj_creation_does_not_invoke_select(self):
         with mock.patch('rabbitpy.tx.Tx.select') as select:

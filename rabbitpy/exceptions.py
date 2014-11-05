@@ -89,6 +89,14 @@ class NotConsumingError(Exception):
         return 'No active consumer to cancel'
 
 
+class NotSupportedError(Exception):
+    """Raised when a feature is requested that is not supported by the RabbitMQ
+    server.
+
+    """
+    pass
+
+
 class TooManyChannelsError(Exception):
     """Raised if an application attempts to create a channel, exceeding the
     maximum number of channels (MAXINT or 2,147,483,647) available for a

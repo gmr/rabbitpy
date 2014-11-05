@@ -19,7 +19,7 @@ from rabbitpy import utils
 class QueueInitializationTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_empty_queue_name(self):
         queue = amqp_queue.Queue(self.chan)
@@ -196,7 +196,7 @@ class QueueInitializationTests(unittest.TestCase):
 class QueueDeclareTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_default_declare(self):
         obj = amqp_queue.Queue(self.chan)
@@ -255,7 +255,7 @@ class QueueDeclareTests(unittest.TestCase):
 class QueueAssignmentTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
         self.queue = amqp_queue.Queue(self.chan)
 
     def test_auto_delete_assign_true(self):
@@ -364,7 +364,7 @@ class WriteFrameTests(unittest.TestCase):
     DEAD_LETTER_ROUTING_KEY = 'dead'
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
         self.queue = amqp_queue.Queue(self.chan, self.NAME, self.DURABLE,
                                       self.EXCLUSIVE, self.AUTO_DELETE,
                                       self.MAX_LENGTH, self.MESSAGE_TTL,
@@ -440,7 +440,7 @@ class WriteFrameTests(unittest.TestCase):
 class ConsumerTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
         self.queue = amqp_queue.Queue(self.chan)
         self.queue.consuming = True
 
@@ -449,6 +449,3 @@ class ConsumerTests(unittest.TestCase):
             with amqp_queue.Consumer(self.queue) as consumer:
                 pass
             cancel.assert_called_once()
-
-
-

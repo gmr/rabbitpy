@@ -15,7 +15,7 @@ from rabbitpy import utils
 class AMQPClassTests(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_channel_valid(self):
         obj = base.AMQPClass(self.chan, 'Foo')

@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.DEBUG)
 class BaseTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.chan = channel.Channel(1, None, None, None, None, 32768, None)
+        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
 
 

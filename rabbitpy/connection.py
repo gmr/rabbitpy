@@ -159,6 +159,7 @@ class Connection(base.StatefulObject):
         channel_id = self._get_next_channel_id()
         channel_frames = queue.Queue()
         self._channels[channel_id] = channel.Channel(channel_id,
+                                                     self.server_capabilities,
                                                      self._events,
                                                      self._exceptions,
                                                      channel_frames,
@@ -180,6 +181,16 @@ class Connection(base.StatefulObject):
 
             # Set state and clear out remote name
             self._set_state(self.CLOSED)
+
+    @property
+    def server_capabilities(self):
+        """Return the RabbitMQ Server capabilities from the connection
+        negotiation process.
+
+        :rtype: dict
+
+        """
+        return self._channel0.properties.get('capabilities', dict())
 
     @property
     def server_properties(self):
