@@ -11,7 +11,6 @@ import mock
 from pamqp import specification
 
 from rabbitpy import channel
-from rabbitpy import exceptions
 from rabbitpy import exchange
 
 

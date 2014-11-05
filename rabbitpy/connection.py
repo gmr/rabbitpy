@@ -190,7 +190,7 @@ class Connection(base.StatefulObject):
         :rtype: dict
 
         """
-        return self._channel0.properties.get('capabilities', dict())
+        return self._channel0.properties.get(b'capabilities', dict())
 
     @property
     def server_properties(self):
