@@ -426,20 +426,20 @@ class Channel(base.AMQPChannel):
 
     @property
     def _supports_consumer_cancel_notify(self):
-        return self._server_capabilities.get('consumer_cancel_notify', False)
+        return self._server_capabilities.get(b'consumer_cancel_notify', False)
 
     @property
     def _supports_consumer_priorities(self):
-        return self._server_capabilities.get('consumer_priorities', False)
+        return self._server_capabilities.get(b'consumer_priorities', False)
 
     @property
     def _supports_basic_nack(self):
-        return self._server_capabilities.get('basic_nack', False)
+        return self._server_capabilities.get(b'basic_nack', False)
 
     @property
     def _supports_per_consumer_qos(self):
-        return self._server_capabilities.get('per_consumer_qos', False)
+        return self._server_capabilities.get(b'per_consumer_qos', False)
 
     @property
     def _supports_publisher_confirms(self):
-        return self._server_capabilities.get('publisher_confirms', False)
+        return self._server_capabilities.get(b'publisher_confirms', False)
