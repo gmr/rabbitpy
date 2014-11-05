@@ -1,4 +1,4 @@
-pamqp>=1.2.0
+pamqp>=1.4.0,<2.0
 coverage
 nose
 mock
