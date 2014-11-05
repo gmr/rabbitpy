@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 import time
 try:
     import unittest2 as unittest
@@ -149,7 +150,7 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
         self.queue.delete()
         self.exchange.delete()
 
-    def test_get_returns_expected_message(self):
+    def test_iterator_returns_expected_message(self):
         for msg in self.queue:
             self.assertEqual(msg.body.decode('utf-8'), self.message_body)
             self.assertEqual(msg.properties['app_id'].decode('utf-8'),
@@ -162,6 +163,52 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
                              self.msg.properties['message_type'])
             msg.ack()
             self.queue.stop_consuming()
+        self.assertFalse(self.queue.consuming)
+
+
+class PublishAndConsumeIteratorStopTest(unittest.TestCase):
+
+    def setUp(self):
+        self.connection = rabbitpy.Connection()
+        self.channel = self.connection.channel()
+        self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacit')
+        self.exchange.declare()
+        self.queue = rabbitpy.Queue(self.channel, 'pacit-queue')
+        self.queue.declare()
+        self.queue.bind(self.exchange, 'test.#')
+
+        self.app_id = 'PublishAndConsumeIteratorTest'
+        self.message_body = 'ABC1234567890'
+        self.message_type = 'test'
+
+        for iteration in range(0, 10):
+            self.msg = rabbitpy.Message(self.channel,
+                                        self.message_body,
+                                        {'app_id': self.app_id,
+                                         'message_id': str(uuid.uuid4()),
+                                         'timestamp': int(time.time()),
+                                         'message_type': self.message_type})
+            self.msg.publish(self.exchange,
+                             'test.publish.consume {0}'.format(iteration))
+
+    def stop_consumer(self):
+        self.queue.stop_consuming()
+
+    def tearDown(self):
+        self.queue.delete()
+        self.exchange.delete()
+
+    def test_iterator_exits_on_stop(self):
+        LOGGER.info('Starting stop timer')
+        timer = threading.Timer(2, self.stop_consumer)
+        timer.daemon = True
+        timer.start()
+        for msg in self.queue:
+            if not msg:
+                LOGGER.info('Message is empty')
+                break
+            msg.ack()
+        LOGGER.info('Exited iterator')
         self.assertFalse(self.queue.consuming)
 
 
