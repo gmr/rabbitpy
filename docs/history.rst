@@ -1,5 +1,11 @@
 Version History
 ---------------
+ - 0.23.0 - released *2014-11-5*
+  - Fix a bug where message body length was being assigned to the content header prior to converting the unicode string to bytes (#49)
+  - Add a new rabbitpy.utils.maybe_utf8_encode method for handling strings that may or may not contain unicode (#49)
+  - Fix the automatic coercion of header types to UTF-8 encoded bytes (#49)
+  - Fix an integration test that was not cleaning up its queue after itself
+  - Raise TypeError if a timestamp property can not be converted properly
  - 0.22.0 - released *2014-11-4*
   - Address an issue when RabbitMQ is configured with a max-frame-size of 0 (#48)
   - Do not lose the traceback when exiting a context manager due to a an exception (#46)
