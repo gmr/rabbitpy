@@ -351,7 +351,14 @@ class Consumer(object):
 
     @property
     def _basic_cancel(self):
-        return specification.Basic.Cancel(consumer_tag=self.queue.consumer_tag)
+        frame = specification.Basic.Cancel(consumer_tag=self.queue.consumer_tag)
+        # If we wait for a reply here the CancelOK frame is consumed and
+        # Channel._consume_message cannot observe CancelOK and cannot
+        # return None to it's caller.
+        # This behavior is needed when Consumer.Cancel() is called from
+        # a different thread that runs Consumer.next_message().
+        frame.synchronous = False
+        return frame
 
     def cancel(self):
         """Cancel the consumer"""
