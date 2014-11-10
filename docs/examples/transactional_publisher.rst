@@ -12,7 +12,8 @@ then roll it back::
         with conn.channel() as channel:
 
             # Start the transaction
-            tx.begin()
+            tx = rabbitpy.Tx(channel)
+            tx.select()
 
             # Create the message to publish & publish it
             message = rabbitpy.Message(channel, 'message body value')
