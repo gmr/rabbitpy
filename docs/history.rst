@@ -1,5 +1,9 @@
 Version History
 ---------------
+ - 0.24.0 - released *2014-12-12*
+  - Update to reflect changes in pamqp 1.6.0
+   - Update how message property data types are retrieved
+   - Fix tests relying on .__dict__
  - 0.23.0 - released *2014-11-5*
   - Fix a bug where message body length was being assigned to the content header prior to converting the unicode string to bytes (#49)
   - Add a new rabbitpy.utils.maybe_utf8_encode method for handling strings that may or may not contain unicode (#49)

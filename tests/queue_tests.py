@@ -208,7 +208,7 @@ class QueueDeclareTests(unittest.TestCase):
                        'passive': False,
                        'queue': '',
                        'ticket': 0}
-        self.assertDictEqual(obj._declare(False).__dict__, expectation)
+        self.assertDictEqual(dict(obj._declare(False)), expectation)
 
     def test_default_declare_passive(self):
         obj = amqp_queue.Queue(self.chan)
@@ -220,7 +220,7 @@ class QueueDeclareTests(unittest.TestCase):
                        'passive': True,
                        'queue': '',
                        'ticket': 0}
-        self.assertDictEqual(obj._declare(True).__dict__, expectation)
+        self.assertDictEqual(dict(obj._declare(True)), expectation)
 
     def test_queue_name(self):
         obj = amqp_queue.Queue(self.chan, 'my-queue')
@@ -232,7 +232,7 @@ class QueueDeclareTests(unittest.TestCase):
                        'passive': False,
                        'queue': 'my-queue',
                        'ticket': 0}
-        self.assertDictEqual(obj._declare(False).__dict__, expectation)
+        self.assertDictEqual(dict(obj._declare(False)), expectation)
 
     def test_non_defaults(self):
         obj = amqp_queue.Queue(self.chan, 'my-queue', False, True, True,
@@ -249,7 +249,7 @@ class QueueDeclareTests(unittest.TestCase):
                        'passive': False,
                        'queue': 'my-queue',
                        'ticket': 0}
-        self.assertDictEqual(obj._declare(False).__dict__, expectation)
+        self.assertDictEqual(dict(obj._declare(False)), expectation)
 
 
 class QueueAssignmentTests(unittest.TestCase):

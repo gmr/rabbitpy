@@ -346,7 +346,7 @@ class Message(base.AMQPClass):
     def _coerce_properties(self):
         """Force properties to be set to the correct data type"""
         for key, value in self.properties.items():
-            _type = getattr(specification.Basic.Properties, key)
+            _type = specification.Basic.Properties.type(key)
             if _type == 'shortstr':
                 if not utils.is_string(value):
                     LOGGER.warning('Coercing property %s to bytes', key)
@@ -370,7 +370,7 @@ class Message(base.AMQPClass):
 
         """
         return [key for key in self.properties
-                if key not in specification.Basic.Properties.attributes]
+                if key not in specification.Basic.Properties.attributes()]
 
     @property
     def _properties(self):
