@@ -17,11 +17,11 @@ class ServerCapabilitiesTest(unittest.TestCase):
         self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
 
     def test_basic_nack_disabled(self):
-        self.chan._server_capabilities[b'basic_nack'] = False
+        self.chan._server_capabilities[b'basic.nack'] = False
         self.assertFalse(self.chan._supports_basic_nack)
 
     def test_basic_nack_enabled(self):
-        self.chan._server_capabilities[b'basic_nack'] = True
+        self.chan._server_capabilities[b'basic.nack'] = True
         self.assertTrue(self.chan._supports_basic_nack)
 
     def test_consumer_cancel_notify_disabled(self):
