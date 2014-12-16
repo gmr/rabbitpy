@@ -24,6 +24,14 @@ from rabbitpy import utils
 LOGGER = logging.getLogger(__name__)
 
 
+# Python 2.6/3.2 does not have a memoryview object, create dummy for isinstance
+try:
+    py26mv = memoryview(b'foo')
+except NameError:
+    class memoryview(object):
+        pass
+
+
 class Properties(specification.Basic.Properties):
     """Proxy class for :py:class:`pamqp.specification.Basic.Properties`"""
     pass
