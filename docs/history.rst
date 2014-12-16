@@ -1,5 +1,11 @@
 Version History
 ---------------
+ - 0.25.0 - released *2014-12-16*
+  - Acquire a lock when creating a new channel to fix multi-threaded channel creation behavior (#56)
+  - Add client side heartbeat checking. If 2 heartbeats are missed, a ConnectionResetException exception will be raised (#55)
+  - Fix a bug where Basic.Nack checking was checking for the wrong string to test for support
+  - Add support for Python3 memoryviews for the message body when creating a new rabbitpy.Message (#50)
+  - Improve Python3 behavior in rabbitpy.utils.maybe_utf8_encode: ensure the object being cast as a bytes object with utf-8 encoding is a string
  - 0.24.0 - released *2014-12-12*
   - Update to reflect changes in pamqp 1.6.0
    - Update how message property data types are retrieved
