@@ -20,6 +20,8 @@ When it is used as a context manager with the `with` statement, when your code e
 
 If RabbitMQ remotely closes your connection via the AMQP `Connection.Close` RPC request, rabbitpy will raise the :doc:`appropriate exception <exceptions>` referenced in the request.
 
+If heartbeats are enabled (default: 5 minutes) and RabbitMQ does not send a heartbeat request in >= 2 heartbeat intervals, a :py:class:`ConnectionResetException <rabbitpy.exceptions.ConnectionResetException>` will be raised.
+
 API Documentation
 -----------------
 

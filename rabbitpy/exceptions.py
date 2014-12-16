@@ -34,7 +34,8 @@ class ConnectionException(Exception):
 
 class ConnectionResetException(Exception):
     """Raised if the socket level connection was reset. This can happen due
-    to the loss of network connection or socket timeout.
+    to the loss of network connection or socket timeout, or more than 2
+    missed heartbeat intervals if heartbeats are enabled.
 
     """
     def __repr__(self):
