@@ -18,7 +18,7 @@ Parsed = collections.namedtuple('Parsed',
 
 def maybe_utf8_encode(value):
     if PYTHON3:
-        if not isinstance(value, bytes):
+        if is_string(value) and not isinstance(value, bytes):
             return bytes(value, 'utf-8')
         return value
     if isinstance(value, unicode):
