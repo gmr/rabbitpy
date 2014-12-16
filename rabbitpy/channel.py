@@ -316,9 +316,13 @@ class Channel(base.AMQPChannel):
         """
         try:
             frame_value = self._read_queue.get(False)
-            self._read_queue.task_done()
         except queue.Empty:
             return None
+
+        try:
+            self._read_queue.task_done()
+        except ValueError:
+            pass
         return frame_value
 
     def _get_message(self):
@@ -431,7 +435,7 @@ class Channel(base.AMQPChannel):
         :rtype: bool
 
         """
-        return self._server_capabilities.get(b'basic_nack', False)
+        return self._server_capabilities.get(b'basic.nack', False)
 
     @property
     def _supports_consumer_cancel_notify(self):
