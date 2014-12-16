@@ -58,6 +58,9 @@ class Channel0(base.AMQPChannel):
         self._heartbeat_timer = None
 
     def close(self):
+        # Stop the heartbeat timer if it's running
+        if self._heartbeat_timer:
+            self._heartbeat_timer.cancel()
         self._set_state(self.CLOSING)
         self._write_frame(specification.Connection.Close())
 
