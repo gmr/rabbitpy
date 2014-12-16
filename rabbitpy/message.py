@@ -97,7 +97,10 @@ class Message(base.AMQPClass):
         self.properties = properties or {}
 
         # Assign the body value
-        self.body = self._auto_serialize(body_value)
+        if isinstance(body_value, memoryview):
+            self.body = body_value.tobytes()
+        else:
+            self.body = self._auto_serialize(body_value)
 
         # Add a message id if auto_id is not turned off and it is not set
         if (opinionated or auto_id) and 'message_id' not in self.properties:
@@ -347,6 +350,8 @@ class Message(base.AMQPClass):
         """Force properties to be set to the correct data type"""
         for key, value in self.properties.items():
             _type = specification.Basic.Properties.type(key)
+            if self.properties[key] is None:
+                continue
             if _type == 'shortstr':
                 if not utils.is_string(value):
                     LOGGER.warning('Coercing property %s to bytes', key)
@@ -354,7 +359,10 @@ class Message(base.AMQPClass):
                 self.properties[key] = utils.maybe_utf8_encode(value)
             elif _type == 'octet' and not isinstance(value, int):
                 LOGGER.warning('Coercing property %s to int', key)
-                self.properties[key] = int(value)
+                try:
+                    self.properties[key] = int(value)
+                except TypeError as error:
+                    LOGGER.warning('Could not coerce %s: %s', key, error)
             elif _type == 'table' and not isinstance(value, dict):
                 LOGGER.warning('Resetting invalid value for %s to None', key)
                 self.properties[key] = {}
