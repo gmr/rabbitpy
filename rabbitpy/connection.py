@@ -12,6 +12,7 @@ try:
     import ssl
 except ImportError:
     ssl = None
+import threading
 import time
 
 from rabbitpy import base
@@ -97,13 +98,16 @@ class Connection(base.StatefulObject):
         # One queue for writing frames, regardless of the channel sending them
         self._write_queue = queue.Queue()
 
+        # Lock used when managing the channel stack
+        self._channel_lock = threading.Lock()
+
         # Attributes for core object threads
         self._channel0 = None
         self._channels = dict()
         self._io = None
 
         # Used by Message for breaking up body frames
-        self._maximum_frame_size = None
+        self._max_frame_size = None
 
         # Connect to RabbitMQ
         self._connect()
@@ -156,20 +160,21 @@ class Connection(base.StatefulObject):
         :param bool blocking_read: Enable for higher throughput
 
         """
-        channel_id = self._get_next_channel_id()
-        channel_frames = queue.Queue()
-        self._channels[channel_id] = channel.Channel(channel_id,
-                                                     self.server_capabilities,
-                                                     self._events,
-                                                     self._exceptions,
-                                                     channel_frames,
-                                                     self._write_queue,
-                                                     self._maximum_frame_size,
-                                                     self._io.write_trigger,
-                                                     blocking_read)
-        self._add_channel_to_io(self._channels[channel_id], channel_frames)
-        self._channels[channel_id].open()
-        return self._channels[channel_id]
+        with self._channel_lock:
+            channel_id = self._get_next_channel_id()
+            channel_frames = queue.Queue()
+            self._channels[channel_id] = channel.Channel(channel_id,
+                                                         self.capabilities,
+                                                         self._events,
+                                                         self._exceptions,
+                                                         channel_frames,
+                                                         self._write_queue,
+                                                         self._max_frame_size,
+                                                         self._io.write_trigger,
+                                                         blocking_read)
+            self._add_channel_to_io(self._channels[channel_id], channel_frames)
+            self._channels[channel_id].open()
+            return self._channels[channel_id]
 
     def close(self):
         """Close the connection, including all open channels"""
@@ -183,7 +188,7 @@ class Connection(base.StatefulObject):
             self._set_state(self.CLOSED)
 
     @property
-    def server_capabilities(self):
+    def capabilities(self):
         """Return the RabbitMQ Server capabilities from the connection
         negotiation process.
 
@@ -262,7 +267,7 @@ class Connection(base.StatefulObject):
             time.sleep(0.01)
 
         # Set the maximum frame size for channel use
-        self._maximum_frame_size = self._channel0.maximum_frame_size
+        self._max_frame_size = self._channel0.maximum_frame_size
 
     def _create_channel0(self):
         """Each connection should have a distinct channel0
@@ -473,7 +478,8 @@ class Connection(base.StatefulObject):
     def _shutdown_connection(self, force=False):
         """Tell Channel0 and IO to stop if they are not stopped.
 
-        :param bool force: Force the connection to shutdown without AMQP negotiation
+        :param force: Force the connection to shutdown without AMQP negotiation
+        :type force: bool
 
         """
         if not force and not self._io.is_alive():
@@ -490,7 +496,8 @@ class Connection(base.StatefulObject):
                 self._channels[chan_id].close()
 
         # If the connection is still established, close it
-        if self._channel0.open and not self._events.is_set(events.CHANNEL0_CLOSED):
+        if (self._channel0.open and
+                not self._events.is_set(events.CHANNEL0_CLOSED)):
             self._channel0.close()
 
             # Loop while Channel 0 closes
