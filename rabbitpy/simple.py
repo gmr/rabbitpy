@@ -112,6 +112,7 @@ def create_queue(uri=None, queue_name='', durable=True, auto_delete=False,
     :raises: :py:class:`rabbitpy.RemoteClosedException`
 
     """
+    dlx_routing_key = dead_letter_routing_key
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
             obj = amqp_queue.Queue(channel, queue_name,
@@ -121,8 +122,7 @@ def create_queue(uri=None, queue_name='', durable=True, auto_delete=False,
                                    message_ttl=message_ttl,
                                    expires=expires,
                                    dead_letter_exchange=dead_letter_exchange,
-                                   dead_letter_routing_key=
-                                   dead_letter_routing_key,
+                                   dead_letter_routing_key=dlx_routing_key,
                                    arguments=arguments)
             obj.declare()
 

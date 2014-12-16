@@ -340,7 +340,7 @@ class Message(base.AMQPClass):
             return datetime.datetime.fromtimestamp(value)
 
         raise TypeError('Could not cast a %s value to a datetime.datetime' %
-                         type(value))
+                        type(value))
 
     def _auto_serialize(self, body_value):
         """Automatically serialize the body as JSON if it is a dict or list.

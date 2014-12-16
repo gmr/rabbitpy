@@ -4,6 +4,7 @@ Exceptions that may be raised by rabbitpy during use
 
 """
 
+
 class ActionException(Exception):
     """Raised when an action is taken on a rabbitpy object that is not
     supported due to the state of the object. An example would be trying to
@@ -95,7 +96,8 @@ class NotSupportedError(Exception):
     server.
 
     """
-    pass
+    def __repr__(self):
+        return 'The selected feature "%s" is not supported' % self.args[0]
 
 
 class TooManyChannelsError(Exception):
@@ -266,6 +268,7 @@ class AMQPNotAllowed(Exception):
 
     """
     pass
+
 
 class AMQPNotImplemented(Exception):
     """

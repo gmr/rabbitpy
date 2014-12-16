@@ -88,7 +88,7 @@ class Channel(base.AMQPChannel):
         it's  an exception or what.
 
         """
-        if exc_type:
+        if exc_type and exc_val:
             self._set_state(self.CLOSED)
             raise
         if self.open:
@@ -247,7 +247,7 @@ class Channel(base.AMQPChannel):
         elif isinstance(value, specification.Basic.Return):
             self._on_basic_return(self._wait_for_content_frames(value))
 
-    def _consume(self, obj, no_ack, priority):
+    def _consume(self, obj, no_ack, priority=None):
         """Register a Queue object as a consumer, issuing Basic.Consume.
 
         :param rabbitpy.amqp_queue.Queue obj: The queue to consume

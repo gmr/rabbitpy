@@ -93,8 +93,8 @@ class Exchange(base.AMQPClass):
         if hasattr(source, 'name'):
             source = source.name
         self._rpc(specification.Exchange.Unbind(destination=self.name,
-                                              source=source,
-                                              routing_key=routing_key))
+                                                source=source,
+                                                routing_key=routing_key))
 
 
 class DirectExchange(Exchange):

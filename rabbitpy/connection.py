@@ -126,7 +126,7 @@ class Connection(base.StatefulObject):
         it's an exception or what.
 
         """
-        if exc_type:
+        if exc_type and exc_val:
             self._set_state(self.CLOSED)
             raise
         self._set_state(self.CLOSED)
@@ -163,15 +163,16 @@ class Connection(base.StatefulObject):
         with self._channel_lock:
             channel_id = self._get_next_channel_id()
             channel_frames = queue.Queue()
-            self._channels[channel_id] = channel.Channel(channel_id,
-                                                         self.capabilities,
-                                                         self._events,
-                                                         self._exceptions,
-                                                         channel_frames,
-                                                         self._write_queue,
-                                                         self._max_frame_size,
-                                                         self._io.write_trigger,
-                                                         blocking_read)
+            self._channels[channel_id] = \
+                channel.Channel(channel_id,
+                                self.capabilities,
+                                self._events,
+                                self._exceptions,
+                                channel_frames,
+                                self._write_queue,
+                                self._max_frame_size,
+                                self._io.write_trigger,
+                                blocking_read)
             self._add_channel_to_io(self._channels[channel_id], channel_frames)
             self._channels[channel_id].open()
             return self._channels[channel_id]

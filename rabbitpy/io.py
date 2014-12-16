@@ -378,7 +378,7 @@ class IO(threading.Thread, base.StatefulObject):
             if self._buffer and value[0] is None:
                 break
 
-            #LOGGER.debug('Received (%i) %r', value[0], value[1])
+            # LOGGER.debug('Received (%i) %r', value[0], value[1])
 
             # If it's channel 0, call the Channel0 directly
             if value[0] == 0:
@@ -407,7 +407,7 @@ class IO(threading.Thread, base.StatefulObject):
         :param pamqp.specification.Frame frame_value: The frame to add
 
         """
-        #LOGGER.debug('Adding %s to channel %s', frame_value.name, channel_id)
+        # LOGGER.debug('Adding %s to channel %s', frame_value.name, channel_id)
         self._channels[channel_id][1].put(frame_value)
 
     def _close(self):

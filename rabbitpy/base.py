@@ -192,10 +192,10 @@ class AMQPChannel(StatefulObject):
         """
         if self.closed:
             raise exceptions.ChannelClosedException()
-        #LOGGER.debug('Sending %r', frame_value)
+        # LOGGER.debug('Sending %r', frame_value)
         self._write_frame(frame_value)
         if frame_value.synchronous:
-            #LOGGER.debug('Waiting on %r', frame_value)
+            # LOGGER.debug('Waiting on %r', frame_value)
             return self._wait_on_frame(frame_value.valid_responses)
 
     def _build_close_frame(self):
