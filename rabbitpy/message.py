@@ -106,7 +106,7 @@ class Message(base.AMQPClass):
 
         # Assign the body value
         if isinstance(body_value, memoryview):
-            self.body = body_value.tobytes()
+            self.body = bytes(body_value)
         else:
             self.body = self._auto_serialize(body_value)
 
