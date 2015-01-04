@@ -51,8 +51,6 @@ Source
 ------
 rabbitpy source is available on Github at  `https://github.com/gmr/rabbitpy <https://github.com/gmr/rabbitpy>`_
 
-|Status|
-
 Version History
 ---------------
 See :doc:`history`
@@ -71,9 +69,6 @@ Indices and tables
 
 .. |Version| image:: https://badge.fury.io/py/rabbitpy.svg?
    :target: http://badge.fury.io/py/rabbitpy
-
-.. |Status| image:: https://travis-ci.org/gmr/rabbitpy.svg?branch=master
-   :target: https://travis-ci.org/gmr/rabbitpy
 
 .. |Downloads| image:: https://pypip.in/d/rabbitpy/badge.svg?
    :target: https://pypi.python.org/pypi/rabbitpy
