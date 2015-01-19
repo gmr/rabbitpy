@@ -215,7 +215,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
 
     def test_iterator_exits_on_stop(self):
         LOGGER.info('Starting stop timer')
-        timer = threading.Timer(1, self.stop_consumer)
+        timer = threading.Timer(2.5, self.stop_consumer)
         timer.daemon = True
         timer.start()
         qty = 0
@@ -228,6 +228,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
         LOGGER.info('Exited iterator, %r, %r', self.queue.consuming, qty)
         self.assertFalse(self.queue.consuming)
         self.assertEqual(qty, self.PUBLISH_COUNT)
+
 
 class RedeliveredFlagTest(unittest.TestCase):
 
