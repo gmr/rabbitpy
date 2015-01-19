@@ -66,7 +66,16 @@ class Connection(base.StatefulObject):
 
         :code:`amqp://admin192.168.1.200:5672/test`
 
+    .. note::
+
+        You should be aware that most connection exceptions may be raised
+        during the use of all functionality in the library.
+
     :param str url: The AMQP connection URL
+    :raises: rabbitpy.exceptions.AMQPException
+    :raises: rabbitpy.exceptions.ConnectionException
+    :raises: rabbitpy.exceptions.ConnectionResetException
+    :raises: rabbitpy.exceptions.RemoteClosedException
 
     """
     CANCEL_METHOD = ['Basic.Cancel']
@@ -158,6 +167,8 @@ class Connection(base.StatefulObject):
         pressed.
 
         :param bool blocking_read: Enable for higher throughput
+        :raises: rabbitpy.exceptions.AMQPException
+        :raises: rabbitpy.exceptions.RemoteClosedChannelException
 
         """
         with self._channel_lock:
