@@ -183,6 +183,8 @@ class Queue(base.AMQPClass):
         if you need to alter the prefect count, set the consumer priority or
         consume in no_ack mode.
 
+        .. versionadded:: 0.26
+
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
@@ -197,8 +199,10 @@ class Queue(base.AMQPClass):
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator.
 
-        .. deprecated:: 0.26 This method is deprecated in favor of
-           :py:class`Queue.consume` and will be removed in future releases.
+        .. warning:: This method is deprecated in favor of
+           :py:meth:`Queue.consume` and will be removed in future releases.
+
+        .. deprecated:: 0.26
 
         You can use this message instead of the queue object as an iterator
         if you need to alter the prefect count, set the consumer priority or
@@ -216,11 +220,13 @@ class Queue(base.AMQPClass):
         return self.consume(no_ack, prefetch, priority)
 
     def consumer(self, no_ack=False, prefetch=None, priority=None):
-        """Deprecated method for returning the contextmanager for consuming
-        messages. You should not use this directly.
+        """Method for returning the contextmanager for consuming messages. You
+        should not use this directly.
+
+        .. warning:: This method is deprecated and will be removed in a future
+           release.
 
         .. deprecated:: 0.26
-           This method is deprecated and will be removed in a future release.
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
