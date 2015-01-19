@@ -111,6 +111,7 @@ class Queue(base.AMQPClass):
         with self._consumer() as consumer:
             for message in consumer.next():
                 yield message
+            consumer.close()
 
     def __len__(self):
         """Return the pending number of messages in the queue by doing a
@@ -194,6 +195,7 @@ class Queue(base.AMQPClass):
         with self._consumer(no_ack, prefetch, priority) as consumer:
             for message in consumer.next():
                 yield message
+            consumer.close()
 
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator.
@@ -390,9 +392,7 @@ class _Consumer(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.queue.consuming:
-            self.channel._cancel_consumer(self.queue)
-            self.queue.consuming = False
+        self.stop()
 
     def __init__(self, channel, queue):
         self.channel = channel
@@ -404,3 +404,9 @@ class _Consumer(object):
             if message is None:
                 break
             yield message
+
+    def stop(self):
+        if self.queue.consuming:
+            self.channel._cancel_consumer(self.queue)
+            self.queue.consuming = False
+
