@@ -56,6 +56,9 @@ class Queue(base.AMQPClass):
     :type dead_letter_routing_key: str
     :param dict arguments: Custom arguments for the queue
 
+    :raises: rabbitpy.exceptions.RemoteClosedChannelException
+    :raises: rabbitpy.exceptions.RemoteCancellationException
+
     """
     arguments = dict()
     auto_delete = False
@@ -96,7 +99,7 @@ class Queue(base.AMQPClass):
 
     def __iter__(self):
         """Quick way to consume messages using defaults of no_ack=False,
-        prefetch of 100, and no priority set.
+        prefetch and priority not set.
 
         :yields: rabbitpy.message.Message
 
@@ -198,6 +201,7 @@ class Queue(base.AMQPClass):
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
         :rtype: :py:class:`Iterator`
+        :raises: rabbitpy.exceptions.RemoteCancellationException
 
         """
         with self.consumer(no_ack, prefetch, priority) as consumer:
@@ -347,10 +351,16 @@ class Consumer(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Called when exiting the consumer iterator"""
-        self.cancel()
+        if exc_type and exc_val:
+            self.queue.consuming = False
+            LOGGER.debug('Exiting consumer due to exception: %r',
+                         exc_val)
+        if self.queue.consuming:
+            self.cancel()
 
     def cancel(self):
         """Cancel the consumer"""
+        LOGGER.debug('Cancelling the consumer')
         self.queue.consuming = False
         self.queue.channel._cancel_consumer(self)
 
@@ -372,6 +382,7 @@ class Consumer(object):
         :py:meth:`Queue.stop_consuming()` or :py:meth:`Consumer:cancel`.
 
         :rtype: :py:class:`rabbitpy.message.Message` or None
+        :raises: rabbitpy.exceptions.RemoteCancellationException
 
         """
         while self.queue.consuming:
