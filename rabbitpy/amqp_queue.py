@@ -26,7 +26,6 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
             message.ack()
 
 """
-import contextlib
 import logging
 import warnings
 
@@ -331,7 +330,6 @@ class Queue(base.AMQPClass):
         self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
                                              routing_key=routing_key))
 
-    @contextlib.contextmanager
     def _consumer(self, no_ack=False, prefetch=None, priority=None):
         """Return a :py:class:_Consumer instance as a contextmanager, properly
         shutting down the consumer when the generator is exited.
@@ -346,12 +344,8 @@ class Queue(base.AMQPClass):
             self.channel.prefetch_count(prefetch, False)
         self.channel._consume(self, no_ack, priority)
         self.consuming = True
-        try:
-            yield _Consumer(self.channel, self)
-        finally:
-            if self.consuming:
-                self.channel._cancel_consumer(self)
-                self.consuming = False
+        return _Consumer(self.channel, self)
+
 
     def _declare(self, passive=False):
         """Return a specification.Queue.Declare class pre-composed for the rpc
@@ -389,9 +383,16 @@ class Queue(base.AMQPClass):
 
 
 class _Consumer(object):
-    """Internal clas for implementing the generator inside the context manager.
+    """Internal class for implementing the generator inside the context manager.
 
     """
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.queue.consuming:
+            self.channel._cancel_consumer(self.queue)
+            self.queue.consuming = False
 
     def __init__(self, channel, queue):
         self.channel = channel
