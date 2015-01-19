@@ -21,13 +21,13 @@ To consume messages you can iterate over the Queue object itself if the defaults
             print 'Message: %r' % message
             message.ack()
 
-or by the :py:meth:`Queue.consume_messages() <rabbitpy.Queue.consume_messages>` method if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
+or by the :py:meth:`Queue.consume() <rabbitpy.Queue.consume>` method if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
 
 .. code:: python
 
     with conn.channel() as channel:
         queue = rabbitpy.Queue(channel, 'example')
-        for message in queue.consume_messages():
+        for message in queue.consume():
             print 'Message: %r' % message
             message.ack()
 
