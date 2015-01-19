@@ -11,7 +11,7 @@ try:
 except ImportError:
     import Queue as queue
 
-from pamqp import specification
+from pamqp import specification as spec
 from pamqp import PYTHON3
 
 from rabbitpy import base
@@ -19,6 +19,10 @@ from rabbitpy import exceptions
 from rabbitpy import message
 
 LOGGER = logging.getLogger(__name__)
+
+BASIC_DELIVER = 'Basic.Deliver'
+CONTENT_BODY = 'ContentBody'
+CONTENT_HEADER = 'ContentHeader'
 
 
 class Channel(base.AMQPChannel):
@@ -36,37 +40,35 @@ class Channel(base.AMQPChannel):
     To create a new channel, invoke
     py:meth:`rabbitpy.connection.Connection.channel`
 
+
+    To improve performance, pass blocking_read to True. Note that doing
+    so prevents ``KeyboardInterrupt``/CTRL-C from exiting the Python
+    interpreter.
+
+    :param int channel_id: The channel # to use for this instance
+    :param dict server_capabilities: Features the server supports
+    :param events rabbitpy.Events: Event management object
+    :param queue.Queue exception_queue: Exception queue
+    :param queue.Queue read_queue: Queue to read pending frames from
+    :param queue.Queue write_queue: Queue to write pending AMQP objs to
+    :param int maximum_frame_size: The max frame size for msg bodies
+    :param socket write_trigger: Write to this socket to break IO waiting
+    :param bool blocking_read: Use blocking Queue.get to improve performance
+    :raises: rabbitpy.exceptions.RemoteClosedChannelException
+    :raises: rabbitpy.exceptions.AMQPException
+
     """
-    DEFAULT_CLOSE_CODE = 200
-    DEFAULT_CLOSE_REASON = 'Normal Shutdown'
-    REMOTE_CLOSED = 0x04
     STATES = base.AMQPChannel.STATES
     STATES[0x04] = 'Remotely Closed'
 
     def __init__(self, channel_id, server_capabilities, events,
                  exception_queue, read_queue, write_queue,
                  maximum_frame_size, write_trigger, blocking_read=False):
-        """Create a new instance of the Channel class
-
-        To improve performance, pass blocking_read to True. Note that doing
-        so prevents KeyboardInterrupt/CTRL-C from exiting the Python
-        interpreter.
-
-        :param int channel_id: The channel # to use for this instance
-        :param dict server_capabilities: Features the server supports
-        :param events rabbitpy.Events: Event management object
-        :param queue.Queue exception_queue: Exception queue
-        :param queue.Queue read_queue: Queue to read pending frames from
-        :param queue.Queue write_queue: Queue to write pending AMQP objs to
-        :param int maximum_frame_size: The max frame size for msg bodies
-        :param socket write_trigger: Write to this socket to break IO waiting
-        :param bool blocking: Use blocking Queue.get to improve performance
-
-        """
+        """Create a new instance of the Channel class"""
         super(Channel, self).__init__(exception_queue, write_trigger,
                                       blocking_read)
         self._channel_id = channel_id
-        self._consumers = []
+        self._consumers = {}
         self._events = events
         self._maximum_frame_size = maximum_frame_size
         self._publisher_confirms = False
@@ -89,6 +91,7 @@ class Channel(base.AMQPChannel):
 
         """
         if exc_type and exc_val:
+            LOGGER.debug('Exiting due to exception: %r', exc_val)
             self._set_state(self.CLOSED)
             raise
         if self.open:
@@ -112,7 +115,7 @@ class Channel(base.AMQPChannel):
             delivery_tag = 0
             discard_counter = 0
             ack_tags = []
-            for queue_obj, no_ack in self._consumers:
+            for queue_obj, no_ack in self._consumers.values():
                 self._cancel_consumer(queue_obj)
                 if not no_ack:
                     LOGGER.debug('Channel %i will nack messages for %s',
@@ -125,7 +128,7 @@ class Channel(base.AMQPChannel):
                     frame_value = self._get_from_read_queue()
                     if not frame_value:
                         break
-                    if (frame_value.name == 'Basic.Deliver' and
+                    if (frame_value.name == BASIC_DELIVER and
                             frame_value.consumer_tag in ack_tags):
                         if delivery_tag < frame_value.delivery_tag:
                             delivery_tag = frame_value.delivery_tag
@@ -143,7 +146,7 @@ class Channel(base.AMQPChannel):
         """
         if not self._supports_publisher_confirms:
             raise exceptions.NotSupportedError('Confirm.Select')
-        self.rpc(specification.Confirm.Select())
+        self.rpc(spec.Confirm.Select())
         self._publisher_confirms = True
 
     @property
@@ -165,7 +168,7 @@ class Channel(base.AMQPChannel):
         """
         self._set_state(self.OPENING)
         self._write_frame(self._build_open_frame())
-        self._wait_on_frame(specification.Channel.OpenOk)
+        self._wait_on_frame(spec.Channel.OpenOk)
         self._set_state(self.OPEN)
         LOGGER.debug('Channel #%i open', self._channel_id)
 
@@ -178,8 +181,7 @@ class Channel(base.AMQPChannel):
                                   same connection
 
         """
-        self.rpc(specification.Basic.Qos(prefetch_count=value,
-                                         global_=all_channels))
+        self.rpc(spec.Basic.Qos(prefetch_count=value, global_=all_channels))
 
     def prefetch_size(self, value, all_channels=False):
         """Set a prefetch size in bytes for the channel (or all channels on the
@@ -192,8 +194,7 @@ class Channel(base.AMQPChannel):
         """
         if value is None:
             return
-        self.rpc(specification.Basic.Qos(prefetch_count=value,
-                                         global_=all_channels))
+        self.rpc(spec.Basic.Qos(prefetch_size=value, global_=all_channels))
 
     @property
     def publisher_confirms(self):
@@ -211,16 +212,16 @@ class Channel(base.AMQPChannel):
         :param bool requeue: Requeue the message
 
         """
-        self.rpc(specification.Basic.Recover(requeue=requeue))
+        self.rpc(spec.Basic.Recover(requeue=requeue))
 
     @staticmethod
     def _build_open_frame():
         """Build and return a channel open frame
 
-        :rtype: pamqp.specification.Channel.Open
+        :rtype: pamqp.spec.Channel.Open
 
         """
-        return specification.Channel.Open()
+        return spec.Channel.Open()
 
     def _cancel_consumer(self, obj):
         """Cancel the consuming of a queue.
@@ -228,24 +229,26 @@ class Channel(base.AMQPChannel):
         :param rabbitpy.amqp_queue.Queue obj: The queue to cancel
 
         """
-        frame_value = specification.Basic.Cancel(consumer_tag=obj.consumer_tag)
-        self._write_frame(frame_value)
+        if obj.consumer_tag in self._consumers:
+            del self._consumers[obj.consumer_tag]
+        self._interrupt_wait_on_frame()
+        self._write_frame(spec.Basic.Cancel(consumer_tag=obj.consumer_tag))
         if not self.closed:
-            self._wait_on_frame(specification.Basic.CancelOk)
-            LOGGER.debug('Basic.CancelOk received')
+            self._wait_on_frame(spec.Basic.CancelOk)
 
     def _check_for_rpc_request(self, value):
         """Inspect a frame to see if it's a RPC request from RabbitMQ.
 
-        :param specification.Frame value:
+        :param spec.Frame value:
 
         """
-        if isinstance(value, specification.Channel.Close):
-            self._on_remote_close(value)
-        elif isinstance(value, specification.Basic.Cancel):
-            pass
-        elif isinstance(value, specification.Basic.Return):
+        super(Channel, self)._check_for_rpc_request(value)
+        if isinstance(value, spec.Basic.Return):
             self._on_basic_return(self._wait_for_content_frames(value))
+        elif isinstance(value, spec.Basic.Cancel):
+            if value.consumer_tag in self._consumers:
+                del self._consumers[value.consumer_tag]
+            raise exceptions.RemoteCancellationException(value.consumer_tag)
 
     def _consume(self, obj, no_ack, priority=None):
         """Register a Queue object as a consumer, issuing Basic.Consume.
@@ -263,11 +266,11 @@ class Channel(base.AMQPChannel):
             if not isinstance(priority, int):
                 raise ValueError('Consumer priority must be an int')
             args['x-priority'] = priority
-        self.rpc(specification.Basic.Consume(queue=obj.name,
-                                             consumer_tag=obj.consumer_tag,
-                                             no_ack=no_ack,
-                                             arguments=args))
-        self._consumers.append((obj, no_ack))
+        self.rpc(spec.Basic.Consume(queue=obj.name,
+                                    consumer_tag=obj.consumer_tag,
+                                    no_ack=no_ack,
+                                    arguments=args))
+        self._consumers[obj.consumer_tag] = (obj, no_ack)
 
     def _consume_message(self):
         """Get a message from the stack, blocking while doing so. If a consumer
@@ -277,11 +280,12 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.message.Message
 
         """
-        frame_value = self._wait_on_frame([specification.Basic.Deliver,
-                                           specification.Basic.CancelOk])
-        if isinstance(frame_value, specification.Basic.CancelOk):
-            return None
-        return self._wait_for_content_frames(frame_value)
+        if not self._consumers:
+            raise exceptions.NotConsumingError
+        frame_value = self._wait_on_frame([spec.Basic.Deliver])
+        if frame_value:
+            return self._wait_for_content_frames(frame_value)
+        return None
 
     def _create_message(self, method_frame, header_frame, body):
         """Create a message instance with the channel it was received on and
@@ -331,27 +335,26 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.message.Message or None
 
         """
-        LOGGER.debug('Waiting on GetOk or GetEmpty')
-        frame_value = self._wait_on_frame([specification.Basic.GetOk,
-                                           specification.Basic.GetEmpty])
-        LOGGER.debug('Returned with %r', frame_value)
-        if isinstance(frame_value, specification.Basic.GetEmpty):
+        frame_value = self._wait_on_frame([spec.Basic.GetOk,
+                                           spec.Basic.GetEmpty])
+        if isinstance(frame_value, spec.Basic.GetEmpty):
             return None
-        LOGGER.debug('Waiting on content frames for %r', frame_value)
         return self._wait_for_content_frames(frame_value)
 
-    def _multi_nack(self, delivery_tag):
+    def _multi_nack(self, delivery_tag, requeue=True):
         """Send a multiple negative acknowledgement, re-queueing the items
 
         :param int delivery_tag: The delivery tag for this channel
+        :param bool requeue: Requeue the messages
 
         """
         if not self._supports_basic_nack:
             raise exceptions.NotSupportedError('Basic.Nack')
-        LOGGER.debug('Sending Basic.Nack with requeue')
-        self.rpc(specification.Basic.Nack(delivery_tag=delivery_tag,
-                                          multiple=True,
-                                          requeue=True))
+        if self._is_debugging:
+            LOGGER.debug('Sending Basic.Nack with requeue')
+        self.rpc(spec.Basic.Nack(delivery_tag=delivery_tag,
+                                 multiple=True,
+                                 requeue=requeue))
 
     def _on_basic_return(self, msg):
         """Raise a MessageReturnedException so the publisher can handle
@@ -370,63 +373,15 @@ class Channel(base.AMQPChannel):
                                                   msg.method.reply_code,
                                                   msg.method.reply_text)
 
-    def _on_remote_close(self, value):
-        """Handle RabbitMQ remotely closing the channel
+    def _reject_inbound_message(self, method_frame):
+        """Used internally to reject a message when it's been received during
+        a state that it should not have been.
 
-        :param value: The Channel.Close method frame
-        :type value: pamqp.specification.Channel.Close
-
-        """
-        self._set_state(self.REMOTE_CLOSED)
-        if value.reply_code in exceptions.AMQP:
-            LOGGER.error('Received remote close (%s): %s',
-                         value.reply_code, value.reply_text)
-            raise exceptions.AMQP[value.reply_code](value)
-        else:
-            raise exceptions.RemoteClosedChannelException(self._channel_id,
-                                                          value.reply_code,
-                                                          value.reply_text)
-
-    def _wait_for_confirmation(self):
-        """Used by the Message.publish method when publisher confirmations are
-        enabled.
-
-        :rtype: pamqp.frame.Frame
+        :param pamqp.specification.Basic.Deliver method_frame: The method frame
 
         """
-        return self._wait_on_frame([specification.Basic.Ack,
-                                    specification.Basic.Nack])
-
-    def _wait_for_content_frames(self, method_frame):
-        """Used by both Channel._get_message and Channel._consume_message for
-        getting a message parts off the queue and returning the fully
-        constructed message.
-
-        :param method_frame: The method frame for the message
-        :type method_frame: Basic.Deliver or Basic.Get or Basic.Return
-        :rtype: rabbitpy.Message
-
-        """
-        if self.closing or self.closed:
-            return None
-        header_value = self._wait_on_frame(['ContentHeader',
-                                            specification.Channel.CloseOk])
-        self._check_for_rpc_request(header_value)
-        if not header_value:
-            return self._create_message(method_frame, None, None)
-        body_value = bytes() if PYTHON3 else str()
-        while len(body_value) < header_value.body_size:
-            body_part = self._wait_on_frame(['ContentBody',
-                                             specification.Channel.CloseOk])
-            self._check_for_rpc_request(body_part)
-            if not body_part:
-                break
-            body_value += body_part.value
-            if len(body_value) == header_value.body_size:
-                break
-            if self.closing or self.closed:
-                return None
-        return self._create_message(method_frame, header_value, body_value)
+        self.rpc(spec.Basic.Reject(delivery_tag=method_frame.delivery_tag,
+                                   requeue=True))
 
     @property
     def _supports_basic_nack(self):
@@ -473,3 +428,55 @@ class Channel(base.AMQPChannel):
 
         """
         return self._server_capabilities.get(b'publisher_confirms', False)
+
+    def _wait_for_confirmation(self):
+        """Used by the Message.publish method when publisher confirmations are
+        enabled.
+
+        :rtype: pamqp.frame.Frame
+
+        """
+        return self._wait_on_frame([spec.Basic.Ack, spec.Basic.Nack])
+
+    def _wait_for_content_frames(self, method_frame):
+        """Used by both Channel._get_message and Channel._consume_message for
+        getting a message parts off the queue and returning the fully
+        constructed message.
+
+        :param method_frame: The method frame for the message
+        :type method_frame: Basic.Deliver or Basic.Get or Basic.Return
+        :rtype: rabbitpy.Message
+
+        """
+        if self.closing or self.closed:
+            return None
+
+        consuming = isinstance(method_frame, spec.Basic.Deliver)
+        if consuming and not self._consumers:
+            return None
+
+        if self._is_debugging:
+            LOGGER.debug('Waiting on content frames for %s: %r',
+                         method_frame.name, method_frame.delivery_tag)
+
+        header_value = self._wait_on_frame(CONTENT_HEADER)
+        if not header_value:
+            self._reject_inbound_message(method_frame)
+            return None
+
+        self._check_for_rpc_request(header_value)
+        body_value = bytes() if PYTHON3 else str()
+        while len(body_value) < header_value.body_size:
+            body_part = self._wait_on_frame(CONTENT_BODY)
+            self._check_for_rpc_request(body_part)
+            if not body_part:
+                break
+            body_value += body_part.value
+            if len(body_value) == header_value.body_size:
+                break
+            if self.closing or self.closed:
+                return None
+            if consuming and not self._consumers:
+                self._reject_inbound_message(method_frame)
+                return None
+        return self._create_message(method_frame, header_value, body_value)
