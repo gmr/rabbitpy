@@ -349,14 +349,19 @@ class Consumer(object):
         """Called when exiting the consumer iterator"""
         self.cancel()
 
-    @property
-    def _basic_cancel(self):
-        return specification.Basic.Cancel(consumer_tag=self.queue.consumer_tag)
-
     def cancel(self):
         """Cancel the consumer"""
         self.queue.consuming = False
-        self.queue.channel.rpc(self._basic_cancel)
+        self.queue.channel._cancel_consumer(self)
+
+    @property
+    def consumer_tag(self):
+        """Return the consumer tag which is used when cancelling the consumer
+
+        :rtype: str
+
+        """
+        return self.queue.consumer_tag
 
     def next_message(self):
         """Retrieve the nest message from the queue as an iterator, blocking
