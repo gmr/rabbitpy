@@ -27,6 +27,7 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
 
 """
 import logging
+import platform
 import warnings
 
 from pamqp import specification
@@ -37,6 +38,7 @@ from rabbitpy import utils
 
 
 LOGGER = logging.getLogger(__name__)
+PYPY = platform.python_implementation() == 'PyPy'
 
 
 class Queue(base.AMQPClass):
@@ -317,6 +319,8 @@ class Queue(base.AMQPClass):
         will return None instead of a :py:class:`rabbitpy.Message`.
 
         """
+        if PYPY and not self.consuming:
+            return
         if not self.consuming:
             raise exceptions.NotConsumingError()
         self.channel._cancel_consumer(self)
