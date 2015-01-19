@@ -153,6 +153,8 @@ class AMQPChannel(StatefulObject):
     CLOSE_REQUEST_FRAME = specification.Channel.Close
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
+    REMOTE_CLOSED = 0x04
+
 
     def __init__(self, exception_queue, write_trigger, blocking_read=False):
         super(AMQPChannel, self).__init__()
@@ -242,7 +244,12 @@ class AMQPChannel(StatefulObject):
         RPC requests from RabbitMQ.
 
         """
-        pass
+        if isinstance(value, specification.Connection.Close):
+            LOGGER.debug('Connection closed')
+            self._on_remote_close(value)
+        elif isinstance(value, specification.Channel.Close):
+            LOGGER.debug('Channel closed')
+            self._on_remote_close(value)
 
     def _force_close(self):
         """Force the channel to mark itself as closed"""
@@ -257,8 +264,36 @@ class AMQPChannel(StatefulObject):
 
         """
         self._wait_on_frame_interrupt.set()
+        if self._is_debugging:
+            LOGGER.debug('Waiting for interrupt to clear')
         while self._wait_on_frame_interrupt.is_set():
             time.sleep(0.10)
+        if self._is_debugging:
+            LOGGER.debug('Interrupt cleared')
+
+    def _on_remote_close(self, value):
+        """
+        Handle RabbitMQ remotely closing the channel
+
+        :param value: The Channel.Close method frame
+        :type value: pamqp.spec.Channel.Close
+        :raises: exceptions.RemoteClosedException
+        :raises: exceptions.RemoteClosedChannelException
+        :raises: exceptions.AMQPException
+
+        """
+        self._set_state(self.REMOTE_CLOSED)
+        if value.reply_code in exceptions.AMQP:
+            LOGGER.error('Received remote close (%s): %s',
+                         value.reply_code, value.reply_text)
+            raise exceptions.AMQP[value.reply_code](value)
+        elif isinstance(value, specification.Connection.Close):
+            raise exceptions.RemoteClosedException(value.reply_code,
+                                                   value.reply_text)
+        else:
+            raise exceptions.RemoteClosedChannelException(self._channel_id,
+                                                          value.reply_code,
+                                                          value.reply_text)
 
     def _read_from_queue(self):
         """Check to see if a frame is in the queue and if so, return it
@@ -343,7 +378,7 @@ class AMQPChannel(StatefulObject):
             # If the wait interrupt is set, break out of the loop
             if self._wait_on_frame_interrupt.is_set():
                 if self._is_debugging:
-                    LOGGER.debug('Exiting wait loop')
+                    LOGGER.debug('Exiting wait due to interrupt')
                 break
 
         # Clear here to ensure out of processing loop before proceeding
