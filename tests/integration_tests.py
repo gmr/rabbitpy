@@ -1,4 +1,5 @@
 import logging
+import platform
 import re
 import threading
 import time
@@ -127,6 +128,8 @@ class PublishAndConsumeTest(unittest.TestCase):
             self.assertEqual(msg.properties['message_type'],
                              self.msg.properties['message_type'])
             break
+        if platform.python_implementation() == 'PyPy':
+            self.queue.stop_consuming()
 
 
 class PublishAndConsumeIteratorTest(unittest.TestCase):
@@ -172,7 +175,8 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
             msg.ack()
             LOGGER.info('breaking out of iterator')
             break
-
+        if platform.python_implementation() == 'PyPy':
+            self.queue.stop_consuming()
         self.assertFalse(self.queue.consuming)
 
 
@@ -225,6 +229,8 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
                 break
             qty += 1
             msg.ack()
+        if platform.python_implementation() == 'PyPy':
+            self.queue.stop_consuming()
         LOGGER.info('Exited iterator, %r, %r', self.queue.consuming, qty)
         self.assertFalse(self.queue.consuming)
         self.assertEqual(qty, self.PUBLISH_COUNT)
