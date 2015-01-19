@@ -13,7 +13,7 @@ until CTRL-C is pressed::
             try:
                 # Consume the message
                 for message in queue:
-                    message.pprint(true)
+                    message.pprint(True)
                     message.ack()
 
             except KeyboardInterrupt:

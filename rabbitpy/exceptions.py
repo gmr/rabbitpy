@@ -5,7 +5,17 @@ Exceptions that may be raised by rabbitpy during use
 """
 
 
-class ActionException(Exception):
+class RabbitPyException(Exception):
+    """Base exception of all rabbitpy exceptions."""
+    pass
+
+
+class RabbitPyWarning(Warning):
+    """Base warning of all rabbitpy warnings."""
+    pass
+
+
+class ActionException(RabbitPyException):
     """Raised when an action is taken on a rabbitpy object that is not
     supported due to the state of the object. An example would be trying to
     ack a Message object when the message object was locally created and not
@@ -16,14 +26,14 @@ class ActionException(Exception):
         return self.args[0]
 
 
-class ChannelClosedException(Exception):
+class ChannelClosedException(RabbitPyException):
     """Raised when an action is attempted on a channel that is closed."""
     def __repr__(self):
         return 'Can not perform RPC requests on a closed channel, you must ' \
                'create a new channel'
 
 
-class ConnectionException(Exception):
+class ConnectionException(RabbitPyException):
     """Raised when rabbitpy can not connect to the specified server and if
     a connection fails and the RabbitMQ version does not support the
     authentication_failure_close feature added in RabbitMQ 3.2.
@@ -33,7 +43,7 @@ class ConnectionException(Exception):
         return 'Unable to connect to the remote server %r' % self.args
 
 
-class ConnectionResetException(Exception):
+class ConnectionResetException(RabbitPyException):
     """Raised if the socket level connection was reset. This can happen due
     to the loss of network connection or socket timeout, or more than 2
     missed heartbeat intervals if heartbeats are enabled.
@@ -43,7 +53,7 @@ class ConnectionResetException(Exception):
         return 'Connection was reset at socket level'
 
 
-class RemoteClosedChannelException(Exception):
+class RemoteClosedChannelException(RabbitPyException):
     """Raised if RabbitMQ closes the channel and the reply_code in the
     Channel.Close RPC request does not have a mapped exception in rabbitpy.
 
@@ -53,7 +63,7 @@ class RemoteClosedChannelException(Exception):
                (self.args[0], self.args[1], self.args[2])
 
 
-class RemoteClosedException(Exception):
+class RemoteClosedException(RabbitPyException):
     """Raised if RabbitMQ closes the connection and the reply_code in the
     Connection.Close RPC request does not have a mapped exception in rabbitpy.
 
@@ -63,7 +73,7 @@ class RemoteClosedException(Exception):
                (self.args[0], self.args[1])
 
 
-class MessageReturnedException(Exception):
+class MessageReturnedException(RabbitPyException):
     """Raised if the RabbitMQ sends a message back to a publisher via
     the Basic.Return RPC call.
 
@@ -73,7 +83,7 @@ class MessageReturnedException(Exception):
                (self.args[0], self.args[1], self.args[2])
 
 
-class NoActiveTransactionError(Exception):
+class NoActiveTransactionError(RabbitPyException):
     """Raised when a transaction method is issued but the transaction has not
     been initiated.
 
@@ -82,7 +92,7 @@ class NoActiveTransactionError(Exception):
         return 'No active transaction for the request, channel closed'
 
 
-class NotConsumingError(Exception):
+class NotConsumingError(RabbitPyException):
     """Raised Queue.cancel_consumer() is invoked but the queue is not
     actively consuming.
 
@@ -91,7 +101,7 @@ class NotConsumingError(Exception):
         return 'No active consumer to cancel'
 
 
-class NotSupportedError(Exception):
+class NotSupportedError(RabbitPyException):
     """Raised when a feature is requested that is not supported by the RabbitMQ
     server.
 
@@ -100,7 +110,7 @@ class NotSupportedError(Exception):
         return 'The selected feature "%s" is not supported' % self.args[0]
 
 
-class TooManyChannelsError(Exception):
+class TooManyChannelsError(RabbitPyException):
     """Raised if an application attempts to create a channel, exceeding the
     maximum number of channels (MAXINT or 2,147,483,647) available for a
     single connection. Note that each time a channel object is created, it will
@@ -112,7 +122,7 @@ class TooManyChannelsError(Exception):
         return 'The maximum amount of negotiated channels has been reached'
 
 
-class UnexpectedResponseError(Exception):
+class UnexpectedResponseError(RabbitPyException):
     """Raised when an RPC call is made to RabbitMQ but the response it sent
     back is not recognized.
 
@@ -125,7 +135,7 @@ class UnexpectedResponseError(Exception):
 # AMQP Exceptions
 
 
-class AMQPContentTooLarge(Warning):
+class AMQPContentTooLarge(RabbitPyWarning):
     """
     The client attempted to transfer content larger than the server could
     accept at the present time. The client may retry at a later time.
@@ -134,7 +144,7 @@ class AMQPContentTooLarge(Warning):
     pass
 
 
-class AMQPNoRoute(Warning):
+class AMQPNoRoute(RabbitPyWarning):
     """
     Undocumented AMQP Soft Error
 
@@ -142,7 +152,7 @@ class AMQPNoRoute(Warning):
     pass
 
 
-class AMQPNoConsumers(Warning):
+class AMQPNoConsumers(RabbitPyWarning):
     """
     When the exchange cannot deliver to a consumer when the immediate flag is
     set. As a result of pending data on the queue or the absence of any
@@ -152,7 +162,7 @@ class AMQPNoConsumers(Warning):
     pass
 
 
-class AMQPAccessRefused(Warning):
+class AMQPAccessRefused(RabbitPyWarning):
     """
     The client attempted to work with a server entity to which it has no access
     due to security settings.
@@ -161,7 +171,7 @@ class AMQPAccessRefused(Warning):
     pass
 
 
-class AMQPNotFound(Warning):
+class AMQPNotFound(RabbitPyWarning):
     """
     The client attempted to work with a server entity that does not exist.
 
@@ -169,7 +179,7 @@ class AMQPNotFound(Warning):
     pass
 
 
-class AMQPResourceLocked(Warning):
+class AMQPResourceLocked(RabbitPyWarning):
     """
     The client attempted to work with a server entity to which it has no access
     because another client is working with it.
@@ -178,7 +188,7 @@ class AMQPResourceLocked(Warning):
     pass
 
 
-class AMQPPreconditionFailed(Warning):
+class AMQPPreconditionFailed(RabbitPyWarning):
     """
     The client requested a method that was not allowed because some
     precondition failed.
@@ -187,7 +197,7 @@ class AMQPPreconditionFailed(Warning):
     pass
 
 
-class AMQPConnectionForced(Exception):
+class AMQPConnectionForced(RabbitPyException):
     """
     An operator intervened to close the connection for some reason. The client
     may retry at some later date.
@@ -196,7 +206,7 @@ class AMQPConnectionForced(Exception):
     pass
 
 
-class AMQPInvalidPath(Exception):
+class AMQPInvalidPath(RabbitPyException):
     """
     The client tried to work with an unknown virtual host.
 
@@ -204,7 +214,7 @@ class AMQPInvalidPath(Exception):
     pass
 
 
-class AMQPFrameError(Exception):
+class AMQPFrameError(RabbitPyException):
     """
     The sender sent a malformed frame that the recipient could not decode. This
     strongly implies a programming error in the sending peer.
@@ -213,7 +223,7 @@ class AMQPFrameError(Exception):
     pass
 
 
-class AMQPSyntaxError(Exception):
+class AMQPSyntaxError(RabbitPyException):
     """
     The sender sent a frame that contained illegal values for one or more
     fields. This strongly implies a programming error in the sending peer.
@@ -222,7 +232,7 @@ class AMQPSyntaxError(Exception):
     pass
 
 
-class AMQPCommandInvalid(Exception):
+class AMQPCommandInvalid(RabbitPyException):
     """
     The client sent an invalid sequence of frames, attempting to perform an
     operation that was considered invalid by the server. This usually implies a
@@ -232,7 +242,7 @@ class AMQPCommandInvalid(Exception):
     pass
 
 
-class AMQPChannelError(Exception):
+class AMQPChannelError(RabbitPyException):
     """
     The client attempted to work with a channel that had not been correctly
     opened. This most likely indicates a fault in the client layer.
@@ -241,7 +251,7 @@ class AMQPChannelError(Exception):
     pass
 
 
-class AMQPUnexpectedFrame(Exception):
+class AMQPUnexpectedFrame(RabbitPyException):
     """
     The peer sent a frame that was not expected, usually in the context of a
     content header and body.  This strongly indicates a fault in the peer's
@@ -251,7 +261,7 @@ class AMQPUnexpectedFrame(Exception):
     pass
 
 
-class AMQPResourceError(Exception):
+class AMQPResourceError(RabbitPyException):
     """
     The server could not complete the method because it lacked sufficient
     resources. This may be due to the client creating too many of some type of
@@ -261,7 +271,7 @@ class AMQPResourceError(Exception):
     pass
 
 
-class AMQPNotAllowed(Exception):
+class AMQPNotAllowed(RabbitPyException):
     """
     The client tried to work with some entity in a manner that is prohibited by
     the server, due to security settings or by some other criteria.
@@ -270,7 +280,7 @@ class AMQPNotAllowed(Exception):
     pass
 
 
-class AMQPNotImplemented(Exception):
+class AMQPNotImplemented(RabbitPyException):
     """
     The client tried to use functionality that is not implemented in the
     server.
@@ -279,7 +289,7 @@ class AMQPNotImplemented(Exception):
     pass
 
 
-class AMQPInternalError(Exception):
+class AMQPInternalError(RabbitPyException):
     """
     The server could not complete the method because of an internal error. The
     server may require intervention by an operator in order to resume normal

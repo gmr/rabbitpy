@@ -1,4 +1,4 @@
-rabbitpy - rabbitmq simplified
+rabbitpy - RabbitMQ simplified
 ==============================
 
 A pure python, thread-safe, minimalistic and Pythonic BSD Licensed
@@ -27,7 +27,8 @@ But there's always easy_install:
 Documentation
 -------------
 
-https://rabbitpy.readthedocs.org
+Documentation is available on `ReadTheDocs <https://rabbitpy.readthedocs.org`_.
+
 
 Requirements
 ------------
@@ -44,11 +45,11 @@ Available at https://rabbitpy.readthedocs.org/en/latest/history.html
 .. |Status| image:: https://travis-ci.org/gmr/rabbitpy.svg?branch=master
    :target: https://travis-ci.org/gmr/rabbitpy
 
-.. |Coverage| image:: https://coveralls.io/repos/gmr/rabbitpy/badge.png
-   :target: https://coveralls.io/r/gmr/rabbitpy
-  
+.. |Coverage| image:: https://codecov.io/github/gmr/rabbitpy/coverage.svg?branch=master
+   :target: https://codecov.io/github/gmr/rabbitpy?branch=master
+
 .. |Downloads| image:: https://pypip.in/d/rabbitpy/badge.svg?
    :target: https://pypi.python.org/pypi/rabbitpy
-   
+
 .. |License| image:: https://pypip.in/license/rabbitpy/badge.svg?
    :target: https://rabbitpy.readthedocs.org
