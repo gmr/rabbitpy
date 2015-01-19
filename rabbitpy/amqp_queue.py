@@ -197,8 +197,8 @@ class Queue(base.AMQPClass):
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator.
 
-        .. warning:: This method is deprecated in favor of ``Queue.consume`` and
-                     will be removed in future releases.
+        .. deprecated:: 0.26 This method is deprecated in favor of
+           :py:class`Queue.consume` and will be removed in future releases.
 
         You can use this message instead of the queue object as an iterator
         if you need to alter the prefect count, set the consumer priority or
@@ -219,8 +219,8 @@ class Queue(base.AMQPClass):
         """Deprecated method for returning the contextmanager for consuming
         messages. You should not use this directly.
 
-        .. warning:: This method is deprecated and will be removed in a future
-                     release.
+        .. deprecated:: 0.26
+           This method is deprecated and will be removed in a future release.
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
