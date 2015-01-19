@@ -37,6 +37,8 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
+        self.channel.close()
+        self.connection.close()
 
     def test_get_returns_expected_message(self):
         self.assertEqual(len(self.queue), self.ITERATIONS)
@@ -68,6 +70,8 @@ class PublishAndGetTest(unittest.TestCase):
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
+        self.channel.close()
+        self.connection.close()
 
     def test_get_returns_expected_message(self):
         msg = self.queue.get(True)
@@ -108,9 +112,11 @@ class PublishAndConsumeTest(unittest.TestCase):
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
+        self.channel.close()
+        self.connection.close()
 
     def test_get_returns_expected_message(self):
-        for msg in self.queue.consume_messages(no_ack=True, prefetch=1):
+        for msg in self.queue.consume(no_ack=True, prefetch=1):
             self.assertEqual(msg.body, self.message_body)
             self.assertEqual(msg.properties['app_id'],
                              self.msg.properties['app_id'])
@@ -149,6 +155,8 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
+        self.channel.close()
+        self.connection.close()
 
     def test_iterator_returns_expected_message(self):
         for msg in self.queue:
@@ -162,11 +170,15 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
             self.assertEqual(msg.properties['message_type'],
                              self.msg.properties['message_type'])
             msg.ack()
-            self.queue.stop_consuming()
+            LOGGER.info('breaking out of iterator')
+            break
+
         self.assertFalse(self.queue.consuming)
 
 
 class PublishAndConsumeIteratorStopTest(unittest.TestCase):
+
+    PUBLISH_COUNT = 10
 
     def setUp(self):
         self.connection = rabbitpy.Connection()
@@ -181,7 +193,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
         self.message_body = 'ABC1234567890'
         self.message_type = 'test'
 
-        for iteration in range(0, 10):
+        for iteration in range(0, self.PUBLISH_COUNT):
             self.msg = rabbitpy.Message(self.channel,
                                         self.message_body,
                                         {'app_id': self.app_id,
@@ -192,25 +204,30 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
                              'test.publish.consume {0}'.format(iteration))
 
     def stop_consumer(self):
+        LOGGER.info('Stopping the consumer')
         self.queue.stop_consuming()
 
     def tearDown(self):
         self.queue.delete()
         self.exchange.delete()
+        self.channel.close()
+        self.connection.close()
 
     def test_iterator_exits_on_stop(self):
         LOGGER.info('Starting stop timer')
-        timer = threading.Timer(2, self.stop_consumer)
+        timer = threading.Timer(1, self.stop_consumer)
         timer.daemon = True
         timer.start()
+        qty = 0
         for msg in self.queue:
             if not msg:
                 LOGGER.info('Message is empty')
                 break
+            qty += 1
             msg.ack()
-        LOGGER.info('Exited iterator')
+        LOGGER.info('Exited iterator, %r, %r', self.queue.consuming, qty)
         self.assertFalse(self.queue.consuming)
-
+        self.assertEqual(qty, self.PUBLISH_COUNT)
 
 class RedeliveredFlagTest(unittest.TestCase):
 
@@ -244,6 +261,10 @@ class UnnamedQueueDeclareTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection()
         self.channel = self.connection.channel()
+
+    def tearDown(self):
+        self.channel.close()
+        self.connection.close()
 
     def test_declaring_nameless_queue(self):
         self.queue = rabbitpy.Queue(self.channel)

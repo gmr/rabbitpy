@@ -3,33 +3,39 @@ The rabbitpy.amqp_queue module contains two classes :py:class:`Queue` and
 :py:class:`Consumer`. The :py:class:`Queue` class is an object that is used
 create and work with queues on a RabbitMQ server.
 
-
 To consume messages you can iterate over the Queue object itself if the
 defaults for the :py:meth:`Queue.__iter__() <Queue.__iter__>` method work
-for your needs::
+for your needs:
+
+.. code:: python
 
     with conn.channel() as channel:
         for message in rabbitpy.Queue(channel, 'example'):
-            print 'Message: %r' % message
+            print('Message: %r' % message)
             message.ack()
 
-or by the :py:meth:`Queue.consume_messages() <Queue.consume_messages>` method
-if you would like to specify `no_ack`, `prefetch_count`, or `priority`::
+or by the :py:meth:`Queue.consume() <Queue.consume>` method
+if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
+
+.. code:: python
 
     with conn.channel() as channel:
         queue = rabbitpy.Queue(channel, 'example')
-        for message in queue.consume_messages():
-            print 'Message: %r' % message
+        for message in queue.consume:
+            print('Message: %r' % message)
             message.ack()
 
 """
 import contextlib
 import logging
+import warnings
+
 from pamqp import specification
 
 from rabbitpy import base
 from rabbitpy import exceptions
 from rabbitpy import utils
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +90,6 @@ class Queue(base.AMQPClass):
         # Defaults
         self.consumer_tag = 'rabbitpy.%s.%s' % (self.channel.id, id(self))
         self.consuming = False
-        self._consumer = None
 
         # Assign Arguments
         self.durable = durable
@@ -104,8 +109,8 @@ class Queue(base.AMQPClass):
         :yields: rabbitpy.message.Message
 
         """
-        with self.consumer() as consumer:
-            for message in consumer.next_message():
+        with self._consumer() as consumer:
+            for message in consumer.next():
                 yield message
 
     def __len__(self):
@@ -167,31 +172,32 @@ class Queue(base.AMQPClass):
         response = self._rpc(frame)
         return isinstance(response, specification.Queue.BindOk)
 
-    @contextlib.contextmanager
-    def consumer(self, no_ack=False, prefetch=None, priority=None):
-        """Consumer message context manager, returns a consumer message
-        generator.
+    def consume(self, no_ack=False, prefetch=None, priority=None):
+        """Consume messages from the queue as a :py:class:`generator`:
+
+        .. code:: python
+            for message in queue.consume():
+                message.ack()
+
+        You can use this method instead of the queue object as an iterator
+        if you need to alter the prefect count, set the consumer priority or
+        consume in no_ack mode.
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
-        :rtype: :py:class:`Consumer <rabbitpy.queue.Consumer>`
+        :rtype: :py:class:`generator`
+        :raises: rabbitpy.exceptions.RemoteCancellationException
 
         """
-        if prefetch is not None:
-            self.channel.prefetch_count(prefetch)
-        self._consumer = Consumer(self)
-        self.channel._consume(self, no_ack, priority)
-        self.consuming = True
-        yield self._consumer
+        with self._consumer(no_ack, prefetch, priority) as consumer:
+            for message in consumer.next():
+                yield message
 
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
-        """Consume messages from the queue as a generator:
+        """Consume messages from the queue as a generator.
 
-        ```
-            for message in queue.consume_messages():
-                message.ack()
-        ```
+        .. warning:: This method is deprecated in favor of ``Queue.consume``.
 
         You can use this message instead of the queue object as an iterator
         if you need to alter the prefect count, set the consumer priority or
@@ -200,13 +206,27 @@ class Queue(base.AMQPClass):
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
-        :rtype: :py:class:`Iterator`
+        :rtype: :py:class:`Generator`
         :raises: rabbitpy.exceptions.RemoteCancellationException
 
         """
-        with self.consumer(no_ack, prefetch, priority) as consumer:
-            for message in consumer.next_message():
-                yield message
+        warnings.warn('This method is deprecated in favor Queue.consume',
+                      DeprecationWarning)
+        return self.consume(no_ack, prefetch, priority)
+
+    def consumer(self, no_ack=False, prefetch=None, priority=None):
+        """Deprecated method for returning the contextmanager for consuming
+        messages. You should not use this directly.
+
+        :param bool no_ack: Do not require acknowledgements
+        :param int prefetch: Set a prefetch count for the channel
+        :param int priority: Consumer priority
+        :return: contextmanager
+
+        """
+        warnings.warn('This method is deprecated in favor Queue.consume',
+                      DeprecationWarning)
+        return self._consumer(no_ack, prefetch, priority)
 
     def declare(self, passive=False):
         """Declare the queue on the RabbitMQ channel passed into the
@@ -281,9 +301,10 @@ class Queue(base.AMQPClass):
         will return None instead of a :py:class:`rabbitpy.Message`.
 
         """
-        if not self._consumer:
-            raise exceptions.NotConsumingError
-        self._consumer.cancel()
+        if not self.consuming:
+            raise exceptions.NotConsumingError()
+        self.channel._cancel_consumer(self)
+        self.consuming = False
 
     def unbind(self, source, routing_key=None):
         """Unbind queue from the specified exchange where it is bound the
@@ -299,6 +320,28 @@ class Queue(base.AMQPClass):
         routing_key = routing_key or self.name
         self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
                                              routing_key=routing_key))
+
+    @contextlib.contextmanager
+    def _consumer(self, no_ack=False, prefetch=None, priority=None):
+        """Return a :py:class:_Consumer instance as a contextmanager, properly
+        shutting down the consumer when the generator is exited.
+
+        :param bool no_ack: Do not require acknowledgements
+        :param int prefetch: Set a prefetch count for the channel
+        :param int priority: Consumer priority
+        :return: _Consumer
+
+        """
+        if prefetch:
+            self.channel.prefetch_count(prefetch, False)
+        self.channel._consume(self, no_ack, priority)
+        self.consuming = True
+        try:
+            yield _Consumer(self.channel, self)
+        finally:
+            if self.consuming:
+                self.channel._cancel_consumer(self)
+                self.consuming = False
 
     def _declare(self, passive=False):
         """Return a specification.Queue.Declare class pre-composed for the rpc
@@ -335,55 +378,18 @@ class Queue(base.AMQPClass):
                                            arguments=arguments)
 
 
-class Consumer(object):
-    """The Consumer class implements an iterator that will retrieve the next
-    message from the stack of messages RabbitMQ has delivered until the client
-    exists the iterator. It should be used with the
-    :py:meth:`Queue.consumer() <rabbitpy.queue.Queue.consumer>` method which
-    returns a context manager for consuming.
+class _Consumer(object):
+    """Internal clas for implementing the generator inside the context manager.
 
     """
-    def __init__(self, queue):
+
+    def __init__(self, channel, queue):
+        self.channel = channel
         self.queue = queue
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Called when exiting the consumer iterator"""
-        if exc_type and exc_val:
-            self.queue.consuming = False
-            LOGGER.debug('Exiting consumer due to exception: %r',
-                         exc_val)
-        if self.queue.consuming:
-            self.cancel()
-
-    def cancel(self):
-        """Cancel the consumer"""
-        LOGGER.debug('Cancelling the consumer')
-        self.queue.consuming = False
-        self.queue.channel._cancel_consumer(self)
-
-    @property
-    def consumer_tag(self):
-        """Return the consumer tag which is used when cancelling the consumer
-
-        :rtype: str
-
-        """
-        return self.queue.consumer_tag
-
-    def next_message(self):
-        """Retrieve the nest message from the queue as an iterator, blocking
-        until the next message is available.
-
-        You should check the return value to ensure it's not ``None``, as it
-        will be returned if your consumer is cancelled by invoking
-        :py:meth:`Queue.stop_consuming()` or :py:meth:`Consumer:cancel`.
-
-        :rtype: :py:class:`rabbitpy.message.Message` or None
-        :raises: rabbitpy.exceptions.RemoteCancellationException
-
-        """
+    def next(self):
         while self.queue.consuming:
-            yield self.queue.channel._consume_message()
+            message = self.channel._consume_message()
+            if message is None:
+                break
+            yield message

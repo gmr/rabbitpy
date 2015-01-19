@@ -165,6 +165,7 @@ class AMQPChannel(StatefulObject):
         self._exceptions = exception_queue
         self._state = self.CLOSED
         self._read_queue = None
+        self._waiting = False
         self._write_lock = threading.Lock()
         self._write_queue = None
         self._write_trigger = write_trigger
@@ -260,6 +261,10 @@ class AMQPChannel(StatefulObject):
         to make this a blocking operation.
 
         """
+        if not self._waiting:
+            if self._is_debugging:
+                LOGGER.debug('No need to interrupt wait')
+            return
         self._wait_on_frame_interrupt.set()
         if self._is_debugging:
             LOGGER.debug('Waiting for interrupt to clear')
@@ -359,13 +364,16 @@ class AMQPChannel(StatefulObject):
         if self._is_debugging:
             LOGGER.debug('Waiting on %r frame(s)', frame_type)
         start_state = self.state
+        self._waiting = True
         while not self.closed and start_state == self.state:
             value = self._read_from_queue()
             if value is not None:
                 self._check_for_rpc_request(value)
                 if frame_type and self._validate_frame_type(value, frame_type):
+                    self._waiting = False
                     return value
                 self._read_queue.put(value)
+
             self._check_for_exceptions()
 
             # If the wait interrupt is set, break out of the loop
@@ -373,6 +381,7 @@ class AMQPChannel(StatefulObject):
                 if self._is_debugging:
                     LOGGER.debug('Exiting wait due to interrupt')
                 break
+        self._waiting = False
 
         # Clear here to ensure out of processing loop before proceeding
         if self._wait_on_frame_interrupt.is_set():

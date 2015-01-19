@@ -229,9 +229,9 @@ class Channel(base.AMQPChannel):
         :param rabbitpy.amqp_queue.Queue obj: The queue to cancel
 
         """
+        self._interrupt_wait_on_frame()
         if obj.consumer_tag in self._consumers:
             del self._consumers[obj.consumer_tag]
-        self._interrupt_wait_on_frame()
         self._write_frame(spec.Basic.Cancel(consumer_tag=obj.consumer_tag))
         if not self.closed:
             self._wait_on_frame(spec.Basic.CancelOk)
@@ -246,6 +246,7 @@ class Channel(base.AMQPChannel):
         if isinstance(value, spec.Basic.Return):
             self._on_basic_return(self._wait_for_content_frames(value))
         elif isinstance(value, spec.Basic.Cancel):
+            self._waiting = False
             if value.consumer_tag in self._consumers:
                 del self._consumers[value.consumer_tag]
             raise exceptions.RemoteCancellationException(value.consumer_tag)

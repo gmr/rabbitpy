@@ -435,17 +435,3 @@ class WriteFrameTests(unittest.TestCase):
         self.queue.purge()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
                               specification.Queue.Purge)
-
-
-class ConsumerTests(unittest.TestCase):
-
-    def setUp(self):
-        self.chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
-        self.queue = amqp_queue.Queue(self.chan)
-        self.queue.consuming = True
-
-    def test_context_manager_exit_invokes_cancel(self):
-        with mock.patch('rabbitpy.amqp_queue.Consumer.cancel') as cancel:
-            with amqp_queue.Consumer(self.queue) as consumer:
-                pass
-            cancel.assert_called_once()
