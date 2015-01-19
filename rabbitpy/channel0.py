@@ -74,7 +74,7 @@ class Channel0(base.AMQPChannel):
         :param pamqp.message.Message value: The message value
 
         """
-        LOGGER.debug('Received frame: %r', value)
+        LOGGER.debug('Received frame: %r', value.name)
         if value.name == 'Connection.Close':
             LOGGER.warning('RabbitMQ closed the connection (%s): %s',
                            value.reply_code, value.reply_text)
@@ -101,7 +101,6 @@ class Channel0(base.AMQPChannel):
             self._on_connection_start(value)
         elif value.name == 'Connection.Tune':
             self._on_connection_tune(value)
-            LOGGER.debug('Adding frame to read queue: %r', value)
         elif value.name == 'Connection.Unblocked':
             LOGGER.info('Connection is no longer blocked')
             self._events.clear(events.CONNECTION_BLOCKED)
