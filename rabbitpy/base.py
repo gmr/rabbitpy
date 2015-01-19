@@ -9,6 +9,7 @@ except ImportError:
     import Queue as queue
 import socket
 import threading
+import time
 
 from pamqp import specification
 
@@ -156,6 +157,8 @@ class AMQPChannel(StatefulObject):
     def __init__(self, exception_queue, write_trigger, blocking_read=False):
         super(AMQPChannel, self).__init__()
         self.blocking_read = blocking_read
+        self._debugging = None
+        self._wait_on_frame_interrupt = threading.Event()
         self._channel_id = None
         self._exceptions = exception_queue
         self._state = self.CLOSED
@@ -169,19 +172,23 @@ class AMQPChannel(StatefulObject):
 
     def close(self):
         if self.closed:
-            LOGGER.debug('AMQPChannel %i close invoked and already closed',
-                         self._channel_id)
+            if self._is_debugging:
+                LOGGER.debug('AMQPChannel %i close invoked and already closed',
+                             self._channel_id)
             return
-        LOGGER.debug('Channel %i close invoked while %s',
-                     self._channel_id, self.state_description)
+        if self._is_debugging:
+            LOGGER.debug('Channel %i close invoked while %s',
+                         self._channel_id, self.state_description)
         if not self.closing:
             self._set_state(self.CLOSING)
         frame_value = self._build_close_frame()
-        LOGGER.debug('Channel %i Waiting for a valid response for %s',
-                     self._channel_id, frame_value.name)
+        if self._is_debugging:
+            LOGGER.debug('Channel %i Waiting for a valid response for %s',
+                         self._channel_id, frame_value.name)
         self.rpc(frame_value)
         self._set_state(self.CLOSED)
-        LOGGER.debug('Channel #%i closed', self._channel_id)
+        if self._is_debugging:
+            LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def rpc(self, frame_value):
         """Send a RPC command to the remote server.
@@ -192,10 +199,10 @@ class AMQPChannel(StatefulObject):
         """
         if self.closed:
             raise exceptions.ChannelClosedException()
-        # LOGGER.debug('Sending %r', frame_value)
+        if self._is_debugging:
+            LOGGER.debug('Sending %r', frame_value.name)
         self._write_frame(frame_value)
         if frame_value.synchronous:
-            # LOGGER.debug('Waiting on %r', frame_value)
             return self._wait_on_frame(frame_value.valid_responses)
 
     def _build_close_frame(self):
@@ -206,6 +213,19 @@ class AMQPChannel(StatefulObject):
         """
         return self.CLOSE_REQUEST_FRAME(self.DEFAULT_CLOSE_CODE,
                                         self.DEFAULT_CLOSE_REASON)
+
+    @property
+    def _is_debugging(self):
+        """Indicates that something has set the logger to ``logging.DEBUG``
+        to perform a minor micro-optimization preventing ``LOGGER.debug`` calls
+        when they are not required.
+
+        :return: bool
+
+        """
+        if self._debugging is None:
+            self._debugging = LOGGER.getEffectiveLevel() == logging.DEBUG
+        return self._debugging
 
     def _check_for_exceptions(self):
         """Check if there are any queued exceptions to raise, raising it if
@@ -228,6 +248,17 @@ class AMQPChannel(StatefulObject):
         """Force the channel to mark itself as closed"""
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
+
+    def _interrupt_wait_on_frame(self):
+        """Invoke to interrupt the current self._wait_on_frame blocking loop
+        in order to allow for a flow such as waiting on a full message while
+        consuming. Will wait until the ``_wait_on_frame_interrupt`` is cleared
+        to make this a blocking operation.
+
+        """
+        self._wait_on_frame_interrupt.set()
+        while self._wait_on_frame_interrupt.is_set():
+            time.sleep(0.10)
 
     def _read_from_queue(self):
         """Check to see if a frame is in the queue and if so, return it
@@ -267,7 +298,8 @@ class AMQPChannel(StatefulObject):
 
         """
         if frame_value is None:
-            LOGGER.debug('Frame value is none?')
+            if self._is_debugging:
+                LOGGER.debug('Frame value is none?')
             return False
         if isinstance(frame_type, str):
             if frame_value.name == frame_type:
@@ -296,6 +328,8 @@ class AMQPChannel(StatefulObject):
         """
         if isinstance(frame_type, list) and len(frame_type) == 1:
             frame_type = frame_type[0]
+        if self._is_debugging:
+            LOGGER.debug('Waiting on %r frame(s)', frame_type)
         start_state = self.state
         while not self.closed and start_state == self.state:
             value = self._read_from_queue()
@@ -305,6 +339,16 @@ class AMQPChannel(StatefulObject):
                     return value
                 self._read_queue.put(value)
             self._check_for_exceptions()
+
+            # If the wait interrupt is set, break out of the loop
+            if self._wait_on_frame_interrupt.is_set():
+                if self._is_debugging:
+                    LOGGER.debug('Exiting wait loop')
+                break
+
+        # Clear here to ensure out of processing loop before proceeding
+        if self._wait_on_frame_interrupt.is_set():
+            self._wait_on_frame_interrupt.clear()
 
     def _write_frame(self, frame):
         """Put the frame in the write queue for the IOWriter object to write to
