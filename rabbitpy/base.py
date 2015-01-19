@@ -397,6 +397,8 @@ class AMQPChannel(StatefulObject):
         if self.closed:
             return
         self._check_for_exceptions()
+        if self._is_debugging:
+            LOGGER.debug('Writing frame: %s', frame.name)
         with self._write_lock:
             self._write_queue.put((self._channel_id, frame))
         self._trigger_write()
