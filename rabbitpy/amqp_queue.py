@@ -108,10 +108,8 @@ class Queue(base.AMQPClass):
         :yields: rabbitpy.message.Message
 
         """
-        with self._consumer() as consumer:
-            for message in consumer.next():
-                yield message
-            consumer.stop()
+        return self.consume()
+
 
     def __len__(self):
         """Return the pending number of messages in the queue by doing a
@@ -192,10 +190,19 @@ class Queue(base.AMQPClass):
         :raises: rabbitpy.exceptions.RemoteCancellationException
 
         """
-        with self._consumer(no_ack, prefetch, priority) as consumer:
-            for message in consumer.next():
-                yield message
-            consumer.stop()
+        self._consume(no_ack, prefetch, priority)
+        try:
+            while self.consuming:
+                message = self.channel._consume_message()
+                if message:
+                    yield message
+                else:
+                    if self.consuming:
+                        self.stop_consuming()
+                    break
+        finally:
+            if self.consuming:
+                self.stop_consuming()
 
     def consume_messages(self, no_ack=False, prefetch=None, priority=None):
         """Consume messages from the queue as a generator.
@@ -232,12 +239,10 @@ class Queue(base.AMQPClass):
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
-        :return: contextmanager
+        :return:  None
 
         """
-        warnings.warn('This method is deprecated in favor Queue.consume',
-                      DeprecationWarning)
-        return self._consumer(no_ack, prefetch, priority)
+        raise DeprecationWarning()
 
     def declare(self, passive=False):
         """Declare the queue on the RabbitMQ channel passed into the
@@ -332,7 +337,7 @@ class Queue(base.AMQPClass):
         self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
                                              routing_key=routing_key))
 
-    def _consumer(self, no_ack=False, prefetch=None, priority=None):
+    def _consume(self, no_ack=False, prefetch=None, priority=None):
         """Return a :py:class:_Consumer instance as a contextmanager, properly
         shutting down the consumer when the generator is exited.
 
@@ -346,8 +351,6 @@ class Queue(base.AMQPClass):
             self.channel.prefetch_count(prefetch, False)
         self.channel._consume(self, no_ack, priority)
         self.consuming = True
-        return _Consumer(self.channel, self)
-
 
     def _declare(self, passive=False):
         """Return a specification.Queue.Declare class pre-composed for the rpc
@@ -382,31 +385,3 @@ class Queue(base.AMQPClass):
                                            exclusive=self.exclusive,
                                            auto_delete=self.auto_delete,
                                            arguments=arguments)
-
-
-class _Consumer(object):
-    """Internal class for implementing the generator inside the context manager.
-
-    """
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
-
-    def __init__(self, channel, queue):
-        self.channel = channel
-        self.queue = queue
-
-    def next(self):
-        while self.queue.consuming:
-            message = self.channel._consume_message()
-            if message is None:
-                break
-            yield message
-
-    def stop(self):
-        if self.queue.consuming:
-            self.channel._cancel_consumer(self.queue)
-            self.queue.consuming = False
-
