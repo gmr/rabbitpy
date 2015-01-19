@@ -244,10 +244,7 @@ class AMQPChannel(StatefulObject):
         RPC requests from RabbitMQ.
 
         """
-        if isinstance(value, specification.Connection.Close):
-            LOGGER.debug('Connection closed')
-            self._on_remote_close(value)
-        elif isinstance(value, specification.Channel.Close):
+        if isinstance(value, specification.Channel.Close):
             LOGGER.debug('Channel closed')
             self._on_remote_close(value)
 
@@ -277,7 +274,6 @@ class AMQPChannel(StatefulObject):
 
         :param value: The Channel.Close method frame
         :type value: pamqp.spec.Channel.Close
-        :raises: exceptions.RemoteClosedException
         :raises: exceptions.RemoteClosedChannelException
         :raises: exceptions.AMQPException
 
@@ -287,9 +283,6 @@ class AMQPChannel(StatefulObject):
             LOGGER.error('Received remote close (%s): %s',
                          value.reply_code, value.reply_text)
             raise exceptions.AMQP[value.reply_code](value)
-        elif isinstance(value, specification.Connection.Close):
-            raise exceptions.RemoteClosedException(value.reply_code,
-                                                   value.reply_text)
         else:
             raise exceptions.RemoteClosedChannelException(self._channel_id,
                                                           value.reply_code,
