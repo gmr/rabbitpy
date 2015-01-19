@@ -31,6 +31,11 @@ or by the :py:meth:`Queue.consume() <rabbitpy.Queue.consume>` method if you woul
             print 'Message: %r' % message
             message.ack()
 
+.. warning:: If you use either the :py:class:`Queue` as an iterator method or :py:meth:`Queue.consume` method of consuming messages in PyPy,
+             you must manually invoke :py:meth:`Queue.stop_consuming`. This is due to PyPy not predictably cleaning up after the generator
+             used for allowing the iteration over messages. Should your code want to test to see if the code is being executed in PyPy,
+             you can evaluate the boolean ``rabbitpy.PYPY`` constant value.
+
 API Documentation
 -----------------
 

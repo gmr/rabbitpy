@@ -2,9 +2,12 @@
 rabbitpy, a pythonic RabbitMQ client
 
 """
-__version__ = '0.25.0'
+__version__ = '0.26.0'
 version = __version__
 import logging
+import platform
+
+PYPY = platform.python_implementation() == 'PyPy'
 
 try:
     from logging import NullHandler

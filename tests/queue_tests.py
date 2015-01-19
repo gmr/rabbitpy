@@ -2,7 +2,6 @@
 Test the rabbitpy.amqp_queue classes
 
 """
-import platform
 try:
     import unittest2 as unittest
 except ImportError:
@@ -11,12 +10,11 @@ except ImportError:
 import mock
 from pamqp import specification
 
+from rabbitpy import PYPY
 from rabbitpy import amqp_queue
 from rabbitpy import channel
 from rabbitpy import exceptions
 from rabbitpy import utils
-
-PYPY = platform.python_implementation() == 'PyPy'
 
 
 class QueueInitializationTests(unittest.TestCase):

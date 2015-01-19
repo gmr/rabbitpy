@@ -27,7 +27,6 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
 
 """
 import logging
-import platform
 import warnings
 
 from pamqp import specification
@@ -35,10 +34,10 @@ from pamqp import specification
 from rabbitpy import base
 from rabbitpy import exceptions
 from rabbitpy import utils
-
+from rabbitpy import PYPY
 
 LOGGER = logging.getLogger(__name__)
-PYPY = platform.python_implementation() == 'PyPy'
+
 
 
 class Queue(base.AMQPClass):
