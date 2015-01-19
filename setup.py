@@ -37,7 +37,6 @@ setuptools.setup(name='rabbitpy',
                  include_package_data=True,
                  install_requires=['pamqp>=1.6.0,<2.0'],
                  tests_require=tests_require,
-                 test_suite='nose.collector',
                  license=open('LICENSE').read(),
                  classifiers=classifiers,
                  zip_safe=True)
