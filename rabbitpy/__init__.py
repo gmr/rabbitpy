@@ -24,6 +24,7 @@ except ImportError:
 
 logging.getLogger('rabbitpy').addHandler(NullHandler())
 
+from rabbitpy.amqp import AMQP
 from rabbitpy.connection import Connection
 from rabbitpy.channel import Channel
 from rabbitpy.exchange import Exchange
