@@ -2,6 +2,7 @@
 Test the rabbitpy.exchange classes
 
 """
+import mock
 try:
     import unittest2 as unittest
 except ImportError:
@@ -70,3 +71,16 @@ class ServerCapabilitiesTest(unittest.TestCase):
         self.chan._server_capabilities[b'publisher_confirms'] = False
         self.assertRaises(exceptions.NotSupportedError,
                           self.chan.enable_publisher_confirms)
+
+
+class BasicAckTests(unittest.TestCase):
+
+    def test_basic_ack_invokes_write_frame(self):
+        with mock.patch('rabbitpy.channel.Channel._write_frame') as method:
+            chan = channel.Channel(1, {}, None, None, None, None, 32768, None)
+            chan.basic_ack(123, True)
+            args, kwargs = method.call_args
+            self.assertEqual(len(args), 1)
+            self.assertEqual(args[0].delivery_tag, 123)
+            self.assertEqual(args[0].multiple, True)
+
