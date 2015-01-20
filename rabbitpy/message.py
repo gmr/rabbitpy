@@ -227,7 +227,8 @@ class Message(base.AMQPClass):
             print('\nBody:\n')
         pprint.pprint(self.body)
 
-    def publish(self, exchange, routing_key='', mandatory=False):
+    def publish(self, exchange, routing_key='', mandatory=False,
+                immediate=False):
         """Publish the message to the exchange with the specified routing
         key.
 
@@ -245,6 +246,7 @@ class Message(base.AMQPClass):
         :type exchange: str or :class:`rabbitpy.Exchange`
         :param str routing_key: The routing key to use
         :param bool mandatory: Requires the message is published
+        :param bool immediate: Request immediate delivery
         :return: bool or None
         :raises: rabbitpy.exceptions.MessageReturnedException
 
@@ -257,7 +259,8 @@ class Message(base.AMQPClass):
 
         frames = [specification.Basic.Publish(exchange=exchange,
                                               routing_key=routing_key or '',
-                                              mandatory=mandatory),
+                                              mandatory=mandatory,
+                                              immediate=immediate),
                   header.ContentHeader(body_size=len(payload),
                                        properties=self._properties)]
 
