@@ -182,7 +182,7 @@ class Message(base.AMQPClass):
                                              'message')
         basic_ack = specification.Basic.Ack(self.method.delivery_tag,
                                             multiple=all_previous)
-        self.channel._write_frame(basic_ack)
+        self.channel.write_frame(basic_ack)
 
     def json(self):
         """Deserialize the message body if it is JSON, returning the value.
@@ -211,7 +211,7 @@ class Message(base.AMQPClass):
         basic_nack = specification.Basic.Nack(self.method.delivery_tag,
                                               requeue=requeue,
                                               multiple=all_previous)
-        self.channel._write_frame(basic_nack)
+        self.channel.write_frame(basic_nack)
 
     def pprint(self, properties=False):  # pragma: no cover
         """Print a formatted representation of the message.
@@ -277,11 +277,11 @@ class Message(base.AMQPClass):
             frames.append(body.ContentBody(payload[start:end]))
 
         # Write the frames out
-        self.channel._write_frames(frames)
+        self.channel.write_frames(frames)
 
         # If publisher confirmations are enabled, wait for the response
         if self.channel.publisher_confirms:
-            response = self.channel._wait_for_confirmation()
+            response = self.channel.wait_for_confirmation()
             if isinstance(response, specification.Basic.Ack):
                 return True
             elif isinstance(response, specification.Basic.Nack):
@@ -302,7 +302,7 @@ class Message(base.AMQPClass):
                                              'message')
         basic_reject = specification.Basic.Reject(self.method.delivery_tag,
                                                   requeue=requeue)
-        self.channel._write_frame(basic_reject)
+        self.channel.write_frame(basic_reject)
 
     def _add_auto_message_id(self):
         """Set the message_id property to a new UUID."""

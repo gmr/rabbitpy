@@ -58,7 +58,7 @@ class AMQPClass(object):
         :param pamqp.specification.Frame frame_value: The frame to send
 
         """
-        self.channel._write_frame(frame_value)
+        self.channel.write_frame(frame_value)
 
 
 class StatefulObject(object):
@@ -194,7 +194,8 @@ class AMQPChannel(StatefulObject):
             LOGGER.debug('Channel #%i closed', self._channel_id)
 
     def rpc(self, frame_value):
-        """Send a RPC command to the remote server.
+        """Send a RPC command to the remote server. This should not be directly
+        invoked.
 
         :param pamqp.specification.Frame frame_value: The frame to send
         :rtype: pamqp.specification.Frame or None
@@ -204,9 +205,52 @@ class AMQPChannel(StatefulObject):
             raise exceptions.ChannelClosedException()
         if self._is_debugging:
             LOGGER.debug('Sending %r', frame_value.name)
-        self._write_frame(frame_value)
+        self.write_frame(frame_value)
         if frame_value.synchronous:
             return self._wait_on_frame(frame_value.valid_responses)
+
+    def wait_for_confirmation(self):
+        """Used by the Message.publish method when publisher confirmations are
+        enabled.
+
+        :rtype: pamqp.frame.Frame
+
+        """
+        return self._wait_on_frame([specification.Basic.Ack,
+                                    specification.Basic.Nack])
+
+    def write_frame(self, frame):
+        """Put the frame in the write queue for the IOWriter object to write to
+        the socket when it can. This should not be directly invoked.
+
+        :param pamqp.specification.Frame frame: The frame to write
+
+        """
+        if self.closed:
+            return
+        self._check_for_exceptions()
+        if self._is_debugging:
+            LOGGER.debug('Writing frame: %s', frame.name)
+        with self._write_lock:
+            self._write_queue.put((self._channel_id, frame))
+        self._trigger_write()
+
+    def write_frames(self, frames):
+        """Add a list of frames for the IOWriter object to write to the socket
+        when it can.
+
+        :param list frames: The list of frame to write
+
+        """
+        if self.closed:
+            return
+        self._check_for_exceptions()
+        if self._is_debugging:
+            LOGGER.debug('Writing frames: %r', [frame.name for frame in frames])
+        with self._write_lock:
+            [self._write_queue.put((self._channel_id, frame))
+             for frame in frames]
+        self._trigger_write()
 
     def _build_close_frame(self):
         """Return the proper close frame for this object.
@@ -386,36 +430,3 @@ class AMQPChannel(StatefulObject):
         # Clear here to ensure out of processing loop before proceeding
         if self._wait_on_frame_interrupt.is_set():
             self._wait_on_frame_interrupt.clear()
-
-    def _write_frame(self, frame):
-        """Put the frame in the write queue for the IOWriter object to write to
-        the socket when it can.
-
-        :param pamqp.specification.Frame frame: The frame to write
-
-        """
-        if self.closed:
-            return
-        self._check_for_exceptions()
-        if self._is_debugging:
-            LOGGER.debug('Writing frame: %s', frame.name)
-        with self._write_lock:
-            self._write_queue.put((self._channel_id, frame))
-        self._trigger_write()
-
-    def _write_frames(self, frames):
-        """Add a list of frames for the IOWriter object to write to the socket
-        when it can.
-
-        :param list frames: The list of frame to write
-
-        """
-        if self.closed:
-            return
-        self._check_for_exceptions()
-        if self._is_debugging:
-            LOGGER.debug('Writing frames: %r', [frame.name for frame in frames])
-        with self._write_lock:
-            [self._write_queue.put((self._channel_id, frame))
-             for frame in frames]
-        self._trigger_write()

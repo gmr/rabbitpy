@@ -240,103 +240,103 @@ class TestDeliveredMessageObject(BaseTestCase):
         self.assertDictEqual(self.msg.json(), json.loads(self.BODY))
 
     def test_ack_invokes_channel_write_frame(self):
-        with mock.patch.object(self.chan, '_write_frame') as write_frame:
+        with mock.patch.object(self.chan, 'write_frame') as write_frame:
             self.msg.ack()
             write_frame.assert_called_once()
 
     def test_ack_channel_write_frame_type(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.ack()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertIsInstance(frame_value, specification.Basic.Ack)
 
     def test_ack_channel_write_frame_delivery_tag_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.ack()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertEqual(frame_value.delivery_tag,
                              self.DELIVERY_TAG)
 
     def test_ack_channel_write_frame_multiple_false_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.ack()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertFalse(frame_value.multiple)
 
     def test_ack_channel_write_frame_multiple_true_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.ack(True)
             frame_value = wframe.mock_calls[0][1][0]
             self.assertTrue(frame_value.multiple)
 
     def test_nack_invokes_channel_write_frame(self):
-        with mock.patch.object(self.chan, '_write_frame') as write_frame:
+        with mock.patch.object(self.chan, 'write_frame') as write_frame:
             self.msg.nack()
             write_frame.assert_called_once()
 
     def test_nack_channel_write_frame_type(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertIsInstance(frame_value, specification.Basic.Nack)
 
     def test_nack_channel_write_frame_delivery_tag_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertEqual(frame_value.delivery_tag,
                              self.DELIVERY_TAG)
 
     def test_nack_channel_write_frame_requeue_false_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack(requeue=False)
             frame_value = wframe.mock_calls[0][1][0]
             self.assertFalse(frame_value.requeue)
 
     def test_nack_channel_write_frame_requeue_true_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack(requeue=True)
             frame_value = wframe.mock_calls[0][1][0]
             self.assertTrue(frame_value.requeue)
 
     def test_nack_channel_write_frame_multiple_false_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertFalse(frame_value.multiple)
 
     def test_nack_channel_write_frame_multiple_true_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack(all_previous=True)
             frame_value = wframe.mock_calls[0][1][0]
             self.assertTrue(frame_value.multiple)
 
     def test_reject_invokes_channel_write_frame(self):
-        with mock.patch.object(self.chan, '_write_frame') as write_frame:
+        with mock.patch.object(self.chan, 'write_frame') as write_frame:
             self.msg.reject()
             write_frame.assert_called_once()
 
     def test_reject_channel_write_frame_type(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.reject()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertIsInstance(frame_value, specification.Basic.Reject)
 
     def test_reject_channel_write_frame_delivery_tag_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.reject()
             frame_value = wframe.mock_calls[0][1][0]
             self.assertEqual(frame_value.delivery_tag,
                              self.DELIVERY_TAG)
 
     def test_reject_channel_write_frame_requeue_false_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.reject(requeue=False)
             frame_value = wframe.mock_calls[0][1][0]
             self.assertFalse(frame_value.requeue)
 
     def test_reject_channel_write_frame_requeue_true_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frame') as wframe:
+        with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.reject(requeue=True)
             frame_value = wframe.mock_calls[0][1][0]
             self.assertTrue(frame_value.requeue)
@@ -397,7 +397,7 @@ class TestPublishing(BaseTestCase):
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
-    @mock.patch('rabbitpy.channel.Channel._write_frames')
+    @mock.patch('rabbitpy.channel.Channel.write_frames')
     def setUp(self, write_frames):
         super(TestPublishing, self).setUp()
         self.write_frames = write_frames
@@ -410,7 +410,7 @@ class TestPublishing(BaseTestCase):
 
     def test_publish_with_exchange_object(self):
         _exchange = exchange.Exchange(self.chan, self.EXCHANGE)
-        with mock.patch('rabbitpy.channel.Channel._write_frames') as wframes:
+        with mock.patch('rabbitpy.channel.Channel.write_frames') as wframes:
             self.msg.publish(_exchange, self.ROUTING_KEY)
             self.assertEqual(wframes.mock_calls[0][1][0][0].exchange,
                              self.EXCHANGE)
@@ -427,7 +427,7 @@ class TestPublishing(BaseTestCase):
         self.assertFalse(self.write_frames.mock_calls[0][1][0][0].mandatory)
 
     def test_publish_mandatory_true_value(self):
-        with mock.patch('rabbitpy.channel.Channel._write_frames') as wframes:
+        with mock.patch('rabbitpy.channel.Channel.write_frames') as wframes:
             self.msg.publish(self.EXCHANGE, self.ROUTING_KEY, True)
             self.assertTrue(wframes.mock_calls[0][1][0][0].mandatory)
 
@@ -476,7 +476,7 @@ class TestPublishingUnicode(BaseTestCase):
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
-    @mock.patch('rabbitpy.channel.Channel._write_frames')
+    @mock.patch('rabbitpy.channel.Channel.write_frames')
     def setUp(self, write_frames):
         super(TestPublishingUnicode, self).setUp()
         self.write_frames = write_frames
@@ -494,12 +494,12 @@ class TestPublisherConfirms(BaseTestCase):
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
-    @mock.patch('rabbitpy.channel.Channel._write_frames')
+    @mock.patch('rabbitpy.channel.Channel.write_frames')
     def setUp(self, write_frames):
         super(TestPublisherConfirms, self).setUp()
         self.write_frames = write_frames
         self.chan._publisher_confirms = True
-        self.chan._wait_for_confirmation = self._confirm_wait = mock.Mock()
+        self.chan.wait_for_confirmation = self._confirm_wait = mock.Mock()
         self.msg = message.Message(self.chan, self.BODY)
 
     def test_confirm_ack_response_returns_true(self):

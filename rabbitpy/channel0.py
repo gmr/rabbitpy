@@ -62,7 +62,7 @@ class Channel0(base.AMQPChannel):
         if self._heartbeat_timer:
             self._heartbeat_timer.cancel()
         self._set_state(self.CLOSING)
-        self._write_frame(specification.Connection.Close())
+        self.write_frame(specification.Connection.Close())
 
     @property
     def maximum_channels(self):
@@ -106,7 +106,7 @@ class Channel0(base.AMQPChannel):
             self._events.clear(events.CONNECTION_BLOCKED)
         elif value.name == 'Heartbeat':
             LOGGER.debug('Received Heartbeat, sending one back')
-            self._write_frame(heartbeat.Heartbeat())
+            self.write_frame(heartbeat.Heartbeat())
             self._trigger_write()
             self._last_heartbeat = time.time()
         else:
@@ -182,7 +182,7 @@ class Channel0(base.AMQPChannel):
                                  capability, self.properties[key][capability])
             else:
                 LOGGER.debug('Server %s: %r', key, self.properties[key])
-        self._write_frame(self._build_start_ok_frame())
+        self.write_frame(self._build_start_ok_frame())
 
     def _on_connection_tune(self, frame_value):
         """Negotiate the Connection.Tune frames, waiting for the
@@ -199,8 +199,8 @@ class Channel0(base.AMQPChannel):
         self._heartbeat = self._negotiate(self._heartbeat,
                                           frame_value.heartbeat)
         self._start_heartbeat_timer()
-        self._write_frame(self._build_tune_ok_frame())
-        self._write_frame(self._build_open_frame())
+        self.write_frame(self._build_tune_ok_frame())
+        self.write_frame(self._build_open_frame())
 
     @staticmethod
     def _negotiate(client_value, server_value):
@@ -259,7 +259,7 @@ class Channel0(base.AMQPChannel):
 
     def _write_protocol_header(self):
         """Send the protocol header to the connected server."""
-        self._write_frame(header.ProtocolHeader())
+        self.write_frame(header.ProtocolHeader())
 
     def _check_for_heartbeat(self):
         """Check to ensure that a heartbeat has occurred in the last heartbeat
