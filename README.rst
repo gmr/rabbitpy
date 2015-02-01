@@ -27,7 +27,7 @@ But there's always easy_install:
 Documentation
 -------------
 
-Documentation is available on `ReadTheDocs <https://rabbitpy.readthedocs.org`_.
+Documentation is available on `ReadTheDocs <https://rabbitpy.readthedocs.org>`_.
 
 
 Requirements
