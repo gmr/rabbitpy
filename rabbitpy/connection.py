@@ -354,7 +354,7 @@ class Connection(base.StatefulObject):
         if validation not in SSL_CERT_MAP:
             raise ValueError('Unsupported server cert validation option: %s',
                              validation)
-        return SSL_VERSION_MAP[validation]
+        return SSL_CERT_MAP[validation]
 
     @staticmethod
     def _get_ssl_version(values):
