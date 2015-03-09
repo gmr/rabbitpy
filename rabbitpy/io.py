@@ -283,11 +283,11 @@ class IO(threading.Thread, base.StatefulObject):
     CONNECTION_TIMEOUT = 3
     CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk', 'Basic.Return']
     READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
-    SSL_KWARGS = {'keyfile': 'ssl_key',
-                  'certfile': 'ssl_cert',
-                  'cert_reqs': 'ssl_validation',
+    SSL_KWARGS = {'keyfile': 'keyfile',
+                  'certfile': 'certfile',
+                  'cert_reqs': 'verify',
                   'ssl_version': 'ssl_version',
-                  'cacerts': 'ssl_cacert'}
+                  'cacerts': 'cacertfile'}
 
     def __init__(self, group=None, target=None, name=None, args=(),
                  kwargs=None):

@@ -348,7 +348,8 @@ class Connection(base.StatefulObject):
         :rtype: int
 
         """
-        validation = values.get('ssl_validation', [None])[0]
+        validation = (values.get('verify', [None])[0] or
+                      values.get('ssl_validation', [None])[0])
         if validation is None:
             return None
         if validation not in SSL_CERT_MAP:
@@ -418,12 +419,14 @@ class Connection(base.StatefulObject):
 
         Query string options:
 
-            - heartbeat_interval
+            - heartbeat
+            - channel_max
+            - frame_max
             - locale
-            - ssl_cacert - Path to CA certificate file
-            - ssl_cert - Path to client certificate file
-            - ssl_key - Path to client certificate key
-            - ssl_validation - Server certificate validation requirements (1)
+            - cacertfile - Path to CA certificate file
+            - certfile - Path to client certificate file
+            - keyfile - Path to client certificate key
+            - verify - Server certificate validation requirements (1)
             - ssl_version - SSL version to use (2)
 
             (1) Should be one of three values:
@@ -490,10 +493,13 @@ class Connection(base.StatefulObject):
                 'channel_max': channel_max,
                 'locale': query_values.get('locale', [None])[0],
                 'ssl': use_ssl,
-                'ssl_cacert': query_values.get('ssl_cacert', [None])[0],
-                'ssl_cert': query_values.get('ssl_cert', [None])[0],
-                'ssl_key': query_values.get('ssl_key', [None])[0],
-                'ssl_validation': self._get_ssl_validation(query_values),
+                'cacertfile': (query_values.get('cacertfile', [None])[0] or
+                               query_values.get('ssl_cacert', [None])[0]),
+                'certfile': (query_values.get('certfile', [None])[0] or
+                             query_values.get('ssl_cert', [None])[0]),
+                'keyfile': (query_values.get('keyfile', [None])[0] or
+                            query_values.get('ssl_key', [None])[0]),
+                'verify': self._get_ssl_validation(query_values),
                 'ssl_version': self._get_ssl_version(query_values)}
 
     def _shutdown_connection(self, force=False):
