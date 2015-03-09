@@ -37,6 +37,6 @@ setuptools.setup(name='rabbitpy',
                  include_package_data=True,
                  install_requires=['pamqp>=1.6.0,<2.0'],
                  tests_require=tests_require,
-                 license=open('LICENSE').read(),
+                 license='BSD',
                  classifiers=classifiers,
                  zip_safe=True)
