@@ -17,7 +17,8 @@ class AMQP(object):
 
     """
     def __init__(self, channel):
-        self._channel = channel
+        self.channel = channel
+        self.consumer_tag = 'rabbitpy.%s.%s' % (self.channel.id, id(self))
         self._consuming = False
         
     def basic_ack(self, delivery_tag=0, multiple=False):
@@ -38,11 +39,20 @@ class AMQP(object):
                       arguments=None):
         """Start a queue consumer
 
-        @TODO implement this similar to Queue.consume()
-
         This method asks the server to start a "consumer", which is a transient
         request for messages from a specific queue. Consumers last as long as
         the channel they were declared on, or until the client cancels them.
+
+        This method will act as an generator, returning messages as they are
+        delivered from the server.
+
+        Example use:
+
+        .. code:: python
+
+            for message in basic_consume(queue_name):
+                print message.body
+                message.ack()
 
         :param str queue: The queue name to consume from
         :param str consumer-tag: The consumer tag
@@ -53,22 +63,24 @@ class AMQP(object):
         :param dict arguments: Arguments for declaration
 
         """
+        if not consumer_tag:
+            consumer_tag = self.consumer_tag
+        self.channel._consumers[consumer_tag] = (self, no_ack)
         self._rpc(spec.Basic.Consume(0, queue, consumer_tag, no_local, no_ack,
                                      exclusive, nowait, arguments))
         self._consuming = True
-
         try:
             while self._consuming:
-                message = self._channel._consume_message()
-                if message:
-                    yield message
+                msg = self.channel._consume_message()
+                if msg:
+                    yield msg
                 else:
                     if self._consuming:
-                        self.basic_cancel()
+                        self.basic_cancel(consumer_tag)
                     break
         finally:
             if self._consuming:
-                self.basic_cancel()
+                self.basic_cancel(consumer_tag)
 
     def basic_cancel(self, consumer_tag='', nowait=False):
         """End a queue consumer
@@ -87,7 +99,7 @@ class AMQP(object):
             return
         if not self._consuming:
             raise exceptions.NotConsumingError()
-        self._channel._cancel_consumer(self)
+        self.channel._cancel_consumer(self, consumer_tag, nowait)
         self._consuming = False
 
     def basic_get(self, queue='', no_ack=False):
@@ -378,9 +390,9 @@ class AMQP(object):
         :rtype: pamqp.specification.Frame or pamqp.message.Message
 
         """
-        if self._channel.closed:
+        if self.channel.closed:
             raise exceptions.ChannelClosedException()
-        return self._channel.rpc(frame_value)
+        return self.channel.rpc(frame_value)
 
     def _write_frame(self, frame_value):
         """Write a frame to the channel's connection
@@ -388,4 +400,4 @@ class AMQP(object):
         :param pamqp.specification.Frame frame_value: The frame to send
 
         """
-        self._channel.write_frame(frame_value)
+        self.channel.write_frame(frame_value)

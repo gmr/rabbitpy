@@ -224,17 +224,18 @@ class Channel(base.AMQPChannel):
         """
         return spec.Channel.Open()
 
-    def _cancel_consumer(self, obj):
+    def _cancel_consumer(self, obj, consumer_tag=None, nowait=False):
         """Cancel the consuming of a queue.
 
         :param rabbitpy.amqp_queue.Queue obj: The queue to cancel
 
         """
+        consumer_tag = consumer_tag or obj.consumer_tag
         self._interrupt_wait_on_frame()
-        if obj.consumer_tag in self._consumers:
-            del self._consumers[obj.consumer_tag]
-        self.write_frame(spec.Basic.Cancel(consumer_tag=obj.consumer_tag))
-        if not self.closed:
+        if consumer_tag in self._consumers:
+            del self._consumers[consumer_tag]
+        self.write_frame(spec.Basic.Cancel(consumer_tag=consumer_tag))
+        if not nowait and not self.closed:
             self._wait_on_frame(spec.Basic.CancelOk)
 
     def _check_for_rpc_request(self, value):
