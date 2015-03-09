@@ -33,7 +33,7 @@ class Channel0(base.AMQPChannel):
 
     """
     CHANNEL = 0
-    MAX_MISSED_HEARTBEATS = 2
+    MAX_MISSED_HEARTBEATS = 3
 
     CLOSE_REQUEST_FRAME = specification.Connection.Close
     DEFAULT_LOCALE = 'en-US'
@@ -48,13 +48,12 @@ class Channel0(base.AMQPChannel):
         self._read_queue = queue.Queue()
         self._write_queue = write_queue
         self._write_trigger = write_trigger
-        self._maximum_channels = 0
         self._state = self.CLOSED
-        self.maximum_frame_size = specification.FRAME_MAX_SIZE
-        self.minimum_frame_size = specification.FRAME_MIN_SIZE
+        self._max_channels = connection_args['channel_max']
+        self._max_frame_size = connection_args['frame_max']
+        self._heartbeat = connection_args['heartbeat']
         self.properties = None
         self._last_heartbeat = None
-        self._heartbeat = connection_args.get('heartbeat', 0)
         self._heartbeat_timer = None
 
     def close(self):
@@ -66,7 +65,11 @@ class Channel0(base.AMQPChannel):
 
     @property
     def maximum_channels(self):
-        return self._maximum_channels
+        return self._max_channels
+
+    @property
+    def maximum_frame_size(self):
+        return self._max_frame_size
 
     def on_frame(self, value):
         """Process a RPC frame received from the server
@@ -105,10 +108,13 @@ class Channel0(base.AMQPChannel):
             LOGGER.info('Connection is no longer blocked')
             self._events.clear(events.CONNECTION_BLOCKED)
         elif value.name == 'Heartbeat':
-            LOGGER.debug('Received Heartbeat, sending one back')
+            if self._heartbeat_timer:
+                LOGGER.debug('Received Heartbeat, cancelling check timer')
+                self._heartbeat_timer.cancel()
             self.write_frame(heartbeat.Heartbeat())
-            self._trigger_write()
             self._last_heartbeat = time.time()
+            self._trigger_write()
+            self._start_heartbeat_timer()
         else:
             LOGGER.warning('Unexpected Channel0 Frame: %r', value)
             raise specification.AMQPUnexpectedFrame(value)
@@ -153,9 +159,66 @@ class Channel0(base.AMQPChannel):
         :rtype: pamqp.specification.Connection.TuneOk
 
         """
-        return specification.Connection.TuneOk(self._maximum_channels,
-                                               self.maximum_frame_size,
+        return specification.Connection.TuneOk(self._max_channels,
+                                               self._max_frame_size,
                                                self._heartbeat)
+
+    def _check_for_heartbeat(self):
+        """Check to ensure that a heartbeat has occurred in the last heartbeat
+        interval * 2 seconds. Raises an ``exceptions.ConnectionResetException``
+        if not.
+
+        :raises: exceptions.ConnectionResetException
+
+        """
+        self._heartbeat_timer = None
+        if not self._last_heartbeat:
+            LOGGER.debug('No heartbeat received')
+            return
+
+        age = time.time() - self._last_heartbeat
+        threshold = self._heartbeat * self.MAX_MISSED_HEARTBEATS
+        LOGGER.debug('Checking for heartbeat, last: %i sec ago, threshold: %i',
+                     age, threshold)
+        if age >= threshold:
+            LOGGER.error('Have not received a heartbeat in %i seconds', age)
+            message = 'No heartbeat in {0} seconds'.format(age)
+            self._exceptions.put(exceptions.ConnectionResetException(message))
+            self._trigger_write()
+        else:
+            self._start_heartbeat_timer()
+
+    @property
+    def _credentials(self):
+        """Return the marshaled credentials for the AMQP connection.
+
+        :rtype: str
+
+        """
+        return '\0%s\0%s' % (self._args['username'], self._args['password'])
+
+    def _get_locale(self):
+        """Return the current locale for the python interpreter or the default
+        locale.
+
+        :rtype: str
+
+        """
+        if not self._args['locale']:
+            return locale.getdefaultlocale()[0] or self.DEFAULT_LOCALE
+        return self._args['locale']
+
+    @staticmethod
+    def _negotiate(client_value, server_value):
+        """Return the negotiated value between what the client has requested
+        and the server has requested for how the two will communicate.
+
+        :param int client_value:
+        :param int server_value:
+        :return: int
+
+        """
+        return min(client_value, server_value) or (client_value or server_value)
 
     def _on_connection_open_ok(self):
         LOGGER.debug('Connection opened')
@@ -192,52 +255,29 @@ class Channel0(base.AMQPChannel):
         :param specification.Connection.Tune frame_value: Tune frame
 
         """
-        self.maximum_frame_size = self._negotiate(self.maximum_frame_size,
-                                                  frame_value.frame_max)
-        self._maximum_channels = self._negotiate(self.maximum_channels,
-                                                 frame_value.channel_max)
+        LOGGER.debug('Tuning, client: %r', self._heartbeat)
+        self._max_frame_size = self._negotiate(self._max_frame_size,
+                                               frame_value.frame_max)
+        self._max_channels = self._negotiate(self._max_channels,
+                                             frame_value.channel_max)
         self._heartbeat = self._negotiate(self._heartbeat,
                                           frame_value.heartbeat)
-        self._start_heartbeat_timer()
+        if self._heartbeat:
+            self._start_heartbeat_timer()
         self.write_frame(self._build_tune_ok_frame())
         self.write_frame(self._build_open_frame())
 
-    @staticmethod
-    def _negotiate(client_value, server_value):
-        """Return the negotiated value between what the client has requested
-        and the server has requested for how the two will communicate.
-
-        :param int client_value:
-        :param int server_value:
-        :return: int
+    def _start_heartbeat_timer(self):
+        """Create and start the timer that will check every N*2 seconds to
+        ensure that a heartbeat has been requested.
 
         """
-        if client_value == server_value:
-            return server_value
-        if client_value == 0 or server_value == 0:
-            return max(client_value, server_value)
-        else:
-            return min(client_value, server_value)
-
-    @property
-    def _credentials(self):
-        """Return the marshaled credentials for the AMQP connection.
-
-        :rtype: str
-
-        """
-        return '\0%s\0%s' % (self._args['username'], self._args['password'])
-
-    def _get_locale(self):
-        """Return the current locale for the python interpreter or the default
-        locale.
-
-        :rtype: str
-
-        """
-        if not self._args['locale']:
-            return locale.getdefaultlocale()[0] or self.DEFAULT_LOCALE
-        return self._args['locale']
+        interval = self._heartbeat + (self._heartbeat / 2)
+        LOGGER.debug('Started a heartbeat timer that will fire in %i sec',
+                     interval)
+        self._heartbeat_timer = threading.Timer(interval,
+                                                self._check_for_heartbeat)
+        self._heartbeat_timer.start()
 
     @staticmethod
     def _validate_connection_start(frame_value):
@@ -260,40 +300,3 @@ class Channel0(base.AMQPChannel):
     def _write_protocol_header(self):
         """Send the protocol header to the connected server."""
         self.write_frame(header.ProtocolHeader())
-
-    def _check_for_heartbeat(self):
-        """Check to ensure that a heartbeat has occurred in the last heartbeat
-        interval * 2 seconds. Raises an ``exceptions.ConnectionResetException``
-        if not.
-
-        :raises: exceptions.ConnectionResetException
-
-        """
-        if not self._last_heartbeat:
-            LOGGER.debug('No heartbeat received')
-            return
-
-        age = time.time() - self._last_heartbeat
-        threshold = self._heartbeat * self.MAX_MISSED_HEARTBEATS
-        LOGGER.debug('Checking for heartbeat, last: %i sec ago, threshold: %i',
-                     age, threshold)
-        if age > threshold:
-            LOGGER.error('Have not received a heartbeat in %i seconds', age)
-            message = 'No heartbeat in {0} seconds'.format(age)
-            self._exceptions.put(exceptions.ConnectionResetException(message))
-            self._trigger_write()
-        else:
-            self._start_heartbeat_timer()
-
-    def _start_heartbeat_timer(self):
-        """Create and start the timer that will check every N*2 seconds to
-        ensure that a hearbeat has been requested.
-
-        """
-        if self._heartbeat:
-            interval = self._heartbeat * self.MAX_MISSED_HEARTBEATS
-            LOGGER.debug('Started a heartbeat timer that will fire in %i sec',
-                         interval)
-            self._heartbeat_timer = threading.Timer(interval,
-                                                    self._check_for_heartbeat)
-            self._heartbeat_timer.start()

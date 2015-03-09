@@ -15,6 +15,8 @@ except ImportError:
 import threading
 import time
 
+from pamqp import specification
+
 from rabbitpy import base
 from rabbitpy import io
 from rabbitpy import channel
@@ -79,7 +81,8 @@ class Connection(base.StatefulObject):
 
     """
     CANCEL_METHOD = ['Basic.Cancel']
-    DEFAULT_HEARTBEAT_INTERVAL = 3
+    DEFAULT_CHANNEL_MAX = 65535
+    DEFAULT_HEARTBEAT_INTERVAL = 300
     DEFAULT_LOCALE = 'en_US'
     DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
     DEFAULT_VHOST = '%2F'
@@ -469,8 +472,12 @@ class Connection(base.StatefulObject):
         # Parse the query string
         query_values = utils.parse_qs(parsed.query)
 
-        # Make sure the heartbeat is an int if it is not None
-        heartbeat = int(query_values.get('heartbeat_interval', [None])[0] or 0)
+        channel_max = int(query_values.get('channel_max', [None])[0] or
+                          self.DEFAULT_CHANNEL_MAX)
+        frame_max = int(query_values.get('frame_max', [None])[0] or
+                        specification.FRAME_MAX_SIZE)
+        heartbeat = int(query_values.get('heartbeat', [None])[0] or
+                        self.DEFAULT_HEARTBEAT_INTERVAL)
 
         # Return the configuration dictionary to use when connecting
         return {'host': parsed.hostname,
@@ -479,6 +486,8 @@ class Connection(base.StatefulObject):
                 'username': parsed.username or self.GUEST,
                 'password': parsed.password or self.GUEST,
                 'heartbeat': heartbeat,
+                'frame_max': frame_max,
+                'channel_max': channel_max,
                 'locale': query_values.get('locale', [None])[0],
                 'ssl': use_ssl,
                 'ssl_cacert': query_values.get('ssl_cacert', [None])[0],
