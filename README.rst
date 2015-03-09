@@ -39,17 +39,17 @@ Version History
 ---------------
 Available at https://rabbitpy.readthedocs.org/en/latest/history.html
 
-.. |Version| image:: https://badge.fury.io/py/rabbitpy.svg?
+.. |Version| image:: https://img.shields.io/pypi/v/rabbitpy.svg?
    :target: http://badge.fury.io/py/rabbitpy
 
-.. |Status| image:: https://travis-ci.org/gmr/rabbitpy.svg?branch=master
+.. |Status| image:: https://img.shields.io/travis/gmr/rabbitpy.svg?
    :target: https://travis-ci.org/gmr/rabbitpy
 
-.. |Coverage| image:: https://codecov.io/github/gmr/rabbitpy/coverage.svg?branch=master
+.. |Coverage| image:: https://img.shields.io/codecov/c/github/gmr/rabbitpy.svg?
    :target: https://codecov.io/github/gmr/rabbitpy?branch=master
 
-.. |Downloads| image:: https://pypip.in/d/rabbitpy/badge.svg?
+.. |Downloads| image:: https://img.shields.io/pypi/dm/rabbitpy.svg?
    :target: https://pypi.python.org/pypi/rabbitpy
 
-.. |License| image:: https://pypip.in/license/rabbitpy/badge.svg?
+.. |License| image:: https://img.shields.io/pypi/l/rabbitpy.svg?
    :target: https://rabbitpy.readthedocs.org
