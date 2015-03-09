@@ -287,7 +287,7 @@ class IO(threading.Thread, base.StatefulObject):
                   'certfile': 'certfile',
                   'cert_reqs': 'verify',
                   'ssl_version': 'ssl_version',
-                  'cacerts': 'cacertfile'}
+                  'ca_certs': 'cacertfile'}
 
     def __init__(self, group=None, target=None, name=None, args=(),
                  kwargs=None):
