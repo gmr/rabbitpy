@@ -1,5 +1,16 @@
 Version History
 ---------------
+ - 0.26.0 - released *2015-03-09*
+  - Add the ability to interrupt rabbitpy when waiting on a frame (#38)
+  - Use a custom base class for all Exceptions (#57) Jeremy Tillman
+  - Fix for consumer example in documentation (#60) Michael Becker
+  - Add rabbitpy.amqp module for unopinionated access to AMQP API
+  - Clean up handling of remote channel and connection closing
+  - Clean up context manager exiting for rabbitpy.Queue
+  - Remove default prefetch count for simple consuming
+  - Fix URI query parameter names to match AMQP URI spec on rabbitmq.com
+    - Fix behavior of SSL flags in query parameters (#63, #64)
+  - PYPY behavior fixes related to garbage collection
  - 0.25.0 - released *2014-12-16*
   - Acquire a lock when creating a new channel to fix multi-threaded channel creation behavior (#56)
   - Add client side heartbeat checking. If 2 heartbeats are missed, a ConnectionResetException exception will be raised (#55)
