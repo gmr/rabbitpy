@@ -5,6 +5,8 @@ Version History
   - Use a custom base class for all Exceptions (#57) Jeremy Tillman
   - Fix for consumer example in documentation (#60) Michael Becker
   - Add rabbitpy.amqp module for unopinionated access to AMQP API
+  - Refactor how client side heartbeat checking is managed when no heartbeat frames have been sent from the server. (#58)
+  - Address an issue when client side channel max count is not set and server side channel max is set to 65535 (#62)
   - Clean up handling of remote channel and connection closing
   - Clean up context manager exiting for rabbitpy.Queue
   - Remove default prefetch count for simple consuming
