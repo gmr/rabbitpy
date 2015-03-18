@@ -182,6 +182,10 @@ class AMQPChannel(StatefulObject):
         if self._is_debugging:
             LOGGER.debug('Channel %i close invoked while %s',
                          self._channel_id, self.state_description)
+
+        # Make sure there are no RPC frames pending
+        self._check_for_pending_frames()
+
         if not self.closing:
             self._set_state(self.CLOSING)
         frame_value = self._build_close_frame()
@@ -283,6 +287,12 @@ class AMQPChannel(StatefulObject):
             exception = self._exceptions.get()
             self._exceptions.task_done()
             raise exception
+
+    def _check_for_pending_frames(self):
+        value = self._read_from_queue()
+        if value:
+            self._check_for_rpc_request(value)
+            LOGGER.warning('Read frame from bad place: %r', value)
 
     def _check_for_rpc_request(self, value):
         """Implement in child objects to inspect frames for channel specific

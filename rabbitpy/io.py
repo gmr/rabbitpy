@@ -281,7 +281,7 @@ class IOLoop(object):
 class IO(threading.Thread, base.StatefulObject):
 
     CONNECTION_TIMEOUT = 3
-    CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk', 'Basic.Return']
+    CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk']
     READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
     SSL_KWARGS = {'keyfile': 'keyfile',
                   'certfile': 'certfile',
@@ -512,16 +512,6 @@ class IO(threading.Thread, base.StatefulObject):
             LOGGER.debug(value)
             return value, None, None
         return value[byte_count:], channel_id, frame_in
-
-    def _notify_of_basic_return(self, channel_id, frame_value):
-        """Invoke the on_basic_return code in the specified channel. This will
-        block the IO loop unless the exception is caught.
-
-        :param int channel_id: The channel for the basic return
-        :param pamqp.specification.Frame frame_value: The Basic.Return frame
-
-        """
-        self._channels[channel_id][0].on_basic_return(frame_value)
 
     def _read_frame(self):
         """Read from the buffer and try and get the demarshaled frame.

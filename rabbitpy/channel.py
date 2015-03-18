@@ -244,9 +244,13 @@ class Channel(base.AMQPChannel):
         :param spec.Frame value:
 
         """
+        LOGGER.debug('Checking for RPC request: %r', value)
         super(Channel, self)._check_for_rpc_request(value)
         if isinstance(value, spec.Basic.Return):
-            self._on_basic_return(self._wait_for_content_frames(value))
+            raise exceptions.MessageReturnedException(value.reply_code,
+                                                      value.reply_text,
+                                                      value.exchange,
+                                                      value.routing_key)
         elif isinstance(value, spec.Basic.Cancel):
             self._waiting = False
             if value.consumer_tag in self._consumers:
@@ -358,23 +362,6 @@ class Channel(base.AMQPChannel):
         self.rpc(spec.Basic.Nack(delivery_tag=delivery_tag,
                                  multiple=True,
                                  requeue=requeue))
-
-    def _on_basic_return(self, msg):
-        """Raise a MessageReturnedException so the publisher can handle
-        returned messages.
-
-        :param pmqid.message.message msg: The message to add
-        :raises: rabbitpy.exceptions.MessageReturnedException
-
-        """
-        # Could happen when closing
-        if not msg:
-            return
-        LOGGER.warning('Basic.Return received on channel %i', self._channel_id)
-        message_id = msg.properties.get('message_id', 'Unknown')
-        raise exceptions.MessageReturnedException(message_id,
-                                                  msg.method.reply_code,
-                                                  msg.method.reply_text)
 
     def _reject_inbound_message(self, method_frame):
         """Used internally to reject a message when it's been received during

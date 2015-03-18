@@ -57,8 +57,8 @@ class RemoteCancellationException(RabbitpyException):
     """Raised if RabbitMQ cancels an active consumer"""
     def __str__(self):
         return 'Remote server cancelled the active consumer'
-    
-    
+
+
 class RemoteClosedChannelException(RabbitpyException):
     """Raised if RabbitMQ closes the channel and the reply_code in the
     Channel.Close RPC request does not have a mapped exception in Rabbitpy.
@@ -85,7 +85,7 @@ class MessageReturnedException(RabbitpyException):
 
     """
     def __str__(self):
-        return 'Message %s was returned by RabbitMQ: (%s) %s' % \
+        return 'Message was returned by RabbitMQ: (%s) %s for exchange %s' % \
                (self.args[0], self.args[1], self.args[2])
 
 
