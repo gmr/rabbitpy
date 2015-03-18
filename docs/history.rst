@@ -1,6 +1,9 @@
 Version History
 ---------------
- - 0.26.0 - released *2015-03-09*
+ - 0.26.2 - released *2015-03-17*
+  - Fix behavior for Basic.Return frames sent from RabbitMQ
+  - Pin pamqp 1.6.1 fixing an issue with max-channels
+ - 0.26.1 - released *2015-03-09*
   - Add the ability to interrupt rabbitpy when waiting on a frame (#38)
   - Use a custom base class for all Exceptions (#57) Jeremy Tillman
   - Fix for consumer example in documentation (#60) Michael Becker
