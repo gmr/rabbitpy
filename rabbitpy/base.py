@@ -319,7 +319,7 @@ class AMQPChannel(StatefulObject):
             if self._is_debugging:
                 LOGGER.debug('No need to interrupt wait')
             return
-        self._wait_on_frame_interrupt.set()
+        self._wait_on_frame_interrupt.clear()
         if self._is_debugging:
             LOGGER.debug('Waiting for interrupt to clear')
         while self._wait_on_frame_interrupt.is_set():
