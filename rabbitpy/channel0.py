@@ -260,8 +260,9 @@ class Channel0(base.AMQPChannel):
                                                frame_value.frame_max)
         self._max_channels = self._negotiate(self._max_channels,
                                              frame_value.channel_max)
-        self._heartbeat = self._negotiate(self._heartbeat,
-                                          frame_value.heartbeat)
+        if self._heartbeat > 0:
+            self._heartbeat = self._negotiate(self._heartbeat,
+                                              frame_value.heartbeat)
         if self._heartbeat:
             self._start_heartbeat_timer()
         self.write_frame(self._build_tune_ok_frame())
