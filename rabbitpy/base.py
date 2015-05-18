@@ -232,7 +232,7 @@ class AMQPChannel(StatefulObject):
         """
         if self.closed:
             return
-        self._check_for_exceptions()
+        #self._check_for_exceptions()
         if self._is_debugging:
             LOGGER.debug('Writing frame: %s', frame.name)
         with self._write_lock:
@@ -428,7 +428,11 @@ class AMQPChannel(StatefulObject):
                     return value
                 self._read_queue.put(value)
 
-            self._check_for_exceptions()
+            try:
+                self._check_for_exceptions()
+            except:
+                self._waiting = False
+                raise
 
             # If the wait interrupt is set, break out of the loop
             if self._wait_on_frame_interrupt.is_set():
