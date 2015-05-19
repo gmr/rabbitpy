@@ -196,6 +196,7 @@ class IOLoop(object):
                     continue
             if self._data.events.is_set(events.SOCKET_CLOSE):
                 LOGGER.debug('Exiting due to closed socket')
+                self._exceptions.put(exceptions.ConnectionResetException())
                 break
         LOGGER.debug('Exiting IOLoop.run')
 
