@@ -364,7 +364,7 @@ class AMQPChannel(StatefulObject):
         :rtype: amqp.specification.Frame or None
 
         """
-        if self.blocking_read:
+        if not self.closing and self.blocking_read:
             LOGGER.debug('Performing a blocking read')
             value = self._read_queue.get()
             self._read_queue.task_done()
