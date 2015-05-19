@@ -1,4 +1,6 @@
 """
+The heartbeat checker implements heartbeat check behavior and is non-client
+facing.
 
 """
 import logging
@@ -21,6 +23,7 @@ class Checker(object):
         self._last_bytes = 0
         self._last_heartbeat = 0
         self._lock = threading.Lock()
+        self._timer = None
 
     def on_heartbeat(self):
         LOGGER.debug('Heartbeat received, updating the last_heartbeat time')
@@ -31,9 +34,14 @@ class Checker(object):
     def start(self, interval):
         self._interval = interval
         if self._interval:
-            self._start_heartbeat_timer()
+            self._start_timer()
 
-    def _check_for_heartbeat(self):
+    def stop(self):
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
+    def _check(self):
 
         # If the byte count has incremented no need to check time
         if self._io.bytes_received > self._last_bytes:
@@ -41,7 +49,7 @@ class Checker(object):
             self._lock.acquire(True)
             self._last_bytes = self._io.bytes_received
             self._lock.release()
-            self._start_heartbeat_timer()
+            self._start_timer()
             return
 
         age = time.time() - self._last_heartbeat
@@ -53,15 +61,14 @@ class Checker(object):
             message = 'No heartbeat in {0} seconds'.format(age)
             self._exceptions.put(exceptions.ConnectionResetException(message))
         else:
-            self._start_heartbeat_timer()
+            self._start_timer()
 
-    def _start_heartbeat_timer(self):
+    def _start_timer(self):
         """Create and start the timer that will check every N*2 seconds to
         ensure that a heartbeat has been requested.
 
         """
         LOGGER.debug('Started a heartbeat timer that will fire in %i sec',
                      self._interval)
-        self._heartbeat_timer = threading.Timer(self._interval,
-                                                self._check_for_heartbeat)
-        self._heartbeat_timer.start()
+        self._timer = threading.Timer(self._interval, self._check)
+        self._timer.start()
