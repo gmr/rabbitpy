@@ -18,6 +18,7 @@ import time
 from pamqp import specification
 
 from rabbitpy import base
+from rabbitpy import heartbeat
 from rabbitpy import io
 from rabbitpy import channel
 from rabbitpy import channel0
@@ -116,6 +117,7 @@ class Connection(base.StatefulObject):
         # Attributes for core object threads
         self._channel0 = None
         self._channels = dict()
+        self._heartbeat_checker = None
         self._io = None
 
         # Used by Message for breaking up body frames
@@ -268,6 +270,9 @@ class Connection(base.StatefulObject):
         if self.closed:
             return self.close()
 
+        # Create the heartbeat checker
+        self._heartbeat_checker = heartbeat.Checker(self._io, self._exceptions)
+
         # Create the Channel0 queue and add it to the IO thread
         self._channel0 = self._create_channel0()
         self._add_channel_to_io(self._channel0, None)
@@ -284,6 +289,8 @@ class Connection(base.StatefulObject):
         # Set the maximum frame size for channel use
         self._max_frame_size = self._channel0.maximum_frame_size
 
+        self._heartbeat_checker.start(self._channel0.heartbeat_interval)
+
     def _create_channel0(self):
         """Each connection should have a distinct channel0
 
@@ -293,6 +300,7 @@ class Connection(base.StatefulObject):
         return channel0.Channel0(connection_args=self._args,
                                  events_obj=self._events,
                                  exception_queue=self._exceptions,
+                                 heartbeat_checker=self._heartbeat_checker,
                                  write_queue=self._write_queue,
                                  write_trigger=self._io.write_trigger)
 
@@ -479,8 +487,8 @@ class Connection(base.StatefulObject):
                           self.DEFAULT_CHANNEL_MAX)
         frame_max = int(query_values.get('frame_max', [None])[0] or
                         specification.FRAME_MAX_SIZE)
-        heartbeat = int(query_values.get('heartbeat', [None])[0] or
-                        self.DEFAULT_HEARTBEAT_INTERVAL)
+        heartbeat_interval = int(query_values.get('heartbeat', [None])[0] or
+                                 self.DEFAULT_HEARTBEAT_INTERVAL)
 
         # Return the configuration dictionary to use when connecting
         return {'host': parsed.hostname,
@@ -488,7 +496,7 @@ class Connection(base.StatefulObject):
                 'virtual_host': utils.unquote(vhost),
                 'username': parsed.username or self.GUEST,
                 'password': parsed.password or self.GUEST,
-                'heartbeat': heartbeat,
+                'heartbeat': heartbeat_interval,
                 'frame_max': frame_max,
                 'channel_max': channel_max,
                 'locale': query_values.get('locale', [None])[0],

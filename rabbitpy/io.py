@@ -304,6 +304,7 @@ class IO(threading.Thread, base.StatefulObject):
         self._write_listener, self._write_trigger = self._socketpair()
 
         self._buffer = bytes()
+        self._bytes_read = 0
         self._lock = threading.RLock()
         self._channels = dict()
         self._remote_name = None
@@ -320,6 +321,15 @@ class IO(threading.Thread, base.StatefulObject):
 
         """
         self._channels[int(channel)] = channel, write_queue
+
+    @property
+    def bytes_received(self):
+        """Return the number of bytes read/received from RabbitMQ
+
+        :rtype: int
+
+        """
+        return self._bytes_read
 
     def run(self):
         """
@@ -373,6 +383,11 @@ class IO(threading.Thread, base.StatefulObject):
 
             # Read and process data
             value = self._read_frame()
+
+            # Increment the byte counter used by the heartbeat timer
+            self._lock.acquire(True)
+            self._bytes_read += len(value)
+            self._lock.release()
 
             # Break out if a frame could not be decoded
             if self._buffer and value[0] is None:

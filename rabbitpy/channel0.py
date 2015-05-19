@@ -10,8 +10,6 @@ try:
 except ImportError:
     import Queue as queue
 import sys
-import threading
-import time
 
 from pamqp import header
 from pamqp import heartbeat
@@ -33,13 +31,12 @@ class Channel0(base.AMQPChannel):
 
     """
     CHANNEL = 0
-    MAX_MISSED_HEARTBEATS = 3
 
     CLOSE_REQUEST_FRAME = specification.Connection.Close
     DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, connection_args, events_obj, exception_queue,
-                 write_queue, write_trigger):
+                 heartbeat_checker, write_queue, write_trigger):
         super(Channel0, self).__init__(exception_queue, write_trigger)
         self._channel_id = 0
         self._args = connection_args
@@ -51,17 +48,18 @@ class Channel0(base.AMQPChannel):
         self._state = self.CLOSED
         self._max_channels = connection_args['channel_max']
         self._max_frame_size = connection_args['frame_max']
-        self._heartbeat = connection_args['heartbeat']
+        self._heartbeat_checker = heartbeat_checker
+        self._heartbeat_interval = connection_args['heartbeat']
         self.properties = None
-        self._last_heartbeat = None
-        self._heartbeat_timer = None
 
     def close(self):
         # Stop the heartbeat timer if it's running
-        if self._heartbeat_timer:
-            self._heartbeat_timer.cancel()
         self._set_state(self.CLOSING)
         self.write_frame(specification.Connection.Close())
+
+    @property
+    def heartbeat_interval(self):
+        return self._heartbeat_interval
 
     @property
     def maximum_channels(self):
@@ -108,13 +106,11 @@ class Channel0(base.AMQPChannel):
             LOGGER.info('Connection is no longer blocked')
             self._events.clear(events.CONNECTION_BLOCKED)
         elif value.name == 'Heartbeat':
-            if self._heartbeat_timer:
-                LOGGER.debug('Received Heartbeat, cancelling check timer')
-                self._heartbeat_timer.cancel()
+            if not self._heartbeat_interval:
+                LOGGER.warn('Unexpected Heartbeat frame received')
+            self._heartbeat_checker.on_heartbeat()
             self.write_frame(heartbeat.Heartbeat())
-            self._last_heartbeat = time.time()
             self._trigger_write()
-            self._start_heartbeat_timer()
         else:
             LOGGER.warning('Unexpected Channel0 Frame: %r', value)
             raise specification.AMQPUnexpectedFrame(value)
@@ -161,32 +157,7 @@ class Channel0(base.AMQPChannel):
         """
         return specification.Connection.TuneOk(self._max_channels,
                                                self._max_frame_size,
-                                               self._heartbeat)
-
-    def _check_for_heartbeat(self):
-        """Check to ensure that a heartbeat has occurred in the last heartbeat
-        interval * 2 seconds. Raises an ``exceptions.ConnectionResetException``
-        if not.
-
-        :raises: exceptions.ConnectionResetException
-
-        """
-        self._heartbeat_timer = None
-        if not self._last_heartbeat:
-            LOGGER.debug('No heartbeat received')
-            return
-
-        age = time.time() - self._last_heartbeat
-        threshold = self._heartbeat * self.MAX_MISSED_HEARTBEATS
-        LOGGER.debug('Checking for heartbeat, last: %i sec ago, threshold: %i',
-                     age, threshold)
-        if age >= threshold:
-            LOGGER.error('Have not received a heartbeat in %i seconds', age)
-            message = 'No heartbeat in {0} seconds'.format(age)
-            self._exceptions.put(exceptions.ConnectionResetException(message))
-            self._trigger_write()
-        else:
-            self._start_heartbeat_timer()
+                                               self._heartbeat_interval)
 
     @property
     def _credentials(self):
@@ -255,30 +226,16 @@ class Channel0(base.AMQPChannel):
         :param specification.Connection.Tune frame_value: Tune frame
 
         """
-        LOGGER.debug('Tuning, client: %r', self._heartbeat)
+        LOGGER.debug('Tuning, client: %r', self._heartbeat_interval)
         self._max_frame_size = self._negotiate(self._max_frame_size,
                                                frame_value.frame_max)
         self._max_channels = self._negotiate(self._max_channels,
                                              frame_value.channel_max)
-        if self._heartbeat > 0:
-            self._heartbeat = self._negotiate(self._heartbeat,
-                                              frame_value.heartbeat)
-        if self._heartbeat:
-            self._start_heartbeat_timer()
+        if self._heartbeat_interval > 0:
+            self._heartbeat_interval = self._negotiate(self._heartbeat_interval,
+                                                       frame_value.heartbeat)
         self.write_frame(self._build_tune_ok_frame())
         self.write_frame(self._build_open_frame())
-
-    def _start_heartbeat_timer(self):
-        """Create and start the timer that will check every N*2 seconds to
-        ensure that a heartbeat has been requested.
-
-        """
-        interval = self._heartbeat + (self._heartbeat / 2)
-        LOGGER.debug('Started a heartbeat timer that will fire in %i sec',
-                     interval)
-        self._heartbeat_timer = threading.Timer(interval,
-                                                self._check_for_heartbeat)
-        self._heartbeat_timer.start()
 
     @staticmethod
     def _validate_connection_start(frame_value):
