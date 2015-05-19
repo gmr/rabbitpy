@@ -386,9 +386,7 @@ class IO(threading.Thread, base.StatefulObject):
             value = self._read_frame()
 
             # Increment the byte counter used by the heartbeat timer
-            self._lock.acquire(True)
             self._bytes_read += len(value)
-            self._lock.release()
 
             # Break out if a frame could not be decoded
             if self._buffer and value[0] is None:
