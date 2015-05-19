@@ -517,6 +517,9 @@ class Connection(base.StatefulObject):
         :type force: bool
 
         """
+        # Make sure the heartbeat checker is not running
+        self._heartbeat_checker.stop()
+
         if not force and not self._io.is_alive():
             self._set_state(self.CLOSED)
             LOGGER.debug('Cant shutdown connection, IO is no longer alive')
