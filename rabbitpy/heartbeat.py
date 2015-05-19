@@ -33,10 +33,10 @@ class Checker(object):
 
     def start(self, interval):
         self._interval = interval
-        if self._interval:
-            self._start_timer()
+        self._start_timer()
 
     def stop(self):
+        self._interval = 0
         if self._timer:
             self._timer.cancel()
             self._timer = None
@@ -68,7 +68,10 @@ class Checker(object):
         ensure that a heartbeat has been requested.
 
         """
+        if not self._interval:
+            return
         LOGGER.debug('Started a heartbeat timer that will fire in %i sec',
                      self._interval)
         self._timer = threading.Timer(self._interval, self._check)
+        self._timer.daemon = True
         self._timer.start()
