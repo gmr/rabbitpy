@@ -231,12 +231,18 @@ class Channel(base.AMQPChannel):
 
         """
         consumer_tag = consumer_tag or obj.consumer_tag
-        self._interrupt_wait_on_frame()
+        self._interrupt_wait_on_frame(self._on_ready_to_cancel,
+                                      consumer_tag, nowait)
+
+    def _on_ready_to_cancel(self, consumer_tag, nowait):
+        LOGGER.debug('Cancelling consumer')
         if consumer_tag in self._consumers:
             del self._consumers[consumer_tag]
-        self.write_frame(spec.Basic.Cancel(consumer_tag=consumer_tag))
-        if not nowait and not self.closed:
-            self._wait_on_frame(spec.Basic.CancelOk)
+        if nowait:
+            self.write_frame(spec.Basic.Cancel(consumer_tag=consumer_tag,
+                                               nowait=True))
+            return
+        self.rpc(spec.Basic.Cancel(consumer_tag=consumer_tag))
 
     def _check_for_rpc_request(self, value):
         """Inspect a frame to see if it's a RPC request from RabbitMQ.
@@ -290,6 +296,7 @@ class Channel(base.AMQPChannel):
         if not self._consumers:
             raise exceptions.NotConsumingError
         frame_value = self._wait_on_frame([spec.Basic.Deliver])
+        LOGGER.debug('Waited on frame, got %r', frame_value)
         if frame_value:
             return self._wait_for_content_frames(frame_value)
         return None
@@ -446,10 +453,15 @@ class Channel(base.AMQPChannel):
             return None
 
         self._check_for_rpc_request(header_value)
+        if self._interrupt_is_set:
+            return self._on_interrupt_set()
+
         body_value = bytes() if PYTHON3 else str()
         while len(body_value) < header_value.body_size:
             body_part = self._wait_on_frame(CONTENT_BODY)
             self._check_for_rpc_request(body_part)
+            if self._interrupt_is_set:
+                return self._on_interrupt_set()
             if not body_part:
                 break
             body_value += body_part.value

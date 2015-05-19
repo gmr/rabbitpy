@@ -158,9 +158,13 @@ class AMQPChannel(StatefulObject):
 
     def __init__(self, exception_queue, write_trigger, blocking_read=False):
         super(AMQPChannel, self).__init__()
+        if blocking_read:
+            LOGGER.debug('Initialized with blocking read')
         self.blocking_read = blocking_read
         self._debugging = None
-        self._wait_on_frame_interrupt = threading.Event()
+        self._interrupt = {'event': threading.Event(),
+                           'callback': None,
+                           'args': None}
         self._channel_id = None
         self._exceptions = exception_queue
         self._state = self.CLOSED
@@ -292,7 +296,7 @@ class AMQPChannel(StatefulObject):
         value = self._read_from_queue()
         if value:
             self._check_for_rpc_request(value)
-            LOGGER.warning('Read frame from bad place: %r', value)
+            LOGGER.debug('Read frame while shutting down: %r', value)
 
     def _check_for_rpc_request(self, value):
         """Implement in child objects to inspect frames for channel specific
@@ -308,7 +312,7 @@ class AMQPChannel(StatefulObject):
         self._set_state(self.CLOSED)
         LOGGER.debug('Channel #%i closed', self._channel_id)
 
-    def _interrupt_wait_on_frame(self):
+    def _interrupt_wait_on_frame(self, callback, *args):
         """Invoke to interrupt the current self._wait_on_frame blocking loop
         in order to allow for a flow such as waiting on a full message while
         consuming. Will wait until the ``_wait_on_frame_interrupt`` is cleared
@@ -318,14 +322,21 @@ class AMQPChannel(StatefulObject):
         if not self._waiting:
             if self._is_debugging:
                 LOGGER.debug('No need to interrupt wait')
-            return
-        self._wait_on_frame_interrupt.set()
-        if self._is_debugging:
-            LOGGER.debug('Waiting for interrupt to clear')
-        while self._wait_on_frame_interrupt.is_set():
-            time.sleep(0.10)
-        if self._is_debugging:
-            LOGGER.debug('Interrupt cleared')
+            return callback(*args)
+        LOGGER.debug('Interrupting the wait on frame')
+        self._interrupt['callback'] = callback
+        self._interrupt['args'] = args
+        self._interrupt['event'].set()
+
+    @property
+    def _interrupt_is_set(self):
+        return self._interrupt['event'].is_set()
+
+    def _on_interrupt_set(self):
+        self._interrupt['callback'](*self._interrupt['args'])
+        self._interrupt['event'].clear()
+        self._interrupt['callback'] = None
+        self._interrupt['args'] = None
 
     def _on_remote_close(self, value):
         """
@@ -354,11 +365,12 @@ class AMQPChannel(StatefulObject):
 
         """
         if self.blocking_read:
+            LOGGER.debug('Performing a blocking read')
             value = self._read_queue.get()
             self._read_queue.task_done()
         else:
             try:
-                value = self._read_queue.get(True, .5)
+                value = self._read_queue.get(True, .1)
                 self._read_queue.task_done()
             except queue.Empty:
                 value = None
@@ -435,12 +447,13 @@ class AMQPChannel(StatefulObject):
                 raise
 
             # If the wait interrupt is set, break out of the loop
-            if self._wait_on_frame_interrupt.is_set():
+            if self._interrupt_is_set:
                 if self._is_debugging:
                     LOGGER.debug('Exiting wait due to interrupt')
                 break
+
         self._waiting = False
 
         # Clear here to ensure out of processing loop before proceeding
-        if self._wait_on_frame_interrupt.is_set():
-            self._wait_on_frame_interrupt.clear()
+        if self._interrupt_is_set:
+            self._on_interrupt_set()
