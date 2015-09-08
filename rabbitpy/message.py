@@ -56,7 +56,7 @@ class Message(base.AMQPClass):
     * content_type
     * content_encoding
     * correlation_id
-    * delivery_node
+    * delivery_mode
     * expiration
     * headers
     * message_id
