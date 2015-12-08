@@ -148,7 +148,8 @@ class AMQP(object):
         :return: bool or None
 
         """
-        msg = message.Message(self, body, properties or {}, False, False)
+        msg = message.Message(self.channel, body, properties or {}, False,
+                              False)
         return msg.publish(exchange, routing_key, mandatory, immediate)
 
     def basic_qos(self, prefetch_size=0, prefetch_count=0, global_flag=False):
