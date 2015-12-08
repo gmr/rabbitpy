@@ -21,6 +21,8 @@ from rabbitpy import events
 from rabbitpy import exceptions
 
 LOGGER = logging.getLogger(__name__)
+default_locale = locale.getdefaultlocale()
+del locale
 
 
 class Channel0(base.AMQPChannel):
@@ -176,7 +178,7 @@ class Channel0(base.AMQPChannel):
 
         """
         if not self._args['locale']:
-            return locale.getdefaultlocale()[0] or self.DEFAULT_LOCALE
+            return default_locale[0] or self.DEFAULT_LOCALE
         return self._args['locale']
 
     @staticmethod
