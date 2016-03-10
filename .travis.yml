@@ -8,8 +8,8 @@ python:
   - 3.3
   - 3.4
 install:
-    - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2 --download-cache $HOME/.pip-cache; fi
-    - if [[ $TRAVIS_PYTHON_VERSION == '3.2' ]]; then pip install coverage==3.7.1; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2 --download-cache $HOME/.pip-cache; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.2' ]]; then pip install coverage==3.7.1; fi
   - pip install -r requirements.txt --download-cache $HOME/.pip-cache
   - pip install -r test-requirements.txt --download-cache $HOME/.pip-cache
 script: nosetests --with-coverage --cover-package=rabbitpy -v -l DEBUG --logging-level=DEBUG
