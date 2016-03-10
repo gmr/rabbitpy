@@ -25,3 +25,6 @@ class BasicAckTests(unittest.TestCase):
             self.assertEqual(args[0].delivery_tag, 123)
             self.assertEqual(args[0].multiple, True)
 
+            # The following was causing an error in version 0.26.2, when
+            # AMQP was sending self to Message() not self.channel.
+            obj.basic_publish("exchange", "routingkey", "body")
