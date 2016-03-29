@@ -83,6 +83,7 @@ class Connection(base.StatefulObject):
     """
     CANCEL_METHOD = ['Basic.Cancel']
     DEFAULT_CHANNEL_MAX = 65535
+    DEFAULT_TIMEOUT = 3
     DEFAULT_HEARTBEAT_INTERVAL = 300
     DEFAULT_LOCALE = 'en_US'
     DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
@@ -257,7 +258,6 @@ class Connection(base.StatefulObject):
     def _connect(self):
         """Connect to the RabbitMQ Server"""
         self._set_state(self.OPENING)
-
         # Create and start the IO object that reads, writes & dispatches frames
         self._io = self._create_io_thread()
         self._io.daemon = True
@@ -268,7 +268,12 @@ class Connection(base.StatefulObject):
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
-            self._events.wait(events.SOCKET_OPENED)
+            # https://docs.python.org/2.6/library/threading.html#threading.Event.wait  # nopep8
+            # Event.wait() always retuns None in 2.6, so it is impossible
+            # to simply check wait() result
+            self._events.wait(events.SOCKET_OPENED, self._args['timeout'])
+            if not self._events.is_set(events.SOCKET_OPENED):
+                raise RuntimeError("Timeout waiting for opening the socket")
 
         # If the socket could not be opened, return instead of waiting
         if self.closed:
@@ -493,6 +498,11 @@ class Connection(base.StatefulObject):
                         specification.FRAME_MAX_SIZE)
         heartbeat_interval = int(query_values.get('heartbeat', [None])[0] or
                                  self.DEFAULT_HEARTBEAT_INTERVAL)
+        # DEFAULT_TIMEOUT does not have to be 0, so explicitly setting 0
+        # (False-ish) should not lead to using it, thus no "or" here but
+        # the precise check against None.
+        timeout = query_values.get('timeout', [None])[0]
+        timeout = self.DEFAULT_TIMEOUT if timeout is None else float(timeout)
 
         # Return the configuration dictionary to use when connecting
         return {'host': parsed.hostname,
@@ -500,6 +510,7 @@ class Connection(base.StatefulObject):
                 'virtual_host': utils.unquote(vhost),
                 'username': parsed.username or self.GUEST,
                 'password': parsed.password or self.GUEST,
+                'timeout': timeout,
                 'heartbeat': heartbeat_interval,
                 'frame_max': frame_max,
                 'channel_max': channel_max,

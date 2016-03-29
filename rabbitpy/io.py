@@ -280,8 +280,6 @@ class IOLoop(object):
 
 
 class IO(threading.Thread, base.StatefulObject):
-
-    CONNECTION_TIMEOUT = 3
     CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk']
     READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
     SSL_KWARGS = {'keyfile': 'keyfile',
@@ -435,7 +433,7 @@ class IO(threading.Thread, base.StatefulObject):
     def _connect_socket(self, sock, address):
         """Connect the socket to the specified host and port."""
         LOGGER.debug('Connecting to %r', address)
-        sock.settimeout(self.CONNECTION_TIMEOUT)
+        sock.settimeout(self._args['timeout'])
         sock.connect(address)
 
     def _connect(self):
@@ -465,7 +463,6 @@ class IO(threading.Thread, base.StatefulObject):
             return
 
         self._socket = sock
-        self._socket.settimeout(0)
         self._events.set(events.SOCKET_OPENED)
         self._set_state(self.OPEN)
 
