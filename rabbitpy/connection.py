@@ -145,6 +145,10 @@ class Connection(base.StatefulObject):
             raise
         self._set_state(self.CLOSED)
         self._shutdown_connection(True)
+        
+    @property
+    def args(self):
+        return dict(self._args)
 
     @property
     def blocked(self):
