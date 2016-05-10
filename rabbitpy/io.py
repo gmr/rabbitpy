@@ -26,7 +26,9 @@ from rabbitpy import exceptions
 
 MAX_READ = specification.FRAME_MAX_SIZE
 MAX_WRITE = specification.FRAME_MAX_SIZE
-POLL_TIMEOUT = 3600.0
+
+# Timeout in seconds
+POLL_TIMEOUT = 3.0
 
 
 class SelectPoller(object):
