@@ -8,9 +8,9 @@ python:
   - 3.4
   - 3.5
 install:
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2 --download-cache $HOME/.pip-cache; fi
-  - pip install -r requirements.txt --download-cache $HOME/.pip-cache
-  - pip install -r test-requirements.txt --download-cache $HOME/.pip-cache
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
+  - pip install -r requirements.txt
+  - pip install -r test-requirements.txt
 script: nosetests -v -l DEBUG --logging-level=DEBUG
 after_success:
   - codecov
@@ -26,6 +26,3 @@ deploy:
     all_branches: true
   password:
     secure: "ls9ja4J6bcirOvWVCvPAWboaOK6O0Pr/aZmHiifUYKEBqUg8D9PB7JyeXybMthXSx+jkHrFp6pL/IjYGrMYQ3gomZ+fsQTavNLxZxEHyLxDf7LVBxQ0KMNNh+GyF7qi9U749MlZBf9JgBFbAgnwCZRnlzCM8j7PxcFevYv4gouE="
-cache:
-  directories:
-    - $HOME/.pip-cache/
