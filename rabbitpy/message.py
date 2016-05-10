@@ -310,7 +310,7 @@ class Message(base.AMQPClass):
 
     def _add_timestamp(self):
         """Add the timestamp to the properties"""
-        self.properties['timestamp'] = datetime.datetime.now()
+        self.properties['timestamp'] = datetime.datetime.utcnow()
 
     def _as_datetime(self, value):
         """Return the passed in value as a ``datetime.datetime`` value.

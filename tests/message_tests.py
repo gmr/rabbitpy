@@ -183,7 +183,7 @@ class TestWithPropertiesCreation(BaseTestCase):
                       'message_type': b'TestCreation',
                       'priority': 9,
                       'reply_to': b'none',
-                      'timestamp': datetime.datetime.now(),
+                      'timestamp': datetime.datetime.utcnow(),
                       'user_id': b'guest'}
         self.msg = message.Message(self.chan, self.body, dict(self.props))
 
