@@ -146,7 +146,7 @@ class Connection(base.StatefulObject):
             raise
         self._set_state(self.CLOSED)
         self._shutdown_connection(True)
-        
+
     @property
     def args(self):
         return dict(self._args)
@@ -268,9 +268,9 @@ class Connection(base.StatefulObject):
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 raise exception
-            # https://docs.python.org/2.6/library/threading.html#threading.Event.wait  # nopep8
-            # Event.wait() always retuns None in 2.6, so it is impossible
-            # to simply check wait() result
+
+            # :meth:`threading.html#threading.Event.wait` always returns None
+            # in 2.6, so it is impossible to simply check wait() result
             self._events.wait(events.SOCKET_OPENED, self._args['timeout'])
             if not self._events.is_set(events.SOCKET_OPENED):
                 raise RuntimeError("Timeout waiting for opening the socket")
