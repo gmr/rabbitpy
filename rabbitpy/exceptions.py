@@ -40,7 +40,7 @@ class ConnectionException(RabbitpyException):
 
     """
     def __str__(self):
-        return 'Unable to connect to the remote server %r' % self.args
+        return 'Unable to connect to the remote server {}'.format(self.args)
 
 
 class ConnectionResetException(RabbitpyException):
@@ -65,8 +65,8 @@ class RemoteClosedChannelException(RabbitpyException):
 
     """
     def __str__(self):
-        return 'Channel %i was closed by the remote server (%i): %s' % \
-               (self.args[0], self.args[1], self.args[2])
+        return 'Channel {} was closed by the remote server ({}): {}'.format(
+            *self.args)
 
 
 class RemoteClosedException(RabbitpyException):
@@ -75,8 +75,8 @@ class RemoteClosedException(RabbitpyException):
 
     """
     def __str__(self):
-        return 'Connection was closed by the remote server (%i): %s' % \
-               (self.args[0], self.args[1])
+        return 'Connection was closed by the remote server ({}): {}'.format(
+            *self.args)
 
 
 class MessageReturnedException(RabbitpyException):
@@ -85,8 +85,8 @@ class MessageReturnedException(RabbitpyException):
 
     """
     def __str__(self):
-        return 'Message was returned by RabbitMQ: (%s) %s for exchange %s' % \
-               (self.args[0], self.args[1], self.args[2])
+        return 'Message was returned by RabbitMQ: ({}) for exchange {}'.format(
+            *self.args)
 
 
 class NoActiveTransactionError(RabbitpyException):
@@ -113,7 +113,7 @@ class NotSupportedError(RabbitpyException):
 
     """
     def __str__(self):
-        return 'The selected feature "%s" is not supported' % self.args[0]
+        return 'The selected feature "{}" is not supported'.format(self.args)
 
 
 class TooManyChannelsError(RabbitpyException):
@@ -134,8 +134,8 @@ class UnexpectedResponseError(RabbitpyException):
 
     """
     def __str__(self):
-        return 'Received an expected response, expected %s, received %s' % \
-               (self.args[0], self.args[1])
+        return 'Received an expected response, expected {}, ' \
+               'received {}'.format(*self.args)
 
 
 # AMQP Exceptions
