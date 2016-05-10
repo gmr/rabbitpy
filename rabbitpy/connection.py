@@ -553,22 +553,18 @@ class Connection(base.StatefulObject):
                 not self._events.is_set(events.CHANNEL0_CLOSED)):
             self._channel0.close()
 
-            # Loop while Channel 0 closes
-            LOGGER.debug('Waiting on channel0 to close')
-            while not self._channel0.closed and self._io.is_alive():
-                LOGGER.debug('Waiting on channel0 to close')
-                time.sleep(0.1)
-            LOGGER.debug('channel0 closed')
+            # Ensure the connection is closed
+            self._trigger_write()
 
-        # Close the socket
-        if (self._events.is_set(events.SOCKET_OPENED) and
-                not self._events.is_set(events.SOCKET_CLOSED)):
-            LOGGER.debug('Requesting IO socket close')
+            # Let the IOLoop know to close
             self._events.set(events.SOCKET_CLOSE)
 
             # Break out of select waiting
             self._trigger_write()
 
+        # Close the socket
+        if (self._events.is_set(events.SOCKET_OPENED) and
+                not self._events.is_set(events.SOCKET_CLOSED)):
             LOGGER.debug('Waiting on socket to close')
             self._events.wait(events.SOCKET_CLOSED, 0.1)
             while self._io.is_alive():

@@ -28,7 +28,7 @@ MAX_READ = specification.FRAME_MAX_SIZE
 MAX_WRITE = specification.FRAME_MAX_SIZE
 
 # Timeout in seconds
-POLL_TIMEOUT = 3.0
+POLL_TIMEOUT = 1.0
 
 
 class SelectPoller(object):
@@ -317,7 +317,7 @@ class IO(threading.Thread, base.StatefulObject):
         """Add a channel to the channel queue dict for dispatching frames
         to the channel.
 
-        :param rabbitpy.channel.Channel: The channel to add
+        :param rabbitpy.channel.Channel channel: The channel to add
         :param Queue.Queue write_queue: Queue for sending frames to the channel
 
         """
