@@ -1,6 +1,23 @@
-languages:
-    Python: true
-exclude_paths: 
-    - docs/*
-    - tests/*
-    - examples/*
+engines:
+  duplication:
+    enabled: true
+    config:
+      languages:
+      - python
+  pep8:
+    enabled: true
+  radon:
+    enabled: true
+ratings:
+  paths:
+  - rabbitpy/**
+exclude_paths:
+- docs/**
+- setup.*
+- test-requirements.txt
+- tests/**
+- README.rst
+- MANIFEST.in
+- LICENSE
+- tox.ini
+- examples/**
