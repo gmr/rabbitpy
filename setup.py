@@ -26,7 +26,7 @@ classifiers = ['Development Status :: 5 - Production/Stable',
                'Topic :: Software Development :: Libraries']
 
 setuptools.setup(name='rabbitpy',
-                 version='0.26.2',
+                 version='0.27.0',
                  description=desc,
                  long_description=open('README.rst').read(),
                  author='Gavin M. Roy',
