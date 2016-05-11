@@ -16,7 +16,7 @@ from rabbitpy import base
 LOGGER = logging.getLogger(__name__)
 
 
-class Exchange(base.AMQPClass):
+class _Exchange(base.AMQPClass):
     """Exchange class for interacting with an exchange in RabbitMQ including
     declaration, binding and deletion.
 
@@ -34,12 +34,10 @@ class Exchange(base.AMQPClass):
     auto_delete = False
     type = 'direct'
 
-    def __init__(self, channel, name, exchange_type='direct',
-                 durable=False, auto_delete=False,
+    def __init__(self, channel, name, durable=False, auto_delete=False,
                  arguments=None):
         """Create a new instance of the exchange object."""
-        super(Exchange, self).__init__(channel, name)
-        self.type = exchange_type
+        super(_Exchange, self).__init__(channel, name)
         self.durable = durable
         self.auto_delete = auto_delete
         self.arguments = arguments or dict()
@@ -97,7 +95,29 @@ class Exchange(base.AMQPClass):
                                                 routing_key=routing_key))
 
 
-class DirectExchange(Exchange):
+class Exchange(_Exchange):
+    """Exchange class for interacting with an exchange in RabbitMQ including
+    declaration, binding and deletion.
+
+    :param channel: The channel object to communicate on
+    :type channel: :py:class:`rabbitpy.channel.Channel`
+    :param str name: The name of the exchange
+    :param str exchange_type: The exchange type
+    :param bool durable: Request a durable exchange
+    :param bool auto_delete: Automatically delete when not in use
+    :param dict arguments: Optional key/value arguments
+
+    """
+    def __init__(self, channel, name, exchange_type='direct',
+                 durable=False, auto_delete=False,
+                 arguments=None):
+        """Create a new instance of the exchange object."""
+        self.type = exchange_type
+        super(Exchange, self).__init__(channel, name, durable, auto_delete,
+                                       arguments)
+
+
+class DirectExchange(_Exchange):
     """The DirectExchange class is used for interacting with direct exchanges
     only.
 
@@ -109,14 +129,10 @@ class DirectExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=False, auto_delete=False,
-                 arguments=None):
-        """Create a new instance of the exchange object."""
-        super(DirectExchange, self).__init__(channel, name, 'direct', durable,
-                                             auto_delete, arguments)
+    type = 'direct'
 
 
-class FanoutExchange(Exchange):
+class FanoutExchange(_Exchange):
     """The FanoutExchange class is used for interacting with fanout exchanges
     only.
 
@@ -128,14 +144,10 @@ class FanoutExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=False, auto_delete=False,
-                 arguments=None):
-        """Create a new instance of the exchange object."""
-        super(FanoutExchange, self).__init__(channel, name, 'fanout', durable,
-                                             auto_delete, arguments)
+    type = 'fanout'
 
 
-class HeadersExchange(Exchange):
+class HeadersExchange(_Exchange):
     """The HeadersExchange class is used for interacting with direct exchanges
     only.
 
@@ -147,14 +159,10 @@ class HeadersExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=False, auto_delete=False,
-                 arguments=None):
-        """Create a new instance of the exchange object."""
-        super(HeadersExchange, self).__init__(channel, name, 'headers',
-                                              durable, auto_delete, arguments)
+    type = 'headers'
 
 
-class TopicExchange(Exchange):
+class TopicExchange(_Exchange):
     """The TopicExchange class is used for interacting with topic exchanges
     only.
 
@@ -166,8 +174,4 @@ class TopicExchange(Exchange):
     :param dict arguments: Optional key/value arguments
 
     """
-    def __init__(self, channel, name, durable=False, auto_delete=False,
-                 arguments=None):
-        """Create a new instance of the exchange object."""
-        super(TopicExchange, self).__init__(channel, name, 'topic', durable,
-                                            auto_delete, arguments)
+    type = 'topic'
