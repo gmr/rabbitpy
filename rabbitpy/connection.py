@@ -4,11 +4,6 @@ The Connection class negotiates and manages the connection state.
 """
 import logging
 try:
-    import queue
-except ImportError:
-    import Queue as queue
-import socket
-try:
     import ssl
 except ImportError:
     ssl = None
@@ -25,6 +20,7 @@ from rabbitpy import channel0
 from rabbitpy import events
 from rabbitpy import exceptions
 from rabbitpy import message
+from rabbitpy.utils import queue
 from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
@@ -38,13 +34,13 @@ if ssl:
                     'required': ssl.CERT_REQUIRED}
     SSL_VERSION_MAP = dict()
     if hasattr(ssl, 'PROTOCOL_SSLv2'):
-        SSL_VERSION_MAP['SSLv2'] = ssl.PROTOCOL_SSLv2
+        SSL_VERSION_MAP['SSLv2'] = getattr(ssl, 'PROTOCOL_SSLv2')
     if hasattr(ssl, 'PROTOCOL_SSLv3'):
-        SSL_VERSION_MAP['SSLv3'] = ssl.PROTOCOL_SSLv3
+        SSL_VERSION_MAP['SSLv3'] = getattr(ssl, 'PROTOCOL_SSLv3')
     if hasattr(ssl, 'PROTOCOL_SSLv23'):
-        SSL_VERSION_MAP['SSLv23'] = ssl.PROTOCOL_SSLv23
+        SSL_VERSION_MAP['SSLv23'] = getattr(ssl, 'PROTOCOL_SSLv23')
     if hasattr(ssl, 'PROTOCOL_TLSv1'):
-        SSL_VERSION_MAP['TLSv1'] = ssl.PROTOCOL_TLSv1
+        SSL_VERSION_MAP['TLSv1'] = getattr(ssl, 'PROTOCOL_TLSv1')
 else:
     SSL_CERT_MAP, SSL_VERSION_MAP = dict(), dict()
 
@@ -149,6 +145,11 @@ class Connection(base.StatefulObject):
 
     @property
     def args(self):
+        """Return the connection arguments.
+
+        :rtype: dict
+
+        """
         return dict(self._args)
 
     @property
@@ -158,9 +159,6 @@ class Connection(base.StatefulObject):
         This flag indicates communication from RabbitMQ that the connection is
         blocked using the Connection.Blocked RPC notification from RabbitMQ
         that was added in RabbitMQ 3.2.
-
-        @TODO If RabbitMQ version < 3.2, use the HTTP management API to query
-        the value
 
         :rtype: bool
 
@@ -330,8 +328,10 @@ class Connection(base.StatefulObject):
         the dictionary of message parts.
 
         :param int channel_id: The channel id the message was sent on
-        :param pamqp.specification.Frame method_frame: The method frame value
-        :param pamqp.header.ContentHeader header_frame: The header frame value
+        :param method_frame: The method frame value
+        :type method_frame: pamqp.specification.Frame
+        :param header_frame: The header frame value
+        :type header_frame: pamqp.header.ContentHeader
         :param str body: The message body
         :rtype: rabbitpy.message.Message
 
@@ -398,6 +398,7 @@ class Connection(base.StatefulObject):
     def _normalize_expectations(channel_id, expectations):
         """Turn a class or list of classes into a list of class names.
 
+        :param int channel_id: The channel to normalize for
         :param expectations: List of classes or class name or class obj
         :type expectations: list or str or pamqp.specification.Frame
         :rtype: list
@@ -544,6 +545,7 @@ class Connection(base.StatefulObject):
         for chan_id in [chan_id for chan_id in self._channels
                         if not self._channels[chan_id].closed]:
             if force:
+                # pylint: disable=protected-access
                 self._channels[chan_id]._force_close()
             else:
                 self._channels[chan_id].close()
@@ -575,7 +577,4 @@ class Connection(base.StatefulObject):
         to a local socket.
 
         """
-        try:
-            self._io.write_trigger.send(b'0')
-        except socket.error:
-            pass
+        utils.trigger_write(self._io.write_trigger)

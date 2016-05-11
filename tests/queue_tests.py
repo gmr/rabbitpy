@@ -10,7 +10,6 @@ except ImportError:
 import mock
 from pamqp import specification
 
-from rabbitpy import PYPY
 from rabbitpy import amqp_queue
 from rabbitpy import channel
 from rabbitpy import exceptions
@@ -177,7 +176,6 @@ class QueueInitializationTests(unittest.TestCase):
                                  dead_letter_routing_key='routing-key')
         self.assertIsInstance(queue.dead_letter_routing_key, str)
 
-
     @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_dlr_unicode(self):
         routing_key = unicode('routing-key')
@@ -189,7 +187,8 @@ class QueueInitializationTests(unittest.TestCase):
         self.assertRaises(ValueError, amqp_queue.Queue, self.chan, '', True,
                           False, True, None, None, None, None, True)
 
-    @unittest.skipIf(PYPY, 'PyPy bails this due to improper __exit__ behavior')
+    @unittest.skipIf(utils.PYPY,
+                     'PyPy bails this due to improper __exit__ behavior')
     def test_stop_consuming_raises_exception(self):
         queue = amqp_queue.Queue(self.chan)
         self.assertRaises(exceptions.NotConsumingError, queue.stop_consuming)

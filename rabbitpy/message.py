@@ -24,10 +24,12 @@ from rabbitpy import utils
 LOGGER = logging.getLogger(__name__)
 
 
-# Python 2.6/3.2 does not have a memoryview object, create dummy for isinstance
+# Python 2.6 does not have a memoryview object, create dummy for isinstance
 try:
-    py26mv = memoryview(b'foo')
+    _PY_VERSION_CHECK = memoryview(b'foo')
 except NameError:
+    # pylint: disable=too-few-public-methods, redefined-builtin
+    # pylint: disable=invalid-name, missing-docstring
     class memoryview(object):
         pass
 
@@ -86,7 +88,8 @@ class Message(base.AMQPClass):
 
     :param channel: The channel object for the message object to act upon
     :type channel: :py:class:`rabbitpy.channel.Channel`
-    :param str or dict or list body_value: The message body
+    :param body_value: The message body
+    :type body_value: str|bytes|unicode|memoryview|dict|json
     :param dict properties: A dictionary of message properties
     :param bool auto_id: Add a message id if no properties were passed in.
     :param bool opinionated: Automatically populate properties if True
@@ -96,8 +99,8 @@ class Message(base.AMQPClass):
     method = None
     name = 'Message'
 
-    def __init__(self, channel, body_value, properties=None,
-                 auto_id=False, opinionated=False):
+    def __init__(self, channel, body_value, properties=None, auto_id=False,
+                 opinionated=False):
         """Create a new instance of the Message object."""
         super(Message, self).__init__(channel, 'Message')
 
@@ -108,6 +111,7 @@ class Message(base.AMQPClass):
         if isinstance(body_value, memoryview):
             self.body = bytes(body_value)
         else:
+            # pylint: disable=redefined-variable-type
             self.body = self._auto_serialize(body_value)
 
         # Add a message id if auto_id is not turned off and it is not set
@@ -312,7 +316,8 @@ class Message(base.AMQPClass):
         """Add the timestamp to the properties"""
         self.properties['timestamp'] = datetime.datetime.utcnow()
 
-    def _as_datetime(self, value):
+    @staticmethod
+    def _as_datetime(value):
         """Return the passed in value as a ``datetime.datetime`` value.
 
         :param value: The value to convert or pass through
@@ -349,7 +354,7 @@ class Message(base.AMQPClass):
         """Automatically serialize the body as JSON if it is a dict or list.
 
         :param mixed body_value: The message body passed into the constructor
-        :return: str or bytes or unicode or None
+        :return: bytes|str
 
         """
         if isinstance(body_value, dict) or isinstance(body_value, list):

@@ -3,42 +3,29 @@ Base classes for various parts of rabbitpy
 
 """
 import logging
-try:
-    import queue
-except ImportError:
-    import Queue as queue
-import socket
 import threading
-import time
 
 from pamqp import specification
 
 from rabbitpy import exceptions
 from rabbitpy import utils
+from rabbitpy.utils import queue
+
 
 LOGGER = logging.getLogger(__name__)
 
 
-class AMQPClass(object):
-    """Base Class object for wrapping the specification.Frame classes
+class ChannelWriter(object):  # pylint: disable=too-few-public-methods
+
+    """The AMQP Adapter provides a more generic, non-opinionated interface to
+    RabbitMQ by providing methods that map to the AMQP API.
+
+    :param channel: The channel to use
+    :type channel: rabbitpy.channel.Channel
 
     """
-    def __init__(self, channel, name):
-        """Create a new ClassObject.
-
-        :param rabbitpy.Channel channel: The channel to execute commands on
-        :param str name: Set the name
-        :raises: ValueError
-
-        """
-        # Use type so there's not a circular dependency
-        if channel.__class__.__name__ != 'Channel':
-            raise ValueError('channel must be a valid rabbitpy Channel object')
-        if not utils.is_string(name):
-            raise ValueError('name must be str, bytes or unicode')
-
+    def __init__(self, channel):
         self.channel = channel
-        self.name = name
 
     def _rpc(self, frame_value):
         """Execute the RPC command for the frame.
@@ -59,6 +46,26 @@ class AMQPClass(object):
 
         """
         self.channel.write_frame(frame_value)
+
+
+class AMQPClass(ChannelWriter):  # pylint: disable=too-few-public-methods
+    """Base Class object AMQP object classes"""
+    def __init__(self, channel, name):
+        """Create a new ClassObject.
+
+        :param channel: The channel to execute commands on
+        :type channel: rabbitpy.Channel
+        :param str name: Set the name
+        :raises: ValueError
+
+        """
+        super(AMQPClass, self).__init__(channel)
+        # Use type so there's not a circular dependency
+        if channel.__class__.__name__ != 'Channel':
+            raise ValueError('channel must be a valid rabbitpy Channel object')
+        elif not utils.is_string(name):
+            raise ValueError('name must be str, bytes or unicode')
+        self.name = name
 
 
 class StatefulObject(object):
@@ -149,12 +156,12 @@ class StatefulObject(object):
 
 
 class AMQPChannel(StatefulObject):
+    """Base AMQP Channel Object"""
 
     CLOSE_REQUEST_FRAME = specification.Channel.Close
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
     REMOTE_CLOSED = 0x04
-
 
     def __init__(self, exception_queue, write_trigger, blocking_read=False):
         super(AMQPChannel, self).__init__()
@@ -178,6 +185,7 @@ class AMQPChannel(StatefulObject):
         return self._channel_id
 
     def close(self):
+        """Close the AMQP channel"""
         if self.closed:
             if self._is_debugging:
                 LOGGER.debug('AMQPChannel %i close invoked and already closed',
@@ -254,8 +262,10 @@ class AMQPChannel(StatefulObject):
             return
         self._check_for_exceptions()
         if self._is_debugging:
-            LOGGER.debug('Writing frames: %r', [frame.name for frame in frames])
+            LOGGER.debug('Writing frames: %r',
+                         [frame.name for frame in frames])
         with self._write_lock:
+            # pylint: disable=expression-not-assigned
             [self._write_queue.put((self._channel_id, frame))
              for frame in frames]
         self._trigger_write()
@@ -318,6 +328,10 @@ class AMQPChannel(StatefulObject):
         consuming. Will wait until the ``_wait_on_frame_interrupt`` is cleared
         to make this a blocking operation.
 
+        :param callback: The method to call
+        :type callback: typing.Callable
+        :param list args: Args to pass to the callback
+
         """
         if not self._waiting:
             if self._is_debugging:
@@ -333,6 +347,7 @@ class AMQPChannel(StatefulObject):
         return self._interrupt['event'].is_set()
 
     def _on_interrupt_set(self):
+        # pylint: disable=not-an-iterable,not-callable
         self._interrupt['callback'](*self._interrupt['args'])
         self._interrupt['event'].clear()
         self._interrupt['callback'] = None
@@ -381,16 +396,14 @@ class AMQPChannel(StatefulObject):
         to a local socket.
 
         """
-        try:
-            self._write_trigger.send(b'0')
-        except socket.error:
-            pass
+        utils.trigger_write(self._write_trigger)
 
     def _validate_frame_type(self, frame_value, frame_type):
         """Validate the frame value against the frame type. The frame type can
         be an individual frame type or a list of frame types.
 
-        :param pamqp.specification.Frame frame_value: The frame to check
+        :param frame_value: The frame to check
+        :type frame_value: pamqp.specification.Frame
         :param frame_type: The frame(s) to check against
         :type frame_type: pamqp.specification.Frame or list
         :rtype: bool
@@ -421,7 +434,7 @@ class AMQPChannel(StatefulObject):
         call the method.
 
         :param frame_type: The name or list of names of the frame type(s)
-        :type frame_type: str or list or pamqp.specification.Frame
+        :type frame_type: str|list|pamqp.specification.Frame
         :rtype: Frame
 
         """

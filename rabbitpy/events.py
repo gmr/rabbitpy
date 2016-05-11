@@ -42,10 +42,13 @@ class Events(object):
         """Create a new instance of Events"""
         self._events = self._create_event_objects()
 
-    def _create_event_objects(self):
+    @staticmethod
+    def _create_event_objects():
         """Events are used like signals across threads for communicating state
         changes, used by the various threaded objects to communicate with each
         other when an action needs to be taken.
+
+        :rtype: dict
 
         """
         events = dict()

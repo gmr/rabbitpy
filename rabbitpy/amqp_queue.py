@@ -34,17 +34,15 @@ from pamqp import specification
 from rabbitpy import base
 from rabbitpy import exceptions
 from rabbitpy import utils
-from rabbitpy import PYPY
 
 LOGGER = logging.getLogger(__name__)
-
 
 
 class Queue(base.AMQPClass):
     """Create and manage RabbitMQ queues.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`rabbitpy.channel.Channel`
+    :type channel: :class:`~rabbitpy.channel.Channel`
     :param str name: The name of the queue
     :param exclusive: Queue can only be used by this channel and will
                       auto-delete once the channel is closed.
@@ -62,8 +60,8 @@ class Queue(base.AMQPClass):
     :type dead_letter_routing_key: str
     :param dict arguments: Custom arguments for the queue
 
-    :raises: rabbitpy.exceptions.RemoteClosedChannelException
-    :raises: rabbitpy.exceptions.RemoteCancellationException
+    :raises: :exc:`~rabbitpy.exceptions.RemoteClosedChannelException`
+    :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
     """
     arguments = dict()
@@ -76,6 +74,7 @@ class Queue(base.AMQPClass):
     max_length = None
     message_ttl = None
 
+    # pylint: disable=too-many-arguments
     def __init__(self, channel, name='',
                  durable=False, exclusive=False, auto_delete=False,
                  max_length=None, message_ttl=None, expires=None,
@@ -111,7 +110,6 @@ class Queue(base.AMQPClass):
         """
         return self.consume()
 
-
     def __len__(self):
         """Return the pending number of messages in the queue by doing a
         passive Queue declare.
@@ -139,12 +137,11 @@ class Queue(base.AMQPClass):
 
             if (name in ['max_length', 'message_ttl', 'expires'] and
                     not isinstance(value, int)):
-                    raise ValueError('%s must be an int' % name)
+                raise ValueError('%s must be an int' % name)
 
             if (name in ['dead_letter_exchange', 'dead_letter_routing_key'] and
                     not utils.is_string(value)):
-                    raise ValueError('%s must be a str, bytes or unicode' %
-                                     name)
+                raise ValueError('%s must be a str, bytes or unicode' % name)
 
             if name == 'arguments' and not isinstance(value, dict):
                 raise ValueError('arguments must be a dict')
@@ -194,6 +191,7 @@ class Queue(base.AMQPClass):
         self._consume(no_ack, prefetch, priority)
         try:
             while self.consuming:
+                # pylint: disable=protected-access
                 message = self.channel._consume_message()
                 if message:
                     yield message
@@ -228,6 +226,7 @@ class Queue(base.AMQPClass):
                       DeprecationWarning)
         return self.consume(no_ack, prefetch, priority)
 
+    # pylint: disable=no-self-use, unused-argument
     def consumer(self, no_ack=False, prefetch=None, priority=None):
         """Method for returning the contextmanager for consuming messages. You
         should not use this directly.
@@ -284,7 +283,8 @@ class Queue(base.AMQPClass):
         """
         self._write_frame(specification.Basic.Get(queue=self.name,
                                                   no_ack=not acknowledge))
-        return self.channel._get_message()
+
+        return self.channel._get_message()  # pylint: disable=protected-access
 
     def ha_declare(self, nodes=None):
         """Declare a the queue as highly available, passing in a list of nodes
@@ -318,11 +318,11 @@ class Queue(base.AMQPClass):
         will return None instead of a :py:class:`rabbitpy.Message`.
 
         """
-        if PYPY and not self.consuming:
+        if utils.PYPY and not self.consuming:
             return
         if not self.consuming:
             raise exceptions.NotConsumingError()
-        self.channel._cancel_consumer(self)
+        self.channel._cancel_consumer(self)  # pylint: disable=protected-access
         self.consuming = False
 
     def unbind(self, source, routing_key=None):
@@ -352,6 +352,7 @@ class Queue(base.AMQPClass):
         """
         if prefetch:
             self.channel.prefetch_count(prefetch, False)
+        # pylint: disable=protected-access
         self.channel._consume(self, no_ack, priority)
         self.consuming = True
 

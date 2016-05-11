@@ -9,8 +9,8 @@ except ImportError:
 import uuid
 
 import rabbitpy
-from rabbitpy import PYPY
 from rabbitpy import exceptions
+from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ class PublishAndConsumeTest(unittest.TestCase):
             self.assertEqual(msg.properties['message_type'],
                              self.msg.properties['message_type'])
             break
-        if PYPY:
+        if utils.PYPY:
             self.queue.stop_consuming()
 
 
@@ -174,7 +174,7 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
             msg.ack()
             LOGGER.info('breaking out of iterator')
             break
-        if PYPY:
+        if utils.PYPY:
             self.queue.stop_consuming()
         self.assertFalse(self.queue.consuming)
 
@@ -228,7 +228,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
                 break
             qty += 1
             msg.ack()
-        if PYPY:
+        if utils.PYPY:
             self.queue.stop_consuming()
         LOGGER.info('Exited iterator, %r, %r', self.queue.consuming, qty)
         self.assertFalse(self.queue.consuming)

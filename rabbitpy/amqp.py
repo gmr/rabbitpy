@@ -4,12 +4,14 @@ AMQP Adapter
 """
 from pamqp import specification as spec
 
-from rabbitpy import PYPY
+from rabbitpy import base
 from rabbitpy import message
 from rabbitpy import exceptions
+from rabbitpy import utils
 
 
-class AMQP(object):
+# pylint: disable=too-many-public-methods
+class AMQP(base.ChannelWriter):
     """The AMQP Adapter provides a more generic, non-opinionated interface to
     RabbitMQ by providing methods that map to the AMQP API.
 
@@ -17,10 +19,10 @@ class AMQP(object):
 
     """
     def __init__(self, channel):
-        self.channel = channel
+        super(AMQP, self).__init__(channel)
         self.consumer_tag = 'rabbitpy.%s.%s' % (self.channel.id, id(self))
         self._consuming = False
-        
+
     def basic_ack(self, delivery_tag=0, multiple=False):
         """Acknowledge one or more messages
 
@@ -28,7 +30,8 @@ class AMQP(object):
         or Get-Ok methods. The client can ask to confirm a single message or a
         set of messages up to and including a specific message.
 
-        :param int/long delivery_tag: Server-assigned delivery tag
+        :param delivery_tag: Server-assigned delivery tag
+        :type delivery_tag: int|long
         :param bool multiple: Acknowledge multiple messages
 
         """
@@ -55,7 +58,7 @@ class AMQP(object):
                 message.ack()
 
         :param str queue: The queue name to consume from
-        :param str consumer-tag: The consumer tag
+        :param str consumer_tag: The consumer tag
         :param bool no_local: Do not deliver own messages
         :param bool no_ack: No acknowledgement needed
         :param bool exclusive: Request exclusive access
@@ -65,12 +68,14 @@ class AMQP(object):
         """
         if not consumer_tag:
             consumer_tag = self.consumer_tag
+        # pylint: disable=protected-access
         self.channel._consumers[consumer_tag] = (self, no_ack)
         self._rpc(spec.Basic.Consume(0, queue, consumer_tag, no_local, no_ack,
                                      exclusive, nowait, arguments))
         self._consuming = True
         try:
             while self._consuming:
+                # pylint: disable=protected-access
                 msg = self.channel._consume_message()
                 if msg:
                     yield msg
@@ -95,10 +100,11 @@ class AMQP(object):
         :param bool nowait: Do not send a reply method
 
         """
-        if PYPY and not self._consuming:
+        if utils.PYPY and not self._consuming:
             return
         if not self._consuming:
             raise exceptions.NotConsumingError()
+        # pylint: disable=protected-access
         self.channel._cancel_consumer(self, consumer_tag, nowait)
         self._consuming = False
 
@@ -125,7 +131,8 @@ class AMQP(object):
         unhandled messages. If a publisher receives this method, it probably
         needs to republish the offending messages.
 
-        :param int/long delivery_tag: Server-assigned delivery tag
+        :param delivery_tag: Server-assigned delivery tag
+        :type delivery_tag: int|long
         :param bool multiple: Reject multiple messages
         :param bool requeue: Requeue the message
 
@@ -143,6 +150,9 @@ class AMQP(object):
 
         :param str exchange: The exchange name
         :param str routing_key: Message routing key
+        :param body: The message body
+        :type body: str|bytes
+        :param dict properties: AMQP message properties
         :param bool mandatory: Indicate mandatory routing
         :param bool immediate: Request immediate delivery
         :return: bool or None
@@ -162,7 +172,8 @@ class AMQP(object):
         could in principle apply to both peers, it is currently meaningful only
         for the server.
 
-        :param int/long prefetch_size: Prefetch window in octets
+        :param prefetch_size: Prefetch window in octets
+        :type prefetch_size: int|long
         :param int prefetch_count: Prefetch window in messages
         :param bool global_flag: Apply to entire connection
 
@@ -176,7 +187,8 @@ class AMQP(object):
         interrupt and cancel large incoming messages, or return untreatable
         messages to their original queue.
 
-        :param int/long delivery_tag: Server-assigned delivery tag
+        :param delivery_tag: Server-assigned delivery tag
+        :type delivery_tag: int|long
         :param bool requeue: Requeue the message
 
         """
@@ -251,8 +263,8 @@ class AMQP(object):
         :param dict arguments: Optional arguments
 
         """
-        self._rpc(spec.Exchange.Bind(0, destination, source, routing_key, nowait,
-                                     arguments))
+        self._rpc(spec.Exchange.Bind(0, destination, source, routing_key,
+                                     nowait, arguments))
 
     def exchange_unbind(self, destination='', source='',
                         routing_key='', nowait=False, arguments=None):
@@ -350,7 +362,8 @@ class AMQP(object):
         :param dict arguments: Arguments of binding
 
         """
-        self._rpc(spec.Queue.Unbind(0, queue, exchange, routing_key, arguments))
+        self._rpc(spec.Queue.Unbind(0, queue, exchange, routing_key,
+                                    arguments))
 
     def tx_select(self):
         """Select standard transaction mode
@@ -383,22 +396,3 @@ class AMQP(object):
 
         """
         self._rpc(spec.Tx.Rollback())
-
-    def _rpc(self, frame_value):
-        """Execute the RPC command for the frame.
-
-        :param pamqp.specification.Frame frame_value: The frame to send
-        :rtype: pamqp.specification.Frame or pamqp.message.Message
-
-        """
-        if self.channel.closed:
-            raise exceptions.ChannelClosedException()
-        return self.channel.rpc(frame_value)
-
-    def _write_frame(self, frame_value):
-        """Write a frame to the channel's connection
-
-        :param pamqp.specification.Frame frame_value: The frame to send
-
-        """
-        self.channel.write_frame(frame_value)

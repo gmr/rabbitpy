@@ -5,23 +5,20 @@ client on channel 0.
 """
 import locale
 import logging
-try:
-    import queue
-except ImportError:
-    import Queue as queue
 import sys
 
 from pamqp import header
 from pamqp import heartbeat
 from pamqp import specification
 
-from rabbitpy import __version__
 from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
+from rabbitpy import version
+from rabbitpy.utils import queue
 
 LOGGER = logging.getLogger(__name__)
-default_locale = locale.getdefaultlocale()
+DEFAULT_LOCALE = locale.getdefaultlocale()
 del locale
 
 
@@ -30,6 +27,16 @@ class Channel0(base.AMQPChannel):
     processing and dispatching events on channel 0 once connected.
 
     :param dict connection_args: Data required to negotiate the connection
+    :param events_obj: The shared events coordination object
+    :type events_obj: rabbitpy.events.Events
+    :param exception_queue: The queue where any pending exceptions live
+    :type exception_queue: queue.Queue
+    :param heartbeat_checker: The object that implements heartbeat check logic
+    :type heartbeat_checker: rabbitpy.heartbeat.Checker
+    :param write_queue: The queue to place data to write in
+    :type write_queue: queue.Queue
+    :param write_trigger: The socket to write to, to trigger IO writes
+    :type write_trigger: socket.socket
 
     """
     CHANNEL = 0
@@ -61,14 +68,17 @@ class Channel0(base.AMQPChannel):
 
     @property
     def heartbeat_interval(self):
+        """Return the AMQP heartbeat interval for the connection"""
         return self._heartbeat_interval
 
     @property
     def maximum_channels(self):
+        """Return the AMQP maximum channel count for the connection"""
         return self._max_channels
 
     @property
     def maximum_frame_size(self):
+        """Return the AMQP maximum frame size for the connection"""
         return self._max_frame_size
 
     def on_frame(self, value):
@@ -109,7 +119,7 @@ class Channel0(base.AMQPChannel):
             self._events.clear(events.CONNECTION_BLOCKED)
         elif value.name == 'Heartbeat':
             if not self._heartbeat_interval:
-                LOGGER.warn('Unexpected Heartbeat frame received')
+                LOGGER.warning('Unexpected Heartbeat frame received')
             self._heartbeat_checker.on_heartbeat()
             self.write_frame(heartbeat.Heartbeat())
             self._trigger_write()
@@ -118,6 +128,7 @@ class Channel0(base.AMQPChannel):
             raise specification.AMQPUnexpectedFrame(value)
 
     def start(self):
+        """Start the AMQP protocol negotiation"""
         self._set_state(self.OPENING)
         self._write_protocol_header()
 
@@ -135,18 +146,15 @@ class Channel0(base.AMQPChannel):
         :rtype: pamqp.specification.Connection.StartOk
 
         """
-        version = sys.version_info
         properties = {'product': 'rabbitpy',
-                      'platform': 'Python %s.%s.%s' % (version[0],
-                                                       version[1],
-                                                       version[2]),
+                      'platform': 'Python {}.{}.{}'.format(*sys.version_info),
                       'capabilities': {'authentication_failure_close': True,
                                        'basic.nack': True,
                                        'connection.blocked': True,
                                        'consumer_cancel_notify': True,
                                        'publisher_confirms': True},
-                      'information': 'See http://rabbitpy.readthedocs.org',
-                      'version': __version__}
+                      'information': 'See https://rabbitpy.readthedocs.io',
+                      'version': version.__version__}
         return specification.Connection.StartOk(client_properties=properties,
                                                 response=self._credentials,
                                                 locale=self._get_locale())
@@ -178,7 +186,7 @@ class Channel0(base.AMQPChannel):
 
         """
         if not self._args['locale']:
-            return default_locale[0] or self.DEFAULT_LOCALE
+            return DEFAULT_LOCALE[0] or self.DEFAULT_LOCALE
         return self._args['locale']
 
     @staticmethod
@@ -252,9 +260,8 @@ class Channel0(base.AMQPChannel):
         :rtype: bool
 
         """
-        if (frame_value.version_major,
-            frame_value.version_minor) != (specification.VERSION[0],
-                                           specification.VERSION[1]):
+        if (frame_value.version_major, frame_value.version_minor) != \
+                (specification.VERSION[0], specification.VERSION[1]):
             LOGGER.warning('AMQP version error (received %i.%i, expected %r)',
                            frame_value.version_major,
                            frame_value.version_minor,

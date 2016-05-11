@@ -4,18 +4,37 @@ a single API point for rabbitpy to use.
 
 """
 import collections
+import logging
+# pylint: disable=unused-import,import-error
+try:
+    import Queue as queue
+except ImportError:
+    import queue
+import platform
+import socket
+# pylint: disable=import-error
 try:
     from urllib import parse as _urlparse
 except ImportError:
     import urlparse as _urlparse
 
-# Cross Python Version queue module export
-try:
-    import Queue as queue
-except ImportError:
-    import queue
-
 from pamqp import PYTHON3
+
+if hasattr(logging, 'NullHandler'):
+    NullHandler = logging.NullHandler
+else:
+    class NullHandler(logging.Handler):
+        """Python 2.6 does not have a NullHandler"""
+        def emit(self, record):
+            """Emit a record
+
+            :param record record: The record to emit
+
+            """
+            pass
+
+
+PYPY = platform.python_implementation() == 'PyPy'
 
 Parsed = collections.namedtuple('Parsed',
                                 'scheme,netloc,path,params,query,fragment,'
@@ -34,7 +53,7 @@ def maybe_utf8_encode(value):
         if is_string(value) and not isinstance(value, bytes):
             return bytes(value, 'utf-8')
         return value
-    if isinstance(value, unicode):
+    if isinstance(value, unicode):  # pylint: disable=undefined-variable
         return value.encode('utf-8')
     return value
 
@@ -83,5 +102,17 @@ def is_string(value):
     """
     checks = [isinstance(value, bytes), isinstance(value, str)]
     if not PYTHON3:
+        # pylint: disable=undefined-variable
         checks.append(isinstance(value, unicode))
     return any(checks)
+
+
+def trigger_write(sock):
+    """Notifies the IO loop we need to write a frame by writing a byte
+    to a local socket.
+
+    """
+    try:
+        sock.send(b'0')
+    except socket.error:
+        pass

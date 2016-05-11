@@ -2,27 +2,7 @@
 rabbitpy, a pythonic RabbitMQ client
 
 """
-__version__ = '0.27.0'
-version = __version__
-import logging
-import platform
-
-PYPY = platform.python_implementation() == 'PyPy'
-
-try:
-    from logging import NullHandler
-except ImportError:
-    class NullHandler(logging.Handler):
-        """Python 2.6 does not have a NullHandler"""
-        def emit(self, record):
-            """Emit a record
-
-            :param record record: The record to emit
-
-            """
-            pass
-
-logging.getLogger('rabbitpy').addHandler(NullHandler())
+from rabbitpy.version import __version__
 
 from rabbitpy.amqp import AMQP
 from rabbitpy.connection import Connection
@@ -46,3 +26,45 @@ from rabbitpy.simple import create_fanout_exchange
 from rabbitpy.simple import create_headers_exchange
 from rabbitpy.simple import create_topic_exchange
 from rabbitpy.simple import delete_exchange
+
+import logging
+from rabbitpy.utils import NullHandler
+logging.getLogger('rabbitpy').addHandler(NullHandler())
+
+VERSION = __version__
+
+__all__ = [
+    '__version__',
+    'VERSION',
+    'amqp_queue',
+    'channel',
+    'connection',
+    'exceptions',
+    'exchange',
+    'message',
+    'simple',
+    'tx',
+    'AMQP',
+    'Connection',
+    'Channel',
+    'Exchange',
+    'DirectExchange',
+    'FanoutExchange',
+    'HeadersExchange',
+    'TopicExchange',
+    'Message',
+    'Queue',
+    'Tx',
+    'consume',
+    'get',
+    'publish',
+    'create_queue',
+    'delete_queue',
+    'create_direct_exchange',
+    'create_fanout_exchange',
+    'create_headers_exchange',
+    'create_topic_exchange',
+    'delete_exchange'
+]
+
+

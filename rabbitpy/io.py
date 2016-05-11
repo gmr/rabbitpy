@@ -635,13 +635,3 @@ class IO(threading.Thread, base.StatefulObject):
         server.setblocking(0)
         client.setblocking(0)
         return server, client
-
-    def _trigger_write(self):
-        """Notifies the IO loop we need to write a frame by writing a byte
-        to a local socket.
-
-        """
-        try:
-            self._write_trigger.send(b'0')
-        except socket.error:
-            pass

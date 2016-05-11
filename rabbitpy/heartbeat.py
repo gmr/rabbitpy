@@ -13,7 +13,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Checker(object):
+    """The Checker object implements the logic to ensure that heartbeats have
+    been received and are replied to. If no heartbeat or data has been received
+    for the specified interval, it will add an exception to the exception
+    queue, causing the connection to shutdown.
 
+    :param io: The rabbitpy IO object
+    :type io: rabbitpy.io.IO
+    :param exception_queue: The exception queue
+    :type exception_queue: queue.Queue
+
+    """
     MAX_MISSED_HEARTBEATS = 2
 
     def __init__(self, io, exception_queue):
@@ -26,16 +36,23 @@ class Checker(object):
         self._timer = None
 
     def on_heartbeat(self):
+        """Callback invoked when a heartbeat is received"""
         LOGGER.debug('Heartbeat received, updating the last_heartbeat time')
         self._lock.acquire(True)
         self._last_heartbeat = time.time()
         self._lock.release()
 
     def start(self, interval):
+        """Start the heartbeat checker
+
+        :param int interval: How often to expect heartbeats.
+
+        """
         self._interval = interval
         self._start_timer()
 
     def stop(self):
+        """Stop the heartbeat checker"""
         self._interval = 0
         if self._timer:
             self._timer.cancel()

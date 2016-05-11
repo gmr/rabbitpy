@@ -6,10 +6,6 @@ the communication between the IO thread and the higher-level objects.
 
 """
 import logging
-try:
-    import queue as Queue
-except ImportError:
-    import Queue
 
 from pamqp import specification as spec
 from pamqp import PYTHON3
@@ -17,6 +13,7 @@ from pamqp import PYTHON3
 from rabbitpy import base
 from rabbitpy import exceptions
 from rabbitpy import message
+from rabbitpy.utils import queue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -272,11 +269,11 @@ class Channel(base.AMQPChannel):
                 del self._consumers[value.consumer_tag]
             raise exceptions.RemoteCancellationException(value.consumer_tag)
 
-    def _consume(self, queue, no_ack, priority=None):
+    def _consume(self, obj, no_ack, priority=None):
         """Register a Queue object as a consumer, issuing Basic.Consume.
 
-        :param queue: The queue to consume
-        :type queue: rabbitpy.amqp_queue.Queue
+        :param obj: The queue to consume
+        :type obj: rabbitpy.amqp_queue.Queue
         :param bool no_ack: no_ack mode
         :param int priority: Consumer priority
         :raises: ValueError
@@ -289,11 +286,11 @@ class Channel(base.AMQPChannel):
             if not isinstance(priority, int):
                 raise ValueError('Consumer priority must be an int')
             args['x-priority'] = priority
-        self.rpc(spec.Basic.Consume(queue=queue.name,
-                                    consumer_tag=queue.consumer_tag,
+        self.rpc(spec.Basic.Consume(queue=obj.name,
+                                    consumer_tag=obj.consumer_tag,
                                     no_ack=no_ack,
                                     arguments=args))
-        self._consumers[queue.consumer_tag] = (queue, no_ack)
+        self._consumers[obj.consumer_tag] = (obj, no_ack)
 
     def _consume_message(self):
         """Get a message from the stack, blocking while doing so. If a consumer
@@ -345,7 +342,7 @@ class Channel(base.AMQPChannel):
         """
         try:
             frame_value = self._read_queue.get(False)
-        except Queue.Empty:
+        except queue.Empty:
             return None
 
         try:

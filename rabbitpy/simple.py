@@ -54,8 +54,8 @@ def get(uri=None, queue_name=None):
 
     with connection.Connection(uri) as conn:
         with conn.channel() as channel:
-            q = amqp_queue.Queue(channel, queue_name)
-            return q.get(False)
+            queue = amqp_queue.Queue(channel, queue_name)
+            return queue.get(False)
 
 
 def publish(uri=None, exchange_name=None, routing_key=None,
@@ -67,7 +67,8 @@ def publish(uri=None, exchange_name=None, routing_key=None,
     :param str uri: AMQP URI to connect to
     :param str exchange_name: The exchange to publish to
     :param str routing_key: The routing_key to publish with
-    :param str or unicode or bytes or dict or list: The message body
+    :param body: The message body
+    :type body: str or unicode or bytes or dict or list
     :param dict properties: Dict representation of Basic.Properties
     :param bool confirm: Confirm this delivery with Publisher Confirms
     :rtype: bool or None
