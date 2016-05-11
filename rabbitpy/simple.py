@@ -38,10 +38,12 @@ class SimpleChannel(object):
         return self.channel
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self.channel.closed:
+            self.channel.close()
+        if not self.connection.closed:
+            self.connection.close()
         if exc_type and exc_val:
             raise
-        self.channel.close()
-        self.connection.close()
 
 
 def consume(uri=None, queue_name=None, no_ack=False, prefetch=None,
