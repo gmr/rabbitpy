@@ -16,6 +16,7 @@ from rabbitpy.message import Message
 from rabbitpy.amqp_queue import Queue
 from rabbitpy.tx import Tx
 
+from rabbitpy.simple import SimpleChannel
 from rabbitpy.simple import consume
 from rabbitpy.simple import get
 from rabbitpy.simple import publish
@@ -47,6 +48,7 @@ __all__ = [
     'AMQP',
     'Connection',
     'Channel',
+    'SimpleChannel',
     'Exchange',
     'DirectExchange',
     'FanoutExchange',
