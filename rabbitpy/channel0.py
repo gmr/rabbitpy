@@ -191,7 +191,8 @@ class Channel0(base.AMQPChannel):
         :return: int
 
         """
-        return min(client_value, server_value) or (client_value or server_value)
+        return min(client_value, server_value) or \
+            (client_value or server_value)
 
     def _on_connection_open_ok(self):
         LOGGER.debug('Connection opened')
@@ -233,9 +234,13 @@ class Channel0(base.AMQPChannel):
                                                frame_value.frame_max)
         self._max_channels = self._negotiate(self._max_channels,
                                              frame_value.channel_max)
-        if self._heartbeat_interval > 0:
-            self._heartbeat_interval = self._negotiate(self._heartbeat_interval,
-                                                       frame_value.heartbeat)
+
+        # Properly negotiate the heartbeat interval
+        if self._heartbeat_interval is None:
+            self._heartbeat_interval = frame_value.heartbeat
+        elif self._heartbeat_interval == 0 or frame_value.heartbeat == 0:
+            self._heartbeat_interval = 0
+
         self.write_frame(self._build_tune_ok_frame())
         self.write_frame(self._build_open_frame())
 
