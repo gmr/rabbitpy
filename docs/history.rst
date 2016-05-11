@@ -8,11 +8,11 @@ Version History
   - :class:`~rabbitpy.message.Message` now assigns a UTC timestamp instead of local timestamp to the AMQP message property if requested (#94)
   - Unquote username and password in URI (#93) - `sunbit <https://github.com/sunbit>`_
   - Connections now allow for a configurable timeout (#84, #85) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
-  - Bugfix for :meth:`~rabbitpy.amqp.AMQP.basic_publish` (#92) - `canardleteer  <https://github.com/canardleteer >`_
+  - Bugfix for :meth:`~rabbitpy.amqp.AMQP.basic_publish` (#92) - `canardleteer  <https://github.com/canardleteer>`_
   - Added ``args`` property to :class:`~rabbitpy.connection.Connection` (#88) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
   - Fix locale in connection setup from causing hanging (#87) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
   - Fix heartbeat behavior (#69, #70, #74)
-  - Cancel consuming in case of exceptions (#68) -  - `kmelnikov <https://github.com/kmelnikov>`_
+  - Cancel consuming in case of exceptions (#68) -  `kmelnikov <https://github.com/kmelnikov>`_
   - Documentation correction (#79) - `jonahbull <https://github.com/jonahbull>`_
  - 0.26.2 - released *2015-03-17*
   - Fix behavior for Basic.Return frames sent from RabbitMQ
