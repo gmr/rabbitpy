@@ -147,7 +147,8 @@ class Channel0(base.AMQPChannel):
 
         """
         properties = {'product': 'rabbitpy',
-                      'platform': 'Python {}.{}.{}'.format(*sys.version_info),
+                      'platform':
+                          'Python {0}.{1}.{2}'.format(*sys.version_info),
                       'capabilities': {'authentication_failure_close': True,
                                        'basic.nack': True,
                                        'connection.blocked': True,
