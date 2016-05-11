@@ -9,8 +9,8 @@ python:
   - 3.5
 install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
-  - pip install -r requirements.txt
-  - pip install -r test-requirements.txt
+  - pip install --upgrade -r requirements.txt
+  - pip install --upgrade -r test-requirements.txt
 script: nosetests -v -l DEBUG --logging-level=DEBUG
 after_success:
   - codecov
