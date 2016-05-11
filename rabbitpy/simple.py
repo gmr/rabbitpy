@@ -20,7 +20,7 @@ class SimpleChannel(object):
 
         import rabbitpy
 
-        with rabbitpy.SimpleChannel(url) as channel:
+        with rabbitpy.SimpleChannel('amqp://localhost/%2f) as channel:
             queue = rabbitpy.Queue(channel, 'my-queue')
 
     :param str uri: The AMQP URI to connect with. For URI options, see the
