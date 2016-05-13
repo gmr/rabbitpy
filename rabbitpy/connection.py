@@ -634,6 +634,8 @@ class Connection(base.StatefulObject):
         self._close_all_channels(force)
         self._maybe_close_connection()
 
+        self._io.stop()
+
         # Wait for the IO thread to stop
         while self._io.is_alive():
             time.sleep(0.25)

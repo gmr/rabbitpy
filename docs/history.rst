@@ -1,5 +1,7 @@
 Version History
 ---------------
+ - 0.27.1 - released *2016-05-12*
+  - Fix a bug where the IO write trigger socketpair is not being cleaned up on close
  - 0.27.0 - released *2016-05-11*
   - Added new :class:`~rabbitpy.simple.SimpleChannel` class
   - Exception formatting changes

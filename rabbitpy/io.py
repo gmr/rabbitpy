@@ -191,6 +191,7 @@ class _IOLoop(object):
         self._data.write_buffer = collections.deque()
         self._data.write_queue = write_queue
         self._data.write_trigger = write_trigger
+        self._server_sock = None
         self._exceptions = exception_stack
         self._poller = self._create_poller()
 
@@ -471,10 +472,24 @@ class IO(threading.Thread, base.StatefulObject):
         """Close the socket and set the proper event states"""
         self._set_state(self.CLOSING)
         if hasattr(self, '_socket') and self._socket:
-            self._socket.close()
+            self._close_socket(self._socket)
+        if hasattr(self, '_write_listener') and self._write_listener:
+            self._close_socket(self._write_listener)
+        if hasattr(self, '_write_trigger') and self._write_trigger:
+            self._close_socket(self._write_trigger)
+        if hasattr(self, '_server_socket') and self._server_socket:
+            self._close_socket(self._server_sock)
         self._events.clear(events.SOCKET_OPENED)
         self._events.set(events.SOCKET_CLOSED)
         self._set_state(self.CLOSED)
+
+    @staticmethod
+    def _close_socket(sock):
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
+        except (OSError, socket.error):
+            pass
 
     def _connect_socket(self, sock, address):
         """Connect the socket to the specified host and port, setting the
@@ -596,11 +611,10 @@ class IO(threading.Thread, base.StatefulObject):
         """
         self._channels[channel_id][0].on_remote_close(frame_value)
 
-    @staticmethod
-    def _socketpair():
+    def _socketpair(self):
         """Return a socket pair regardless of platform.
 
-        :rtype: (socket, socket)
+        :rtype: (socket.socket, socket.socket)
 
         """
         try:
@@ -610,11 +624,12 @@ class IO(threading.Thread, base.StatefulObject):
             LOGGER.debug('Falling back to emulated socketpair behavior')
 
             # Create the listening server socket & bind it to a random port
-            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_sock.bind(('127.0.0.1', 0))
+            self._server_sock = socket.socket(socket.AF_INET,
+                                              socket.SOCK_STREAM)
+            self._server_sock.bind(('127.0.0.1', 0))
 
             # Get the port for the notifying socket to connect to
-            port = server_sock.getsockname()[1]
+            port = self._server_sock.getsockname()[1]
 
             # Create the notifying client socket and connect using a timer
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -627,9 +642,9 @@ class IO(threading.Thread, base.StatefulObject):
             timer.start()
 
             # Have the listening server socket listen and accept the connect
-            server_sock.listen(0)
+            self._server_sock.listen(0)
             # pylint: disable=unused-variable
-            server, _unused = server_sock.accept()
+            server, _unused = self._server_sock.accept()
 
         # Don't block on either socket
         server.setblocking(0)
