@@ -2,10 +2,16 @@
 Channel0 is used for connection level communication between RabbitMQ and the
 client on channel 0.
 
+2016-06-16 tom@rail-pod.com Modified to send a HeartBeat Message back to server on
+                            a timer.  In reaction to RabbitMQ (version 3.2.4.) closing
+                            a socket on a connection which only data following out
+                            of rabbitmq.
+
 """
 import locale
 import logging
 import sys
+import threading  # for Timer() for heartbeats
 
 from pamqp import header
 from pamqp import heartbeat
@@ -207,6 +213,36 @@ class Channel0(base.AMQPChannel):
         LOGGER.debug('Connection opened')
         self._set_state(self.OPEN)
         self._events.set(events.CHANNEL0_OPENED)
+
+        # Connection is open.  Start sending heartbeat
+        # messages back to the server
+        self._start_heartbeat_send_timer()
+
+    def _start_heartbeat_send_timer(self) :
+        ''' Create and start a timer that will send a heartbeat
+        message back to rabbitmq server every N seconds
+        '''
+        if not self._heartbeat_interval :
+            # No heartbeat desired
+            return
+
+        # Launch it, calling _send_heartbeat()
+        self._heartbeat_send_timer = threading.Timer(self._heartbeat_interval, self._send_heartbeat)
+        self._heartbeat_send_timer.daemon = True
+        self._heartbeat_send_timer.start()
+
+    def _send_heartbeat(self) :
+        ''' Send a heartbeat message to rabbitmq server and
+        restart timer so this is done continuously.
+        '''
+
+        # Send the heartbeat message
+        self.write_frame(heartbeat.Heartbeat())
+        self._trigger_write()
+
+        # do it again
+        self._start_heartbeat_send_timer()
+
 
     def _on_connection_start(self, frame_value):
         """Negotiate the Connection.Start process, writing out a
