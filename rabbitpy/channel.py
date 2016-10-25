@@ -465,9 +465,17 @@ class Channel(base.AMQPChannel):
             return self._on_interrupt_set()
 
         error = False
-        body_value = bytes() if PYTHON3 else str()
-        while len(body_value) < header_value.body_size:
+
+        if PYTHON3:
+            body_value = bytearray()
+        else:
+            body_chunks = []
+        body_length_received = 0
+        body_total_size = header_value.body_size
+
+        while len(body_value) < body_total_size:
             body_part = self._wait_on_frame(CONTENT_BODY)
+
             self._check_for_rpc_request(body_part)
             if self._interrupt_is_set:
                 self._on_interrupt_set()
@@ -483,8 +491,16 @@ class Channel(base.AMQPChannel):
             if error:
                 return
 
-            body_value += body_part.value
-            if len(body_value) == header_value.body_size:
+            body_length_received += len(body_part.value)
+            if PYTHON3:
+                body_value += body_part.value
+            else:
+                body_chunks.append(body_part.value)
+
+            if body_length_received == body_total_size:
                 break
+
+        if not PYTHON3:
+            body_value = ''.join(body_chunks)
 
         return self._create_message(method_frame, header_value, body_value)
