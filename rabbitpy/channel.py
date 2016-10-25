@@ -473,7 +473,7 @@ class Channel(base.AMQPChannel):
         body_length_received = 0
         body_total_size = header_value.body_size
 
-        while len(body_value) < body_total_size:
+        while body_length_received < body_total_size:
             body_part = self._wait_on_frame(CONTENT_BODY)
 
             self._check_for_rpc_request(body_part)
@@ -496,9 +496,6 @@ class Channel(base.AMQPChannel):
                 body_value += body_part.value
             else:
                 body_chunks.append(body_part.value)
-
-            if body_length_received == body_total_size:
-                break
 
         if not PYTHON3:
             body_value = ''.join(body_chunks)
