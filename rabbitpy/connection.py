@@ -3,6 +3,12 @@ The Connection class negotiates and manages the connection state.
 
 """
 import logging
+# pylint: disable=import-error
+try:
+    from urllib import parse as urlparse
+except ImportError:
+    import urlparse
+
 try:
     import ssl
 except ImportError:
@@ -512,8 +518,8 @@ class Connection(base.StatefulObject):
             'host': parsed.hostname,
             'port': parsed.port or scheme_port,
             'virtual_host': utils.unquote(vhost),
-            'username': parsed.username or self.GUEST,
-            'password': parsed.password or self.GUEST,
+            'username': urlparse.unquote(parsed.username or self.GUEST),
+            'password': urlparse.unquote(parsed.password or self.GUEST),
             'timeout': self._qargs_int('timeout', qargs, self.DEFAULT_TIMEOUT),
             'heartbeat': self._qargs_int('heartbeat', qargs,
                                          self.DEFAULT_HEARTBEAT_INTERVAL),

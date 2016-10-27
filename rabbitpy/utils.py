@@ -78,8 +78,8 @@ def urlparse(url):
     parsed = _urlparse.urlparse(value)
     return Parsed(parsed.scheme.replace('http', 'amqp'), parsed.netloc,
                   parsed.path, parsed.params, parsed.query, parsed.fragment,
-                  _urlparse.unquote(parsed.username),
-                  _urlparse.unquote(parsed.password),
+                  parsed.username,
+                  parsed.password,
                   parsed.hostname, parsed.port)
 
 
