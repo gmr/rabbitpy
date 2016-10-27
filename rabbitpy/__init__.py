@@ -2,7 +2,9 @@
 rabbitpy, a pythonic RabbitMQ client
 
 """
-from rabbitpy.version import __version__
+__version__ = '1.0.0'
+
+import logging
 
 from rabbitpy.amqp import AMQP
 from rabbitpy.connection import Connection
@@ -28,15 +30,18 @@ from rabbitpy.simple import create_headers_exchange
 from rabbitpy.simple import create_topic_exchange
 from rabbitpy.simple import delete_exchange
 
-import logging
-from rabbitpy.utils import NullHandler
-logging.getLogger('rabbitpy').addHandler(NullHandler())
+if hasattr(logging, 'NullHandler'):
+    NullHandler = logging.NullHandler
+else:
+    """Python 2.6 does not have a NullHandler"""
+    class NullHandler(logging.Handler):
+        def emit(self, record):
+            pass
 
-VERSION = __version__
+logging.getLogger('rabbitpy').addHandler(NullHandler())
 
 __all__ = [
     '__version__',
-    'VERSION',
     'amqp_queue',
     'channel',
     'connection',
@@ -68,5 +73,3 @@ __all__ = [
     'create_topic_exchange',
     'delete_exchange'
 ]
-
-

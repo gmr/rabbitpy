@@ -4,7 +4,6 @@ a single API point for rabbitpy to use.
 
 """
 import collections
-import logging
 # pylint: disable=unused-import,import-error
 try:
     import Queue as queue
@@ -19,20 +18,6 @@ except ImportError:
     import urlparse as _urlparse
 
 from pamqp import PYTHON3
-
-if hasattr(logging, 'NullHandler'):
-    NullHandler = logging.NullHandler
-else:
-    class NullHandler(logging.Handler):
-        """Python 2.6 does not have a NullHandler"""
-        def emit(self, record):
-            """Emit a record
-
-            :param record record: The record to emit
-
-            """
-            pass
-
 
 PYPY = platform.python_implementation() == 'PyPy'
 
