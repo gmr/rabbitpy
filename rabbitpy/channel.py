@@ -95,7 +95,7 @@ class Channel(base.AMQPChannel):
         if exc_type and exc_val:
             LOGGER.debug('Exiting due to exception: %r', exc_val)
             self._set_state(self.CLOSED)
-            raise
+            raise exc_val
         if self.open:
             self.close()
 
