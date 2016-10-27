@@ -43,6 +43,15 @@ class ConnectionException(RabbitpyException):
         return 'Unable to connect to the remote server {0}'.format(self.args)
 
 
+class ConnectionNotOpen(RabbitpyException):
+    """Raised if a connection.close() is invoked when the connection is not
+    open.
+
+    """
+    def __str__(self):
+        return 'The connection is not open'
+
+
 class ConnectionResetException(RabbitpyException):
     """Raised if the socket level connection was reset. This can happen due
     to the loss of network connection or socket timeout, or more than 2

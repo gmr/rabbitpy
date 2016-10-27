@@ -204,15 +204,17 @@ class Connection(base.StatefulObject):
             return self._channels[channel_id]
 
     def close(self):
-        """Close the connection, including all open channels"""
-        if not self.closed:
-            self._set_state(self.CLOSING)
+        """Close the connection, including all open channels.
 
-            # Shutdown the IO thread and socket
-            self._shutdown_connection()
-
-            # Set state and clear out remote name
-            self._set_state(self.CLOSED)
+        :raises: rabbitpy.exceptions.ConnectionNotOpen
+        """
+        LOGGER.debug('State: %r', self.state_description)
+        if not self.open:
+            raise exceptions.ConnectionNotOpen()
+        self._set_state(self.CLOSING)
+        self._heartbeat.stop()
+        self._shutdown_connection()
+        self._set_state(self.CLOSED)
 
     @property
     def capabilities(self):
@@ -330,6 +332,7 @@ class Connection(base.StatefulObject):
         self._heartbeat = heartbeat.Heartbeat(self._io, self._channel0,
                                               self._args['heartbeat'])
         self._heartbeat.start()
+        self._set_state(self.OPEN)
 
     def _create_channel0(self):
         """Each connection should have a distinct channel0
@@ -401,11 +404,7 @@ class Connection(base.StatefulObject):
         socket.
 
         """
-        if not self._channel0_closed:
-            self._channel0.close()
-
-        # Ensure the connection is closed
-        self._trigger_write()
+        self._channel0.close()
 
         # Let the IOLoop know to close
         self._events.set(events.SOCKET_CLOSE)
