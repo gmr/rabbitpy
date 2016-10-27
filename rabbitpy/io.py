@@ -179,8 +179,8 @@ class _IOLoop(object):
     Polling (select, KQueue, poll).
 
     """
-    def __init__(self, fd, error_callback, read_callback, write_queue,
-                 event_obj, write_trigger, exception_stack):
+    def __init__(self, fd, error_callback, read_callback, write_callback,
+                 write_queue, event_obj, write_trigger, exception_stack):
         self._data = threading.local()
         self._data.fd = fd
         self._data.error_callback = error_callback
@@ -189,6 +189,7 @@ class _IOLoop(object):
         self._data.ssl = hasattr(fd, 'read')
         self._data.events = event_obj
         self._data.write_buffer = collections.deque()
+        self._data.write_callback = write_callback
         self._data.write_queue = write_queue
         self._data.write_trigger = write_trigger
         self._server_sock = None
@@ -303,6 +304,7 @@ class _IOLoop(object):
                 self._data.running = False
                 self._data.error_callback(error)
         else:
+            self._data.write_callback(bytes_sent)
             # If the entire frame could not be send, send the rest next time
             if bytes_sent < len(frame_data):
                 self._data.write_buffer.appendleft(frame_data[bytes_sent:])
@@ -342,8 +344,10 @@ class IO(threading.Thread, base.StatefulObject):
         # A socket to trigger write interrupts with
         self._write_listener, self._write_trigger = self._socketpair()
 
-        self._buffer = bytes()
         self._bytes_read = 0
+        self._bytes_written = 0
+
+        self._buffer = bytes()
         self._lock = threading.RLock()
         self._channels = dict()
         self._remote_name = None
@@ -370,6 +374,15 @@ class IO(threading.Thread, base.StatefulObject):
         """
         return self._bytes_read
 
+    @property
+    def bytes_written(self):
+        """Return the number of bytes written to RabbitMQ
+
+        :rtype: int
+
+        """
+        return self._bytes_written
+
     def run(self):
         """The blocking method to execute the core IO object, that connects
         and then blocks on the IOLoop, exiting when the IOLoop stops.
@@ -388,9 +401,10 @@ class IO(threading.Thread, base.StatefulObject):
         peer_socket = self._socket.getpeername()
         self._remote_name = '%s:%s -> %s:%s' % (
             local_socket[0], local_socket[1], peer_socket[0], peer_socket[1])
-        self._loop = _IOLoop(self._socket, self.on_error, self.on_read,
-                             self._write_queue, self._events,
-                             self._write_listener, self._exceptions)
+        self._loop = _IOLoop(
+            self._socket, self.on_error, self.on_read, self.on_write,
+            self._write_queue, self._events, self._write_listener,
+            self._exceptions)
         self._loop.run()
         if not self._exceptions.empty() and \
                 not self._events.is_set(events.EXCEPTION_RAISED):
@@ -441,7 +455,15 @@ class IO(threading.Thread, base.StatefulObject):
                 self._lock.release()
                 continue
 
-            self._add_frame_to_queue(value[0], value[1])
+            self._add_frame_to_read_queue(value[0], value[1])
+
+    def on_write(self, bytes_written):
+        """Keep track of how many bytes have been written.
+
+        :param int bytes_written: How many bytes were written to the socket.
+
+        """
+        self._bytes_written += bytes_written
 
     def stop(self):
         """Stop the IO Layer due to exception or other problem."""
@@ -456,7 +478,7 @@ class IO(threading.Thread, base.StatefulObject):
         """
         return self._write_trigger
 
-    def _add_frame_to_queue(self, channel_id, frame_value):
+    def _add_frame_to_read_queue(self, channel_id, frame_value):
         """Add the frame to the stack by creating the key value used in
         expectations and then add it to the list.
 

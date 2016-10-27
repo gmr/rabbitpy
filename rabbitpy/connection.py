@@ -87,7 +87,7 @@ class Connection(base.StatefulObject):
     CANCEL_METHOD = ['Basic.Cancel']
     DEFAULT_CHANNEL_MAX = 65535
     DEFAULT_TIMEOUT = 3
-    DEFAULT_HEARTBEAT_INTERVAL = 300
+    DEFAULT_HEARTBEAT_INTERVAL = 60.0
     DEFAULT_LOCALE = 'en_US'
     DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
     DEFAULT_VHOST = '%2F'
@@ -121,7 +121,7 @@ class Connection(base.StatefulObject):
         # Attributes for core object threads
         self._channel0 = None
         self._channels = dict()
-        self._heartbeat_checker = None
+        self._heartbeat = None
         self._io = None
 
         # Used by Message for breaking up body frames
@@ -310,9 +310,6 @@ class Connection(base.StatefulObject):
         if self.closed:
             return self.close()
 
-        # Create the heartbeat checker
-        self._heartbeat_checker = heartbeat.Checker(self._io, self._exceptions)
-
         # Create the Channel0 queue and add it to the IO thread
         self._channel0 = self._create_channel0()
         self._add_channel_to_io(self._channel0, None)
@@ -329,7 +326,10 @@ class Connection(base.StatefulObject):
         # Set the maximum frame size for channel use
         self._max_frame_size = self._channel0.maximum_frame_size
 
-        self._heartbeat_checker.start(self._channel0.heartbeat_interval)
+        # Create the heartbeat checker
+        self._heartbeat = heartbeat.Heartbeat(self._io, self._channel0,
+                                              self._args['heartbeat'])
+        self._heartbeat.start()
 
     def _create_channel0(self):
         """Each connection should have a distinct channel0
@@ -340,7 +340,6 @@ class Connection(base.StatefulObject):
         return channel0.Channel0(connection_args=self._args,
                                  events_obj=self._events,
                                  exception_queue=self._exceptions,
-                                 heartbeat_checker=self._heartbeat_checker,
                                  write_queue=self._write_queue,
                                  write_trigger=self._io.write_trigger)
 
@@ -629,8 +628,8 @@ class Connection(base.StatefulObject):
         :type force: bool
 
         """
-        # Make sure the heartbeat checker is not running
-        self._heartbeat_checker.stop()
+        # Make sure the heartbeat is not running
+        self._heartbeat.stop()
 
         if not force and not self._io.is_alive():
             self._set_state(self.CLOSED)

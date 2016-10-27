@@ -11,10 +11,10 @@ from pamqp import header
 from pamqp import heartbeat
 from pamqp import specification
 
+from rabbitpy import __version__
 from rabbitpy import base
 from rabbitpy import events
 from rabbitpy import exceptions
-from rabbitpy import version
 from rabbitpy.utils import queue
 
 LOGGER = logging.getLogger(__name__)
@@ -31,8 +31,6 @@ class Channel0(base.AMQPChannel):
     :type events_obj: rabbitpy.events.Events
     :param exception_queue: The queue where any pending exceptions live
     :type exception_queue: queue.Queue
-    :param heartbeat_checker: The object that implements heartbeat check logic
-    :type heartbeat_checker: rabbitpy.heartbeat.Checker
     :param write_queue: The queue to place data to write in
     :type write_queue: queue.Queue
     :param write_trigger: The socket to write to, to trigger IO writes
@@ -45,7 +43,7 @@ class Channel0(base.AMQPChannel):
     DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, connection_args, events_obj, exception_queue,
-                 heartbeat_checker, write_queue, write_trigger):
+                 write_queue, write_trigger):
         super(Channel0, self).__init__(exception_queue, write_trigger)
         self._channel_id = 0
         self._args = connection_args
@@ -57,7 +55,6 @@ class Channel0(base.AMQPChannel):
         self._state = self.CLOSED
         self._max_channels = connection_args['channel_max']
         self._max_frame_size = connection_args['frame_max']
-        self._heartbeat_checker = heartbeat_checker
         self._heartbeat_interval = connection_args['heartbeat']
         self.properties = None
 
@@ -68,17 +65,29 @@ class Channel0(base.AMQPChannel):
 
     @property
     def heartbeat_interval(self):
-        """Return the AMQP heartbeat interval for the connection"""
+        """Return the AMQP heartbeat interval for the connection
+
+        :rtype: int
+
+        """
         return self._heartbeat_interval
 
     @property
     def maximum_channels(self):
-        """Return the AMQP maximum channel count for the connection"""
+        """Return the AMQP maximum channel count for the connection
+
+        :rtype: int
+
+        """
         return self._max_channels
 
     @property
     def maximum_frame_size(self):
-        """Return the AMQP maximum frame size for the connection"""
+        """Return the AMQP maximum frame size for the connection
+
+        :rtype: int
+
+        """
         return self._max_frame_size
 
     def on_frame(self, value):
@@ -118,14 +127,14 @@ class Channel0(base.AMQPChannel):
             LOGGER.info('Connection is no longer blocked')
             self._events.clear(events.CONNECTION_BLOCKED)
         elif value.name == 'Heartbeat':
-            if not self._heartbeat_interval:
-                LOGGER.warning('Unexpected Heartbeat frame received')
-            self._heartbeat_checker.on_heartbeat()
-            self.write_frame(heartbeat.Heartbeat())
-            self._trigger_write()
+            pass
         else:
             LOGGER.warning('Unexpected Channel0 Frame: %r', value)
             raise specification.AMQPUnexpectedFrame(value)
+
+    def send_heartbeat(self):
+        """Send a heartbeat frame to the remote connection."""
+        self.write_frame(heartbeat.Heartbeat())
 
     def start(self):
         """Start the AMQP protocol negotiation"""
@@ -146,16 +155,16 @@ class Channel0(base.AMQPChannel):
         :rtype: pamqp.specification.Connection.StartOk
 
         """
-        properties = {'product': 'rabbitpy',
-                      'platform':
-                          'Python {0}.{1}.{2}'.format(*sys.version_info),
-                      'capabilities': {'authentication_failure_close': True,
-                                       'basic.nack': True,
-                                       'connection.blocked': True,
-                                       'consumer_cancel_notify': True,
-                                       'publisher_confirms': True},
-                      'information': 'See https://rabbitpy.readthedocs.io',
-                      'version': version.__version__}
+        properties = {
+            'product': 'rabbitpy',
+            'platform': 'Python {0}.{1}.{2}'.format(*sys.version_info),
+            'capabilities': {'authentication_failure_close': True,
+                             'basic.nack': True,
+                             'connection.blocked': True,
+                             'consumer_cancel_notify': True,
+                             'publisher_confirms': True},
+            'information': 'See https://rabbitpy.readthedocs.io',
+            'version': __version__}
         return specification.Connection.StartOk(client_properties=properties,
                                                 response=self._credentials,
                                                 locale=self._get_locale())
@@ -238,11 +247,13 @@ class Channel0(base.AMQPChannel):
         :param specification.Connection.Tune frame_value: Tune frame
 
         """
-        LOGGER.debug('Tuning, client: %r', self._heartbeat_interval)
         self._max_frame_size = self._negotiate(self._max_frame_size,
                                                frame_value.frame_max)
         self._max_channels = self._negotiate(self._max_channels,
                                              frame_value.channel_max)
+
+        LOGGER.debug('Heartbeat interval (server/client): %r/%r',
+                     frame_value.heartbeat, self._heartbeat_interval)
 
         # Properly negotiate the heartbeat interval
         if self._heartbeat_interval is None:
