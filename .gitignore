@@ -56,5 +56,5 @@ docs/_build/
 .vagrant
 
 # Test scripts
-consumer.py
-publisher.py
+./consumer.py
+./publisher.py
