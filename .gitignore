@@ -54,7 +54,3 @@ docs/_build/
 
 .idea
 .vagrant
-
-# Test scripts
-./consumer.py
-./publisher.py

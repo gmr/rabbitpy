@@ -1,20 +1,17 @@
 #!/usr/bin/env python
+import logging
 import rabbitpy
 
-with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
-    with conn.channel() as channel:
-        queue = rabbitpy.Queue(channel, 'example')
+URL = 'amqp://guest:guest@localhost:5672/%2f?heartbeat=15'
 
+logging.basicConfig(level=logging.INFO)
+
+with rabbitpy.Connection(URL) as conn:
+    with conn.channel() as channel:
         # Exit on CTRL-C
         try:
-
-            # Consume the message
-            for message in queue.consume_messages():
-                print('Message:')
-                print(' ID: %s' % message.properties['message_id'])
-                print(' Time: %s' % message.properties['timestamp'])
-                print(' Body: %s' % message.body)
+            for message in rabbitpy.Queue(channel, 'test'):
+                message.pprint(True)
                 message.ack()
-
         except KeyboardInterrupt:
-            print('Exited consumer')
+            logging.info('Exited consumer')

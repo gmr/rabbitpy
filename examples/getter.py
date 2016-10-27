@@ -1,17 +1,11 @@
 #!/usr/bin/env python
 import rabbitpy
 
-url = 'amqp://guest:guest@localhost:5672/%2F'
-connection = rabbitpy.Connection(url)
-channel = connection.channel()
-queue = rabbitpy.Queue(channel, 'example')
-
-while len(queue) > 0:
-    message = queue.get()
-    print('Message:')
-    print(' ID: %s' % message.properties['message_id'])
-    print(' Time: %s' % message.properties['timestamp'].isoformat())
-    print(' Body: %s' % message.body)
-    message.ack()
-
-    print('There are %i more messages in the queue' % len(queue))
+with rabbitpy.Connection('amqp://guest:guest@localhost:5672/%2f') as conn:
+    with conn.channel() as channel:
+        queue = rabbitpy.Queue(channel, 'example')
+        while len(queue) > 0:
+            message = queue.get()
+            message.pprint(True)
+            message.ack()
+            print('There are {} more messages in the queue'.format(len(queue)))
