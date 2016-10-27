@@ -466,6 +466,9 @@ class Channel(base.AMQPChannel):
 
         error = False
 
+        # To retrieve the message body we must concatenate the binary content
+        # of several frames. The recommended idiom for this differs
+        # in py3 and py2.
         if PYTHON3:
             body_value = bytearray()
         else:
@@ -487,7 +490,6 @@ class Channel(base.AMQPChannel):
             elif consuming and not self._consumers:
                 self._reject_inbound_message(method_frame)
                 error = True
-
             if error:
                 return
 
