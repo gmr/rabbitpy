@@ -1,5 +1,10 @@
 Version History
 ---------------
+ - 1.0.0 - released *2016-10-27*
+  - Reworked Heartbeat logic to send a heartbeat every ``interval / 2`` seconds  when data has not been written to the socket (#70, #74, #98, #99)
+  - Improved performance when consuming large mesages (#104) - `Jelle Aalbers <https://github.com/JelleAalbers>`_
+  - Allow for username and password to be default again (#96, #97) - `Grzegorz Śliwiński <https://github.com/fizyk>`_
+  - Cleanup of Connection and Channel teardown (#103)
  - 0.27.1 - released *2016-05-12*
   - Fix a bug where the IO write trigger socketpair is not being cleaned up on close
  - 0.27.0 - released *2016-05-11*
