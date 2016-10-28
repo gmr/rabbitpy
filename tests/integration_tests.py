@@ -14,6 +14,9 @@ from rabbitpy import utils
 
 LOGGER = logging.getLogger(__name__)
 
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger('rabbitpy').setLevel(logging.DEBUG)
+
 
 class ConfirmedPublishQueueLengthTest(unittest.TestCase):
 
