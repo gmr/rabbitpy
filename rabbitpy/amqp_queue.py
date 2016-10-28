@@ -83,9 +83,9 @@ class Queue(base.AMQPClass):
         """Create a new Queue object instance. Only the
         :class:`rabbitpy.Channel` object is required.
 
-        .. warning:: You should only use a single `Queue` instance per channel
-        when consuming or getting messages. Failure to do so can have
-        unintended consequences.
+        .. warning:: You should only use a single `:class:~rabbitpy.Queue`
+                     instance per channel when consuming or getting messages.
+                     Failure to do so can  have unintended consequences.
 
         """
         super(Queue, self).__init__(channel, name)
@@ -109,9 +109,9 @@ class Queue(base.AMQPClass):
         """Quick way to consume messages using defaults of no_ack=False,
         prefetch and priority not set.
 
-        .. warning:: You should only use a single `Queue` instance per channel
-        when consuming or getting messages. Failure to do so can have
-        unintended consequences.
+        .. warning:: You should only use a single `:class:~rabbitpy.Queue`
+                     instance per channel when consuming or getting messages.
+                     Failure to do so can  have unintended consequences.
 
         :yields: rabbitpy.message.Message
 
