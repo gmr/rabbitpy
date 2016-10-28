@@ -42,7 +42,7 @@ class Queue(base.AMQPClass):
     """Create and manage RabbitMQ queues.
 
     :param channel: The channel object to communicate on
-    :type channel: :class:`~rabbitpy.channel.Channel`
+    :type channel: :py:class:`~rabbitpy.Channel`
     :param str name: The name of the queue
     :param exclusive: Queue can only be used by this channel and will
                       auto-delete once the channel is closed.
@@ -60,8 +60,8 @@ class Queue(base.AMQPClass):
     :type dead_letter_routing_key: str
     :param dict arguments: Custom arguments for the queue
 
-    :raises: :exc:`~rabbitpy.exceptions.RemoteClosedChannelException`
-    :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
+    :raises: :py:exc:`~rabbitpy.exceptions.RemoteClosedChannelException`
+    :raises: :py:exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
     """
     arguments = dict()
@@ -81,12 +81,12 @@ class Queue(base.AMQPClass):
                  dead_letter_exchange=None, dead_letter_routing_key=None,
                  arguments=None):
         """Create a new Queue object instance. Only the
-        :class:`rabbitpy.Channel` object is required.
+        :py:class:`rabbitpy.Channel` object is required.
 
         .. warning:: You should only use a single
-                     `:class:~rabbitpy.amqp_queue.Queue` instance per channel
-                     when consuming or getting messages. Failure to do so can
-                     have unintended consequences.
+             :py:class:`~rabbitpy.Queue` instance per channel
+             when consuming or getting messages. Failure to do so can
+             have unintended consequences.
 
         """
         super(Queue, self).__init__(channel, name)
@@ -107,15 +107,14 @@ class Queue(base.AMQPClass):
         self.dead_letter_routing_key = dead_letter_routing_key
 
     def __iter__(self):
-        """Quick way to consume messages using defaults of no_ack=False,
+        """Quick way to consume messages using defaults of ``no_ack=False``,
         prefetch and priority not set.
 
-        .. warning:: You should only use a single
-                     `:class:~rabbitpy.amqp_queue.Queue` instance per channel
-                     when consuming messages. Failure to do so can
-                     have unintended consequences.
+        .. warning:: You should only use a single :py:class:`~rabbitpy.Queue`
+             instance per channel when consuming messages. Failure to do so can
+             have unintended consequences.
 
-        :yields: rabbitpy.message.Message
+        :yields: :class:`~rabbitpy.Message`
 
         """
         return self.consume()
@@ -191,17 +190,15 @@ class Queue(base.AMQPClass):
 
         .. versionadded:: 0.26
 
-        .. warning:: You should only use a single
-                     `:class:~rabbitpy.amqp_queue.Queue` instance per channel
-                     when consuming messages. Failure to do so can
-                     have unintended consequences.
-
+        .. warning:: You should only use a single :py:class:`~rabbitpy.Queue`
+             instance per channel when consuming messages. Failure to do so can
+             have unintended consequences.
 
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
         :rtype: :py:class:`generator`
-        :raises: rabbitpy.exceptions.RemoteCancellationException
+        :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
         """
         self._consume(no_ack, prefetch, priority)
@@ -235,7 +232,7 @@ class Queue(base.AMQPClass):
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
         :rtype: :py:class:`Generator`
-        :raises: rabbitpy.exceptions.RemoteCancellationException
+        :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
         """
         warnings.warn('This method is deprecated in favor Queue.consume',
@@ -291,15 +288,15 @@ class Queue(base.AMQPClass):
         """Request a single message from RabbitMQ using the Basic.Get AMQP
         command.
 
-        .. warning:: You should only use a single
-                     `:class:~rabbitpy.amqp_queue.Queue` instance per channel
-                     when getting messages. Failure to do so can have
-                     unintended consequences.
+        .. warning:: You should only use a single :py:class:`~rabbitpy.Queue`
+             instance per channel when getting messages. Failure to do so can
+             have unintended consequences.
+
 
         :param bool acknowledge: Let RabbitMQ know if you will manually
                                  acknowledge or negatively acknowledge the
                                  message after each get.
-        :rtype: rabbitpy.message.Message or None
+        :rtype: :class:`~rabbitpy.Message` or None
 
         """
         self._write_frame(specification.Basic.Get(queue=self.name,
