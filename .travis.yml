@@ -9,9 +9,8 @@ python:
   - 3.5.1
 install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
-  - pip install --upgrade -r requirements.txt
   - pip install --upgrade -r test-requirements.txt
-script: nosetests -v -l DEBUG --logging-level=DEBUG
+script: nosetests --logging-level=DEBUG
 after_success:
   - codecov
   - CODECLIMATE_REPO_TOKEN=ed39a2c039a29b0965bfdd243fea7caba2a83a4945bbd69fe95f506066754bd1 codeclimate-test-reporter
