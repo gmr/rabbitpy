@@ -20,7 +20,7 @@ class Heartbeat(object):
 
     def __init__(self, io, channel0, interval):
         self._channel0 = channel0
-        self._interval = float(interval)
+        self._interval = float(interval) / 2.0
         self._io = io
         self._last_written = self._io.bytes_written
         self._lock = threading.Lock()
@@ -33,7 +33,7 @@ class Heartbeat(object):
             return
         self._start_timer()
         LOGGER.debug('Heartbeat started, ensuring data is written at least '
-                     'every %i seconds', self._interval)
+                     'every %.2f seconds', self._interval)
 
     def stop(self):
         """Stop the heartbeat checker"""
@@ -45,7 +45,7 @@ class Heartbeat(object):
         """Create a new thread timer, destroying the last if it existed."""
         if self._timer:
             del self._timer
-        self._timer = threading.Timer(self._interval * 2, self._maybe_send)
+        self._timer = threading.Timer(self._interval, self._maybe_send)
         self._timer.daemon = True
         self._timer.start()
 
