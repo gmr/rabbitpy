@@ -146,9 +146,8 @@ class Connection(base.StatefulObject):
         """
         if exc_type and exc_val:
             self._set_state(self.CLOSED)
-            raise
-        self._set_state(self.CLOSED)
-        self._shutdown_connection(True)
+            raise exc_val
+        self.close()
 
     @property
     def args(self):
@@ -198,6 +197,7 @@ class Connection(base.StatefulObject):
                                 self._write_queue,
                                 self._max_frame_size,
                                 self._io.write_trigger,
+                                self,
                                 blocking_read)
             self._add_channel_to_io(self._channels[channel_id], channel_frames)
             self._channels[channel_id].open()
@@ -206,14 +206,14 @@ class Connection(base.StatefulObject):
     def close(self):
         """Close the connection, including all open channels.
 
-        :raises: rabbitpy.exceptions.ConnectionNotOpen
+        :raises: rabbitpy.exceptions.ConnectionClosed
         """
-        LOGGER.debug('State: %r', self.state_description)
         if not self.open:
-            raise exceptions.ConnectionNotOpen()
-        self._set_state(self.CLOSING)
-        self._heartbeat.stop()
+            raise exceptions.ConnectionClosed()
+        if not self._events.is_set(events.SOCKET_CLOSED):
+            self._set_state(self.CLOSING)
         self._shutdown_connection()
+        LOGGER.debug('Setting to closed')
         self._set_state(self.CLOSED)
 
     @property
@@ -266,20 +266,12 @@ class Connection(base.StatefulObject):
         return self._channel0.open and not \
             self._events.is_set(events.CHANNEL0_CLOSED)
 
-    def _close_all_channels(self, force=False):
-        """Close all open channels
-
-        :param force: Force the connection to shutdown without AMQP negotiation
-        :type force: bool
-
-        """
+    def _close_all_channels(self):
+        """Close all open channels"""
         for chan_id in [chan_id for chan_id in self._channels
                         if not self._channels[chan_id].closed]:
-            if force:
-                # pylint: disable=protected-access
-                self._channels[chan_id]._force_close()
-            else:
-                self._channels[chan_id].close()
+            self._channels[chan_id].close()
+        self._channel0.close()
 
     def _close_channels(self):
         """Close all the channels that are currently open."""
@@ -344,7 +336,8 @@ class Connection(base.StatefulObject):
                                  events_obj=self._events,
                                  exception_queue=self._exceptions,
                                  write_queue=self._write_queue,
-                                 write_trigger=self._io.write_trigger)
+                                 write_trigger=self._io.write_trigger,
+                                 connection=self)
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
@@ -398,24 +391,6 @@ class Connection(base.StatefulObject):
 
         """
         return max(list(self._channels.keys()))
-
-    def _maybe_close_connection(self):
-        """Perform the steps required to shutdown channel0 and close the
-        socket.
-
-        """
-        self._channel0.close()
-
-        # Let the IOLoop know to close
-        self._events.set(events.SOCKET_CLOSE)
-
-        # Break out of select waiting
-        self._trigger_write()
-
-        if (self._events.is_set(events.SOCKET_OPENED) and
-                not self._events.is_set(events.SOCKET_CLOSED)):
-            LOGGER.debug('Waiting on socket to close')
-            self._events.wait(events.SOCKET_CLOSED, 0.1)
 
     @staticmethod
     def _normalize_expectations(channel_id, expectations):
@@ -620,29 +595,33 @@ class Connection(base.StatefulObject):
                 return value
         return None
 
-    def _shutdown_connection(self, force=False):
+    def _shutdown_connection(self):
         """Tell Channel0 and IO to stop if they are not stopped.
-
-        :param force: Force the connection to shutdown without AMQP negotiation
-        :type force: bool
 
         """
         # Make sure the heartbeat is not running
         self._heartbeat.stop()
 
-        if not force and not self._io.is_alive():
-            self._set_state(self.CLOSED)
-            LOGGER.debug('Cant shutdown connection, IO is no longer alive')
-            return
+        if not self._events.is_set(events.SOCKET_CLOSED):
+            self._close_all_channels()
 
-        self._close_all_channels(force)
-        self._maybe_close_connection()
+            # Let the IOLoop know to close
+            self._events.set(events.SOCKET_CLOSE)
 
-        self._io.stop()
+            # Break out of select waiting
+            self._trigger_write()
 
-        # Wait for the IO thread to stop
+            if (self._events.is_set(events.SOCKET_OPENED) and
+                    not self._events.is_set(events.SOCKET_CLOSED)):
+                LOGGER.debug('Waiting on socket to close')
+                self._events.wait(events.SOCKET_CLOSED, 0.1)
+
+            self._io.stop()
+        else:
+            return self._io.stop()
+
         while self._io.is_alive():
-            time.sleep(0.25)
+            time.sleep(0.1)
 
     def _trigger_write(self):
         """Notifies the IO loop we need to write a frame by writing a byte

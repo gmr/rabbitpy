@@ -43,8 +43,9 @@ class Channel0(base.AMQPChannel):
     DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, connection_args, events_obj, exception_queue,
-                 write_queue, write_trigger):
-        super(Channel0, self).__init__(exception_queue, write_trigger)
+                 write_queue, write_trigger, connection):
+        super(Channel0, self).__init__(
+            exception_queue, write_trigger, connection)
         self._channel_id = 0
         self._args = connection_args
         self._events = events_obj
@@ -102,8 +103,9 @@ class Channel0(base.AMQPChannel):
             LOGGER.warning('RabbitMQ closed the connection (%s): %s',
                            value.reply_code, value.reply_text)
             self._set_state(self.CLOSED)
-            self._events.set(events.SOCKET_CLOSE)
+            self._events.set(events.SOCKET_CLOSED)
             self._events.set(events.CHANNEL0_CLOSED)
+            self._connection.close()
             if value.reply_code in exceptions.AMQP:
                 err = exceptions.AMQP[value.reply_code](value.reply_text)
             else:

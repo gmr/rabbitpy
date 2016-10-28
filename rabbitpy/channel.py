@@ -64,10 +64,11 @@ class Channel(base.AMQPChannel):
 
     def __init__(self, channel_id, server_capabilities, events,
                  exception_queue, read_queue, write_queue,
-                 maximum_frame_size, write_trigger, blocking_read=False):
+                 maximum_frame_size, write_trigger, connection,
+                 blocking_read=False):
         """Create a new instance of the Channel class"""
         super(Channel, self).__init__(exception_queue, write_trigger,
-                                      blocking_read)
+                                      connection, blocking_read)
         self._channel_id = channel_id
         self._consumers = {}
         self._consuming = False
@@ -105,10 +106,15 @@ class Channel(base.AMQPChannel):
         if so.
 
         """
-        if self.closed:
+        if self._connection.closed:
+            LOGGER.debug('Channel %i close invoked when connection closed',
+                         self._channel_id)
+            return
+        elif self.closed:
             LOGGER.debug('Channel %i close invoked when already closed',
                          self._channel_id)
             return
+
 
         self._set_state(self.CLOSING)
 
@@ -241,7 +247,12 @@ class Channel(base.AMQPChannel):
                                       consumer_tag, nowait)
 
     def _on_ready_to_cancel(self, consumer_tag, nowait):
-        LOGGER.debug('Cancelling consumer')
+        self._check_for_exceptions()
+        if self.closed:
+            return
+        LOGGER.debug('Cancelling consumer while %r (%r)',
+                     self.state_description,
+                     self._connection.state_description)
         if consumer_tag in self._consumers:
             del self._consumers[consumer_tag]
         if nowait:

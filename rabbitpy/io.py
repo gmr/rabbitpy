@@ -212,8 +212,11 @@ class _IOLoop(object):
                       len(exception.args) == 2 and
                       exception.args[0] == errno.EINTR):
                     continue
-            if self._data.events.is_set(events.SOCKET_CLOSE):
+            if self._data.events.is_set(events.SOCKET_CLOSED):
                 LOGGER.debug('Exiting due to closed socket')
+                break
+            elif self._data.events.is_set(events.SOCKET_CLOSE):
+                LOGGER.debug('Exiting due to closing socket')
                 self._exceptions.put(exceptions.ConnectionResetException())
                 break
         LOGGER.debug('Exiting IOLoop.run')
@@ -418,6 +421,9 @@ class IO(threading.Thread, base.StatefulObject):
         :param socket.error exception: The socket error
 
         """
+        LOGGER.critical('In on_error: %r', exception)
+        if self._events.is_set(events.SOCKET_CLOSED):
+            return
         args = [self._args['host'], self._args['port'], str(exception)]
         if self._channels[0][0].open:
             self._exceptions.put(exceptions.ConnectionResetException(*args))
@@ -492,6 +498,7 @@ class IO(threading.Thread, base.StatefulObject):
 
     def _close(self):
         """Close the socket and set the proper event states"""
+        self._events.clear(events.SOCKET_OPENED)
         self._set_state(self.CLOSING)
         if hasattr(self, '_socket') and self._socket:
             self._close_socket(self._socket)
@@ -501,9 +508,10 @@ class IO(threading.Thread, base.StatefulObject):
             self._close_socket(self._write_trigger)
         if hasattr(self, '_server_socket') and self._server_socket:
             self._close_socket(self._server_sock)
-        self._events.clear(events.SOCKET_OPENED)
-        self._events.set(events.SOCKET_CLOSED)
-        self._set_state(self.CLOSED)
+        if not self._events.is_set(events.SOCKET_CLOSED):
+            self._events.set(events.SOCKET_CLOSED)
+        if not self.closed:
+            self._set_state(self.CLOSED)
 
     @staticmethod
     def _close_socket(sock):
