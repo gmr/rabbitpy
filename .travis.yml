@@ -6,14 +6,18 @@ python:
   - 3.5
   - 3.6
   - 3.7
+services:
+  - docker
 install:
   - pip install --upgrade -r test-requirements.txt
+before_script:
+  docker-compose up -d
 script: nosetests
+after_script:
+  docker-compose down
 after_success:
   - codecov
   - CODECLIMATE_REPO_TOKEN=ed39a2c039a29b0965bfdd243fea7caba2a83a4945bbd69fe95f506066754bd1 codeclimate-test-reporter
-services:
-  - rabbitmq
 deploy:
   distributions: sdist bdist_wheel
   provider: pypi
