@@ -2,7 +2,7 @@
 rabbitpy, a pythonic RabbitMQ client
 
 """
-__version__ = '1.0.0'
+__version__ = '2.0.0'
 
 import logging
 
@@ -30,15 +30,7 @@ from rabbitpy.simple import create_headers_exchange
 from rabbitpy.simple import create_topic_exchange
 from rabbitpy.simple import delete_exchange
 
-if hasattr(logging, 'NullHandler'):
-    NullHandler = logging.NullHandler
-else:
-    """Python 2.6 does not have a NullHandler"""
-    class NullHandler(logging.Handler):
-        def emit(self, record):
-            pass
-
-logging.getLogger('rabbitpy').addHandler(NullHandler())
+logging.getLogger('rabbitpy').addHandler(logging.NullHandler())
 
 __all__ = [
     '__version__',

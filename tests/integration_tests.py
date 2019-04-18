@@ -58,9 +58,9 @@ class PublishAndGetTest(unittest.TestCase):
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
-        self.app_id = b'PublishAndGetTest'
+        self.app_id = 'PublishAndGetTest'
         self.message_body = b'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        self.message_type = b'test'
+        self.message_type = 'test'
 
         self.msg = rabbitpy.Message(self.channel,
                                     self.message_body,
@@ -79,14 +79,12 @@ class PublishAndGetTest(unittest.TestCase):
     def test_get_returns_expected_message(self):
         msg = self.queue.get(True)
         self.assertEqual(msg.body, self.message_body)
-        self.assertEqual(msg.properties['app_id'],
-                         self.msg.properties['app_id'])
+        self.assertEqual(msg.properties['app_id'], self.app_id)
         self.assertEqual(msg.properties['message_id'],
-                         self.msg.properties['message_id'])
+                         self.msg.properties['message_id'].decode('utf-8'))
         self.assertEqual(msg.properties['timestamp'],
                          self.msg.properties['timestamp'])
-        self.assertEqual(msg.properties['message_type'],
-                         self.msg.properties['message_type'])
+        self.assertEqual(msg.properties['message_type'], self.message_type)
 
 
 class PublishAndConsumeTest(unittest.TestCase):
@@ -100,9 +98,9 @@ class PublishAndConsumeTest(unittest.TestCase):
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
-        self.app_id = b'PublishAndConsumeIteratorTest'
+        self.app_id = 'PublishAndConsumeIteratorTest'
         self.message_body = b'ABC1234567890'
-        self.message_type = b'test'
+        self.message_type = 'test'
 
         self.msg = rabbitpy.Message(self.channel,
                                     self.message_body,
@@ -121,14 +119,12 @@ class PublishAndConsumeTest(unittest.TestCase):
     def test_get_returns_expected_message(self):
         for msg in self.queue.consume(no_ack=True, prefetch=1):
             self.assertEqual(msg.body, self.message_body)
-            self.assertEqual(msg.properties['app_id'],
-                             self.msg.properties['app_id'])
+            self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(msg.properties['message_id'],
-                             self.msg.properties['message_id'])
+                             self.msg.properties['message_id'].decode('utf-8'))
             self.assertEqual(msg.properties['timestamp'],
                              self.msg.properties['timestamp'])
-            self.assertEqual(msg.properties['message_type'],
-                             self.msg.properties['message_type'])
+            self.assertEqual(msg.properties['message_type'], self.message_type)
             break
         if utils.PYPY:
             self.queue.stop_consuming()
@@ -145,9 +141,9 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
-        self.app_id = b'PublishAndConsumeIteratorTest'
+        self.app_id = 'PublishAndConsumeIteratorTest'
         self.message_body = b'ABC1234567890'
-        self.message_type = b'test'
+        self.message_type = 'test'
 
         self.msg = rabbitpy.Message(self.channel,
                                     self.message_body,
@@ -166,14 +162,12 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
     def test_iterator_returns_expected_message(self):
         for msg in self.queue:
             self.assertEqual(msg.body, self.message_body)
-            self.assertEqual(msg.properties['app_id'],
-                             self.msg.properties['app_id'])
+            self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(msg.properties['message_id'],
-                             self.msg.properties['message_id'])
+                             self.msg.properties['message_id'].decode('utf-8'))
             self.assertEqual(msg.properties['timestamp'],
                              self.msg.properties['timestamp'])
-            self.assertEqual(msg.properties['message_type'],
-                             self.msg.properties['message_type'])
+            self.assertEqual(msg.properties['message_type'], self.message_type)
             msg.ack()
             LOGGER.info('breaking out of iterator')
             break
@@ -278,7 +272,7 @@ class UnnamedQueueDeclareTest(unittest.TestCase):
     def test_declaring_nameless_queue(self):
         self.queue = rabbitpy.Queue(self.channel)
         self.queue.declare()
-        matches = re.match(b'^amq\.gen\-[\w_\-]+$', self.queue.name)
+        matches = re.match(r'^amq\.gen-[\w_\-]+$', self.queue.name)
         self.assertIsNotNone(matches)
         self.queue.delete()
 
