@@ -1,6 +1,6 @@
 Exceptions
 ==========
-rabbitpy contains two types of exceptions, exceptions that are specific to rabbitpy and exceptions that are raises as the result of a Channel or Connection closure from RabbitMQ. These exceptions will be raised to let you know when you have performed an action like redeclared a pre-existing queue with different values. Consider the following example:
+rabbitpy contains two types of exceptions, exceptions that are specific to rabbitpy and exceptions that are raised as a result of a Channel or Connection closure from RabbitMQ. These exceptions will be raised to let you know when you have performed an action like redeclared a pre-existing queue with different values. Consider the following example:
 
 .. code:: python
 
