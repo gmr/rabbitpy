@@ -5,13 +5,17 @@
 
 rabbitpy: RabbitMQ Simplified
 =============================
-rabbitpy is a pure python, thread-safe [#]_, and pythonic BSD Licensed AMQP/RabbitMQ library that supports Python 2.6+ and 3.2+. rabbitpy aims to provide a simple and easy to use API for interfacing with RabbitMQ, minimizing the programming overhead often found in other libraries.
+rabbitpy is a pure python, thread-safe [#]_, and pythonic BSD Licensed AMQP/RabbitMQ
+library that supports Python 2.7+ and 3.4+. rabbitpy aims to provide a simple
+and easy to use API for interfacing with RabbitMQ, minimizing the programming
+overhead often found in other libraries.
 
 |Version|
 
 Installation
 ------------
-rabbitpy is available from the `Python Package Index <https://preview-pypi.python.org/project/rabbitpy/>`_ and can be installed by running :command:`easy_install rabbitpy` or :command:`pip install rabbitpy`
+rabbitpy is available from the `Python Package Index <https://pypi.org/project/rabbitpy/>`_ and can be
+installed by running :command:`easy_install rabbitpy` or :command:`pip install rabbitpy`
 
 API Documentation
 -----------------

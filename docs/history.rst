@@ -1,5 +1,13 @@
 Version History
 ---------------
+ - 2.0.0 - released *2019-04-18*
+  - Updated to use pamqp>=2.3,<3 which has the following implications:
+    - Field table keys are now strings and no longer bytes. This may be a breaking change means in Python3 keys will
+      always be type str for short strings. This includes frame values and field table values.
+    - In Python 2.7 if a short-string (key, frame field value, etc) has UTF-8 characters in it, it will be a unicode object.
+  - field-table integer encoding changes
+  - Drops support for Python < 3.4
+  - Adds support for Python 3.6 and 3.7
  - 1.0.0 - released *2016-10-27*
   - Reworked Heartbeat logic to send a heartbeat every ``interval / 2`` seconds  when data has not been written to the socket (#70, #74, #98, #99)
   - Improved performance when consuming large mesages (#104) - `Jelle Aalbers <https://github.com/JelleAalbers>`_
