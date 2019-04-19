@@ -1,5 +1,6 @@
 import logging
 import re
+import os
 import threading
 import time
 try:
@@ -23,7 +24,7 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
     ITERATIONS = 5
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.channel.enable_publisher_confirms()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'pql-test')
@@ -50,7 +51,7 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
 class PublishAndGetTest(unittest.TestCase):
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pagt')
         self.exchange.declare()
@@ -90,7 +91,7 @@ class PublishAndGetTest(unittest.TestCase):
 class PublishAndConsumeTest(unittest.TestCase):
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pact')
         self.exchange.declare()
@@ -133,7 +134,7 @@ class PublishAndConsumeTest(unittest.TestCase):
 class PublishAndConsumeIteratorTest(unittest.TestCase):
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacit')
         self.exchange.declare()
@@ -181,7 +182,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
     PUBLISH_COUNT = 10
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacist')
         self.exchange.declare()
@@ -235,7 +236,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
 class RedeliveredFlagTest(unittest.TestCase):
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.queue = rabbitpy.Queue(self.channel, 'redeliver-test')
         self.queue.declare()
@@ -262,7 +263,7 @@ class RedeliveredFlagTest(unittest.TestCase):
 class UnnamedQueueDeclareTest(unittest.TestCase):
 
     def setUp(self):
-        self.connection = rabbitpy.Connection()
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
 
     def tearDown(self):
@@ -281,8 +282,8 @@ class SimpleCreateQueueTests(unittest.TestCase):
 
     def test_create_queue(self):
         name = 'simple-create-queue'
-        rabbitpy.create_queue(queue_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 queue = rabbitpy.Queue(channel, name)
                 response = queue.declare(True)
@@ -294,8 +295,9 @@ class SimpleCreateDirectExchangeTests(unittest.TestCase):
 
     def test_create(self):
         name = 'direct-exchange-name'
-        rabbitpy.create_direct_exchange(exchange_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_direct_exchange(
+            os.environ['RABBITMQ_URL'], exchange_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.DirectExchange(channel, name)
                 obj.declare(True)
@@ -309,8 +311,9 @@ class SimpleCreateFanoutExchangeTests(unittest.TestCase):
 
     def test_create(self):
         name = 'fanout-exchange-name'
-        rabbitpy.create_fanout_exchange(exchange_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_fanout_exchange(
+            os.environ['RABBITMQ_URL'], exchange_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.FanoutExchange(channel, name)
                 obj.declare(True)
@@ -324,8 +327,9 @@ class SimpleCreateHeadersExchangeTests(unittest.TestCase):
 
     def test_create(self):
         name = 'headers-exchange-name'
-        rabbitpy.create_headers_exchange(exchange_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_headers_exchange(
+            os.environ['RABBITMQ_URL'], exchange_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.HeadersExchange(channel, name)
                 obj.declare(True)
@@ -339,8 +343,9 @@ class SimpleCreateTopicExchangeTests(unittest.TestCase):
 
     def test_create(self):
         name = 'topic-exchange-name'
-        rabbitpy.create_topic_exchange(exchange_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_topic_exchange(
+            os.environ['RABBITMQ_URL'], exchange_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.TopicExchange(channel, name)
                 obj.declare(True)
@@ -354,9 +359,11 @@ class SimpleDeleteExchangeTests(unittest.TestCase):
 
     def test_delete(self):
         name = 'delete-exchange-name'
-        rabbitpy.create_topic_exchange(exchange_name=name)
-        rabbitpy.delete_exchange(exchange_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_topic_exchange(
+            os.environ['RABBITMQ_URL'], exchange_name=name)
+        rabbitpy.delete_exchange(
+            os.environ['RABBITMQ_URL'], exchange_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.TopicExchange(channel, name)
                 self.assertRaises(exceptions.AMQPNotFound,
@@ -370,9 +377,9 @@ class SimpleDeleteQueueTests(unittest.TestCase):
 
     def test_delete(self):
         name = 'delete-queue-name'
-        rabbitpy.create_queue(queue_name=name)
-        rabbitpy.delete_queue(queue_name=name)
-        with rabbitpy.Connection() as conn:
+        rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.Queue(channel, name)
                 self.assertRaises(exceptions.AMQPNotFound,
@@ -386,18 +393,19 @@ class SimpleGetTests(unittest.TestCase):
 
     def test_get_empty(self):
         name = 'queue-name-get'
-        rabbitpy.create_queue(queue_name=name)
-        self.assertIsNone(rabbitpy.get(queue_name=name))
-        rabbitpy.delete_queue(queue_name=name)
+        rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        self.assertIsNone(
+            rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name))
+        rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
 
     def test_get_msg(self):
         body = b'test-body'
         name = 'queue-name-get'
-        rabbitpy.create_queue(queue_name=name)
-        rabbitpy.publish(routing_key=name, body=body)
-        result = rabbitpy.get(queue_name=name)
+        rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        rabbitpy.publish(os.environ['RABBITMQ_URL'], routing_key=name, body=body)
+        result = rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertEqual(result.body, body)
-        rabbitpy.delete_queue(queue_name=name)
+        rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
 
     def test_raises_on_empty_name(self):
         self.assertRaises(ValueError, rabbitpy.get)
@@ -408,12 +416,13 @@ class SimplePublishTests(unittest.TestCase):
     def test_publish_with_confirm(self):
         body = b'test-body'
         name = 'simple-publish'
-        rabbitpy.create_queue(queue_name=name)
-        self.assertTrue(rabbitpy.publish(routing_key=name, body=body,
-                                         confirm=True))
-        result = rabbitpy.get(queue_name=name)
+        rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        self.assertTrue(
+            rabbitpy.publish(os.environ['RABBITMQ_URL'], routing_key=name,
+                             body=body, confirm=True))
+        result = rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertEqual(result.body, body)
-        rabbitpy.delete_queue(queue_name=name)
+        rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
 
 
 class SimpleConsumeTests(unittest.TestCase):
@@ -421,17 +430,19 @@ class SimpleConsumeTests(unittest.TestCase):
     def test_publish_with_confirm(self):
         body = b'test-body'
         name = 'simple-consume-tests'
-        rabbitpy.create_queue(queue_name=name)
-        self.assertTrue(rabbitpy.publish(routing_key=name, body=body,
-                                         confirm=True))
-        for message in rabbitpy.consume(queue_name=name, no_ack=True):
+        rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
+        self.assertTrue(
+            rabbitpy.publish(os.environ['RABBITMQ_URL'], routing_key=name,
+                             body=body, confirm=True))
+        for message in rabbitpy.consume(
+                os.environ['RABBITMQ_URL'], queue_name=name, no_ack=True):
             self.assertEqual(message.body, body)
             break
-        rabbitpy.delete_queue(queue_name=name)
+        rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
 
     def test_raises_on_empty_name(self):
         try:
-            for msg in rabbitpy.consume():
+            for _msg in rabbitpy.consume(os.environ['RABBITMQ_URL']):
                 break
             assert False, 'Did not raise ValueError'
         except ValueError:

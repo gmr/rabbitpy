@@ -11,7 +11,7 @@ services:
 install:
   - pip install --upgrade -r test-requirements.txt
 before_script:
-  docker-compose up -d
+  - bootstrap.sh
 script: nosetests
 after_script:
   docker-compose down
