@@ -50,7 +50,7 @@ docker-compose pull -q
 docker-compose up -d
 
 report_start "RabbitMQ"
-sleep 10
+sleep 30
 docker-compose exec -T rabbitmq rabbitmqctl await_startup
 report_done
 
