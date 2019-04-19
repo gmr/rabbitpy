@@ -1,6 +1,6 @@
 Version History
 ---------------
- - 2.0.0 - released *2019-04-18*
+ - 2.0.0 - released *2019-04-19*
   - Updated to use pamqp>=2.3,<3 which has the following implications:
     - Field table keys are now strings and no longer bytes. This may be a breaking change means in Python3 keys will
       always be type str for short strings. This includes frame values and field table values.
