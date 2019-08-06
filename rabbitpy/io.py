@@ -231,12 +231,12 @@ class _IOLoop(object):
             pass
 
     def _create_poller(self):
-        if hasattr(select, 'poll'):
-            LOGGER.debug('Returning PollPoller')
-            return _PollPoller(self._data.fd, self._data.write_trigger)
         if hasattr(select, 'kqueue'):
             LOGGER.debug('Returning KQueuePoller')
             return _KQueuePoller(self._data.fd, self._data.write_trigger)
+        elif hasattr(select, 'poll'):
+            LOGGER.debug('Returning PollPoller')
+            return _PollPoller(self._data.fd, self._data.write_trigger)
         else:
             LOGGER.debug('Returning SelectPoller')
             return _SelectPoller(self._data.fd, self._data.write_trigger)
