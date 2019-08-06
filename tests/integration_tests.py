@@ -233,6 +233,53 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
         self.assertEqual(qty, self.PUBLISH_COUNT)
 
 
+class ConsumerTagTest(unittest.TestCase):
+
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+        self.channel = self.connection.channel()
+        self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacit')
+        self.exchange.declare()
+        self.queue = rabbitpy.Queue(self.channel, 'pacit-queue')
+        self.queue.declare()
+        self.queue.bind(self.exchange, 'test.#')
+
+        self.app_id = 'PublishAndConsumeIteratorTest'
+        self.message_body = b'ABC1234567890'
+        self.message_type = 'test'
+
+        self.msg = rabbitpy.Message(self.channel,
+                                    self.message_body,
+                                    {'app_id': self.app_id,
+                                     'message_id': str(uuid.uuid4()),
+                                     'timestamp': int(time.time()),
+                                     'message_type': self.message_type})
+        self.msg.publish(self.exchange, 'test.publish.consume')
+
+    def tearDown(self):
+        self.queue.delete()
+        self.exchange.delete()
+        self.channel.close()
+        self.connection.close()
+
+    def test_iterator_returns_expected_message(self):
+        for msg in self.queue.consume(consumer_tag='test-tag'):
+            self.assertEqual(msg.body, self.message_body)
+            self.assertEqual(msg.properties['app_id'], self.app_id)
+            self.assertEqual(msg.properties['message_id'],
+                             self.msg.properties['message_id'].decode('utf-8'))
+            self.assertEqual(msg.properties['timestamp'],
+                             self.msg.properties['timestamp'])
+            self.assertEqual(msg.properties['message_type'], self.message_type)
+            msg.ack()
+            LOGGER.info('breaking out of iterator')
+            break
+        if utils.PYPY:
+            self.queue.stop_consuming()
+        self.assertFalse(self.queue.consuming)
+
+
+
 class RedeliveredFlagTest(unittest.TestCase):
 
     def setUp(self):

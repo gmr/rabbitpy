@@ -109,14 +109,11 @@ class Channel(base.AMQPChannel):
         if self._connection.closed:
             LOGGER.debug('Channel %i close invoked when connection closed',
                          self._channel_id)
-            return
         elif self.closed:
             LOGGER.debug('Channel %i close invoked when already closed',
                          self._channel_id)
-            return
-
-
-        self._set_state(self.CLOSING)
+        else:
+            self._set_state(self.CLOSING)
 
         # Empty the queue and nack the max id (and all previous)
         if self._consumers:

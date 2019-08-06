@@ -60,6 +60,10 @@ class Queue(base.AMQPClass):
     :type dead_letter_routing_key: str
     :param dict arguments: Custom arguments for the queue
 
+    :attributes:
+      - **consumer_tag** (*str*) – Contains the consumer tag used to register
+        with RabbitMQ. Can be overwritten with custom value prior to consuming.
+
     :raises: :py:exc:`~rabbitpy.exceptions.RemoteClosedChannelException`
     :raises: :py:exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
@@ -131,7 +135,7 @@ class Queue(base.AMQPClass):
 
     def __setattr__(self, name, value):
         """Validate the data types for specific attributes when setting them,
-        otherwise fall throw to the parent __setattr__
+        otherwise fall throw to the parent ``__setattr__``
 
         :param str name: The attribute to set
         :param mixed value: The value to set
@@ -139,20 +143,18 @@ class Queue(base.AMQPClass):
 
         """
         if value is not None:
-
             if (name in ['auto_delete', 'durable', 'exclusive'] and
                     not isinstance(value, bool)):
                 raise ValueError('%s must be True or False' % name)
-
-            if (name in ['max_length', 'message_ttl', 'expires'] and
+            elif (name in ['max_length', 'message_ttl', 'expires'] and
                     not isinstance(value, int)):
                 raise ValueError('%s must be an int' % name)
-
-            if (name in ['dead_letter_exchange', 'dead_letter_routing_key'] and
-                    not utils.is_string(value)):
+            elif (name in ['consumer_tag',
+                           'dead_letter_exchange',
+                           'dead_letter_routing_key'] and
+                  not utils.is_string(value)):
                 raise ValueError('%s must be a str, bytes or unicode' % name)
-
-            if name == 'arguments' and not isinstance(value, dict):
+            elif name == 'arguments' and not isinstance(value, dict):
                 raise ValueError('arguments must be a dict')
 
         # Set the value
@@ -177,7 +179,8 @@ class Queue(base.AMQPClass):
         response = self._rpc(frame)
         return isinstance(response, specification.Queue.BindOk)
 
-    def consume(self, no_ack=False, prefetch=None, priority=None):
+    def consume(self, no_ack=False, prefetch=None, priority=None,
+                consumer_tag=None):
         """Consume messages from the queue as a :py:class:`generator`:
 
         .. code:: python
@@ -197,10 +200,13 @@ class Queue(base.AMQPClass):
         :param bool no_ack: Do not require acknowledgements
         :param int prefetch: Set a prefetch count for the channel
         :param int priority: Consumer priority
+        :param str consumer_tag: Optional consumer tag
         :rtype: :py:class:`generator`
         :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
         """
+        if consumer_tag:
+            self.consumer_tag = consumer_tag
         self._consume(no_ack, prefetch, priority)
         try:
             while self.consuming:
@@ -400,7 +406,6 @@ class Queue(base.AMQPClass):
                      'exclusive=%s, auto_delete=%s, arguments=%r',
                      self.name, self.durable, passive, self.exclusive,
                      self.auto_delete, arguments)
-
         return specification.Queue.Declare(queue=self.name,
                                            durable=self.durable,
                                            passive=passive,
