@@ -447,3 +447,14 @@ class SimpleConsumeTests(unittest.TestCase):
             assert False, 'Did not raise ValueError'
         except ValueError:
             assert True
+
+
+class Issue119TestCase(unittest.TestCase):
+
+    def test_exception_is_raised(self):
+        conn = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+        channel = conn.channel()
+        channel.enable_publisher_confirms()
+        msg = rabbitpy.Message(channel, body_value='hello')
+        with self.assertRaises(exceptions.AMQPNotFound):
+            msg.publish(exchange='invalid', mandatory=True)
