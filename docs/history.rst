@@ -1,160 +1,161 @@
 Version History
 ---------------
- - 2.0.0 - released *2019-04-19*
-  - Updated to use pamqp>=2.3,<3 which has the following implications:
-    - Field table keys are now strings and no longer bytes. This may be a breaking change means in Python3 keys will
-      always be type str for short strings. This includes frame values and field table values.
-    - In Python 2.7 if a short-string (key, frame field value, etc) has UTF-8 characters in it, it will be a unicode object.
-  - field-table integer encoding changes
-  - Drops support for Python < 3.4
-  - Adds support for Python 3.6 and 3.7
- - 1.0.0 - released *2016-10-27*
-  - Reworked Heartbeat logic to send a heartbeat every ``interval / 2`` seconds  when data has not been written to the socket (#70, #74, #98, #99)
-  - Improved performance when consuming large mesages (#104) - `Jelle Aalbers <https://github.com/JelleAalbers>`_
-  - Allow for username and password to be default again (#96, #97) - `Grzegorz Śliwiński <https://github.com/fizyk>`_
-  - Cleanup of Connection and Channel teardown (#103)
- - 0.27.1 - released *2016-05-12*
-  - Fix a bug where the IO write trigger socketpair is not being cleaned up on close
- - 0.27.0 - released *2016-05-11*
-  - Added new :class:`~rabbitpy.simple.SimpleChannel` class
-  - Exception formatting changes
-  - Thread locking optimizations
-  - Connection shutdown cleanup
-  - :class:`~rabbitpy.message.Message` now assigns a UTC timestamp instead of local timestamp to the AMQP message property if requested (#94)
-  - Unquote username and password in URI (#93) - `sunbit <https://github.com/sunbit>`_
-  - Connections now allow for a configurable timeout (#84, #85) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
-  - Bugfix for :meth:`~rabbitpy.amqp.AMQP.basic_publish` (#92) - `canardleteer  <https://github.com/canardleteer>`_
-  - Added ``args`` property to :class:`~rabbitpy.connection.Connection` (#88) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
-  - Fix locale in connection setup from causing hanging (#87) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
-  - Fix heartbeat behavior (#69, #70, #74)
-  - Cancel consuming in case of exceptions (#68) -  `kmelnikov <https://github.com/kmelnikov>`_
-  - Documentation correction (#79) - `jonahbull <https://github.com/jonahbull>`_
- - 0.26.2 - released *2015-03-17*
-  - Fix behavior for Basic.Return frames sent from RabbitMQ
-  - Pin pamqp 1.6.1 fixing an issue with max-channels
- - 0.26.1 - released *2015-03-09*
-  - Add the ability to interrupt rabbitpy when waiting on a frame (#38)
-  - Use a custom base class for all Exceptions (#57) Jeremy Tillman
-  - Fix for consumer example in documentation (#60) Michael Becker
-  - Add rabbitpy.amqp module for unopinionated access to AMQP API
-  - Refactor how client side heartbeat checking is managed when no heartbeat frames have been sent from the server. (#58)
-  - Address an issue when client side channel max count is not set and server side channel max is set to 65535 (#62)
-  - Clean up handling of remote channel and connection closing
-  - Clean up context manager exiting for rabbitpy.Queue
-  - Remove default prefetch count for simple consuming
-  - Fix URI query parameter names to match AMQP URI spec on rabbitmq.com
-    - Fix behavior of SSL flags in query parameters (#63, #64)
-  - PYPY behavior fixes related to garbage collection
- - 0.25.0 - released *2014-12-16*
-  - Acquire a lock when creating a new channel to fix multi-threaded channel creation behavior (#56)
-  - Add client side heartbeat checking. If 2 heartbeats are missed, a ConnectionResetException exception will be raised (#55)
-  - Fix a bug where Basic.Nack checking was checking for the wrong string to test for support
-  - Add support for Python3 memoryviews for the message body when creating a new rabbitpy.Message (#50)
-  - Improve Python3 behavior in rabbitpy.utils.maybe_utf8_encode: ensure the object being cast as a bytes object with utf-8 encoding is a string
- - 0.24.0 - released *2014-12-12*
-  - Update to reflect changes in pamqp 1.6.0
-   - Update how message property data types are retrieved
-   - Fix tests relying on .__dict__
- - 0.23.0 - released *2014-11-5*
-  - Fix a bug where message body length was being assigned to the content header prior to converting the unicode string to bytes (#49)
-  - Add a new rabbitpy.utils.maybe_utf8_encode method for handling strings that may or may not contain unicode (#49)
-  - Fix the automatic coercion of header types to UTF-8 encoded bytes (#49)
-  - Fix an integration test that was not cleaning up its queue after itself
-  - Raise TypeError if a timestamp property can not be converted properly
- - 0.22.0 - released *2014-11-4*
-  - Address an issue when RabbitMQ is configured with a max-frame-size of 0 (#48)
-  - Do not lose the traceback when exiting a context manager due to a an exception (#46)
-  - Adds server capability checking in rabbitpy.Channel methods that require RabbitMQ enhancements to the AMQP protocol (Publisher confirms, consumer priorities, & Baisc.Nack). If unsupported functionality is used, a rabbitpy.exceptions.NotSupportedError exception will be raised.
-  - Pin pamqp version range to >= 1.4, < 2.0
-  - Fix wheel distribution
- - 0.21.1 - released *2014-10-23*
-  - Clean up KQueue issues found when troubleshooting #44, checking for socket EOF in flags to detect connection reset
-  - Remove sockets from KQueue when in error state
-  - Change behavior when there is a poll exception list
-  - Handle socket connect errors more cleanly (#44)
-  - Handle bug for how we pull the error string from an exception in IO.on_error (#44)
-  - Re-raise exceptions causing the exit of Connection or Channel so they can be cleanly caught (#44)
- - 0.21.0 - released *2014-10-21*
-  - Address a possible edge case where message frames can be interspersed when publishing in a multi-threaded environment
-  - Add exception handling around select.error (#43)
-  - Check all frames for Channel.CloseOk when consuming
-  - Add a new ``opinionated`` flag in rabbitpy.Message construction that deprecates the ``auto_id`` flag
-  - Add wheel distribution
- - 0.20.0 - released *2014-10-01*
-  - Added support for KQueue and Poll in IOLoop for performance improvements
-  - Fixed issues with publishing large messages and socket resource availability errors (#37)
-  - Add exchange property to rabbitpy.Message (#40)
-  - Fix exception when timestamp is None in received Message (#41)
-  - Fix rabbitpy.Message.json() in Python 3.4 (#42)
-  - Add out-of-band consumer cancellation with Queue.stop_consuming() (#38, #39)
-  - Add new simple method rabbitpy.create_headers_exchange()
-  - Significantly increase test coverage
- - 0.19.0 - released *2014-06-30*
-  - Fix the socket read/write buffer size (#35)
-  - Add new flag in channels to use blocking queue.get operations increasing throughput and lowering overhead.
- - 0.18.1 - released *2014-05-15*
-  - Fix unicode message body encoding in Python 2
- - 0.18.0 - released *2014-05-15*
-  - Make IO thread daemonic
-  - block on RPC reads for 1 second instead of 100ms
-  - add the Message.redelivered property
- - 0.17.0 - released *2014-04-16*
-  - Refactor cross-thread communication for RabbitMQ invoked RPC methods
-  - fix unclean shutdown conditions and cross-thread exceptions
- - 0.16.0 - released *2014-04-10*
-  - Fix an issue with no_ack=True consumer cancellation
-  - Fix exchange and queue unbinding
-  - Add wait on the SOCKET_OPENED event when connecting
-  - Deal with str message body values in Python 3 by casting to bytes and encoding as UTF-8.
- - 0.15.1 - released *2014-01-27*
-  - Fix an issue with Python 3 IO write trigger
- - 0.15.0 - released *2014-01-27*
-  - Change default durability for Exchange and Queue to False
-  - Fix a SSL connection issue
- - 0.14.2 - released *2014-01-23*
-  - Fix an issue when IPv6 is the default protocol for the box rabbitpy is being used on
- - 0.14.1 - released *2014-01-23*
-  - Assign queue name for RabbitMQ named queues in rabbitpy.Queue.declare
- - 0.14.0 - released *2014-01-22*
-  - Add support for authentication_failure_close
-  - Add consumer priorities
-  - Exception cleanup
-  - Queue consuming via Queue.__iter__
-  - Queue & Exchange attributes are no longer private
-  - Tx objects can be used as a context manager
-  - Experimental support for Windows.
- - 0.13.0 - released *2014-01-17*
-  - Validate heartbeat is always an integer
-  - add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
- - 0.12.3 - released *2013-12-23*
-  - Minor Message.pprint() reformatting
- - 0.12.2 - released *2013-12-23*
-  - Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
- - 0.12.1 - released *2013-12-19*
-  - Fix exception with pika.exceptions.AMQP
- - 0.12.0 - released *2013-12-19*
-  - Updated simple consumer to potential one-liner
-  - Added rabbitpy.Message.pprint()
- - 0.11.0 - released *2013-12-19*
-  - Major bugfix focused on receiving multiple AMQP frames at the same time.
-  - Add auto-coercion of property data-types.
- - 0.10.0 - released *2013-12-11*
-  - Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes
- - 0.9.0 - released *2013-10-02*
-  - Major performance improvements, CPU usage reduction, minor bug-fixes
- - 0.8.0 - released *2013-10-01*
-  - Major bugfixes
-  - IPv6 support
- - 0.7.0 - released *2013-10-01*
-  - Bugfixes and code cleanup.
-  - Most notable fix around Basic.Return and recursion in Channel._wait_on_frame.
- - 0.6.0 - released *2013-09-30*
-  - Bugfix with Queue.get()
-  - Bugfix with RPC requests expecting multiple responses
-  - Add Queue.consume_messages() method.
- - 0.5.1 - released *2013-09-24*
-  - Installer/setup fix
- - 0.5.0 - released *2013-09-23*
-  - Bugfix release including low level socket sending fix and connection timeouts.
- - < 0.5.0
-  - Previously called rmqid
+- 2.0.1 - released *2019-08-06*
+    - Fixed an issue with the IO loop poller on MacOS (#111)
+- 2.0.0 - released *2019-04-19*
+    - Updated to use pamqp>=2.3,<3 which has the following implications:
+        - Field table keys are now strings and no longer bytes. This may be a breaking change means in Python3 keys will always be type str for short strings. This includes frame values and field table values.
+        - In Python 2.7 if a short-string (key, frame field value, etc) has UTF-8 characters in it, it will be a unicode object.
+    - field-table integer encoding changes
+    - Drops support for Python < 3.4
+    - Adds support for Python 3.6 and 3.7
+- 1.0.0 - released *2016-10-27*
+    - Reworked Heartbeat logic to send a heartbeat every ``interval / 2`` seconds  when data has not been written to the socket (#70, #74, #98, #99)
+    - Improved performance when consuming large mesages (#104) - `Jelle Aalbers <https://github.com/JelleAalbers>`_
+    - Allow for username and password to be default again (#96, #97) - `Grzegorz Śliwiński <https://github.com/fizyk>`_
+    - Cleanup of Connection and Channel teardown (#103)
+- 0.27.1 - released *2016-05-12*
+    - Fix a bug where the IO write trigger socketpair is not being cleaned up on close
+- 0.27.0 - released *2016-05-11*
+    - Added new :class:`~rabbitpy.simple.SimpleChannel` class
+    - Exception formatting changes
+    - Thread locking optimizations
+    - Connection shutdown cleanup
+    - :class:`~rabbitpy.message.Message` now assigns a UTC timestamp instead of local timestamp to the AMQP message property if requested (#94)
+    - Unquote username and password in URI (#93) - `sunbit <https://github.com/sunbit>`_
+    - Connections now allow for a configurable timeout (#84, #85) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
+    - Bugfix for :meth:`~rabbitpy.amqp.AMQP.basic_publish` (#92) - `canardleteer  <https://github.com/canardleteer>`_
+    - Added ``args`` property to :class:`~rabbitpy.connection.Connection` (#88) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
+    - Fix locale in connection setup from causing hanging (#87) - `vmarkovtsev <https://github.com/vmarkovtsev>`_
+    - Fix heartbeat behavior (#69, #70, #74)
+    - Cancel consuming in case of exceptions (#68) -  `kmelnikov <https://github.com/kmelnikov>`_
+    - Documentation correction (#79) - `jonahbull <https://github.com/jonahbull>`_
+- 0.26.2 - released *2015-03-17*
+    - Fix behavior for Basic.Return frames sent from RabbitMQ
+    - Pin pamqp 1.6.1 fixing an issue with max-channels
+- 0.26.1 - released *2015-03-09*
+    - Add the ability to interrupt rabbitpy when waiting on a frame (#38)
+    - Use a custom base class for all Exceptions (#57) Jeremy Tillman
+    - Fix for consumer example in documentation (#60) Michael Becker
+    - Add rabbitpy.amqp module for unopinionated access to AMQP API
+    - Refactor how client side heartbeat checking is managed when no heartbeat frames have been sent from the server. (#58)
+    - Address an issue when client side channel max count is not set and server side channel max is set to 65535 (#62)
+    - Clean up handling of remote channel and connection closing
+    - Clean up context manager exiting for rabbitpy.Queue
+    - Remove default prefetch count for simple consuming
+    - Fix URI query parameter names to match AMQP URI spec on rabbitmq.com
+        - Fix behavior of SSL flags in query parameters (#63, #64)
+    - PYPY behavior fixes related to garbage collection
+- 0.25.0 - released *2014-12-16*
+    - Acquire a lock when creating a new channel to fix multi-threaded channel creation behavior (#56)
+    - Add client side heartbeat checking. If 2 heartbeats are missed, a ConnectionResetException exception will be raised (#55)
+    - Fix a bug where Basic.Nack checking was checking for the wrong string to test for support
+    - Add support for Python3 memoryviews for the message body when creating a new rabbitpy.Message (#50)
+    - Improve Python3 behavior in rabbitpy.utils.maybe_utf8_encode: ensure the object being cast as a bytes object with utf-8 encoding is a string
+- 0.24.0 - released *2014-12-12*
+    - Update to reflect changes in pamqp 1.6.0
+        - Update how message property data types are retrieved
+        - Fix tests relying on .__dict__
+- 0.23.0 - released *2014-11-5*
+    - Fix a bug where message body length was being assigned to the content header prior to converting the unicode string to bytes (#49)
+    - Add a new rabbitpy.utils.maybe_utf8_encode method for handling strings that may or may not contain unicode (#49)
+    - Fix the automatic coercion of header types to UTF-8 encoded bytes (#49)
+    - Fix an integration test that was not cleaning up its queue after itself
+    - Raise TypeError if a timestamp property can not be converted properly
+- 0.22.0 - released *2014-11-4*
+    - Address an issue when RabbitMQ is configured with a max-frame-size of 0 (#48)
+    - Do not lose the traceback when exiting a context manager due to a an exception (#46)
+    - Adds server capability checking in rabbitpy.Channel methods that require RabbitMQ enhancements to the AMQP protocol (Publisher confirms, consumer priorities, & Baisc.Nack). If unsupported functionality is used, a rabbitpy.exceptions.NotSupportedError exception will be raised.
+    - Pin pamqp version range to >= 1.4, < 2.0
+    - Fix wheel distribution
+- 0.21.1 - released *2014-10-23*
+    - Clean up KQueue issues found when troubleshooting #44, checking for socket EOF in flags to detect connection reset
+    - Remove sockets from KQueue when in error state
+    - Change behavior when there is a poll exception list
+    - Handle socket connect errors more cleanly (#44)
+    - Handle bug for how we pull the error string from an exception in IO.on_error (#44)
+    - Re-raise exceptions causing the exit of Connection or Channel so they can be cleanly caught (#44)
+- 0.21.0 - released *2014-10-21*
+    - Address a possible edge case where message frames can be interspersed when publishing in a multi-threaded environment
+    - Add exception handling around select.error (#43)
+    - Check all frames for Channel.CloseOk when consuming
+    - Add a new ``opinionated`` flag in rabbitpy.Message construction that deprecates the ``auto_id`` flag
+    - Add wheel distribution
+- 0.20.0 - released *2014-10-01*
+    - Added support for KQueue and Poll in IOLoop for performance improvements
+    - Fixed issues with publishing large messages and socket resource availability errors (#37)
+    - Add exchange property to rabbitpy.Message (#40)
+    - Fix exception when timestamp is None in received Message (#41)
+    - Fix rabbitpy.Message.json() in Python 3.4 (#42)
+    - Add out-of-band consumer cancellation with Queue.stop_consuming() (#38, #39)
+    - Add new simple method rabbitpy.create_headers_exchange()
+    - Significantly increase test coverage
+- 0.19.0 - released *2014-06-30*
+    - Fix the socket read/write buffer size (#35)
+    - Add new flag in channels to use blocking queue.get operations increasing throughput and lowering overhead.
+- 0.18.1 - released *2014-05-15*
+    - Fix unicode message body encoding in Python 2
+- 0.18.0 - released *2014-05-15*
+    - Make IO thread daemonic
+    - block on RPC reads for 1 second instead of 100ms
+    - add the Message.redelivered property
+- 0.17.0 - released *2014-04-16*
+    - Refactor cross-thread communication for RabbitMQ invoked RPC methods
+    - fix unclean shutdown conditions and cross-thread exceptions
+- 0.16.0 - released *2014-04-10*
+    - Fix an issue with no_ack=True consumer cancellation
+    - Fix exchange and queue unbinding
+    - Add wait on the SOCKET_OPENED event when connecting
+    - Deal with str message body values in Python 3 by casting to bytes and encoding as UTF-8.
+- 0.15.1 - released *2014-01-27*
+    - Fix an issue with Python 3 IO write trigger
+- 0.15.0 - released *2014-01-27*
+    - Change default durability for Exchange and Queue to False
+    - Fix a SSL connection issue
+- 0.14.2 - released *2014-01-23*
+    - Fix an issue when IPv6 is the default protocol for the box rabbitpy is being used on
+- 0.14.1 - released *2014-01-23*
+    - Assign queue name for RabbitMQ named queues in rabbitpy.Queue.declare
+- 0.14.0 - released *2014-01-22*
+    - Add support for authentication_failure_close
+    - Add consumer priorities
+    - Exception cleanup
+    - Queue consuming via Queue.__iter__
+    - Queue & Exchange attributes are no longer private
+    - Tx objects can be used as a context manager
+    - Experimental support for Windows.
+- 0.13.0 - released *2014-01-17*
+    - Validate heartbeat is always an integer
+    - add arguments to Queue for expires, message-ttl, max-length, & dead-lettering
+- 0.12.3 - released *2013-12-23*
+    - Minor Message.pprint() reformatting
+- 0.12.2 - released *2013-12-23*
+    - Add Exchange and Routing Key to Message.pprint, check for empty method frames in Channel._create_message
+- 0.12.1 - released *2013-12-19*
+    - Fix exception with pika.exceptions.AMQP
+- 0.12.0 - released *2013-12-19*
+    - Updated simple consumer to potential one-liner
+    - Added rabbitpy.Message.pprint()
+- 0.11.0 - released *2013-12-19*
+    - Major bugfix focused on receiving multiple AMQP frames at the same time.
+    - Add auto-coercion of property data-types.
+- 0.10.0 - released *2013-12-11*
+    - Rewrite of IO layer yielding improved performance and reduction of CPU usage, bugfixes
+- 0.9.0 - released *2013-10-02*
+    - Major performance improvements, CPU usage reduction, minor bug-fixes
+- 0.8.0 - released *2013-10-01*
+    - Major bugfixes
+    - IPv6 support
+- 0.7.0 - released *2013-10-01*
+    - Bugfixes and code cleanup.
+    - Most notable fix around Basic.Return and recursion in Channel._wait_on_frame.
+- 0.6.0 - released *2013-09-30*
+    - Bugfix with Queue.get()
+    - Bugfix with RPC requests expecting multiple responses
+    - Add Queue.consume_messages() method.
+- 0.5.1 - released *2013-09-24*
+    - Installer/setup fix
+- 0.5.0 - released *2013-09-23*
+    - Bugfix release including low level socket sending fix and connection timeouts.
+- < 0.5.0
+    - Previously called rmqid
