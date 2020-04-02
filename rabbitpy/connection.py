@@ -208,7 +208,7 @@ class Connection(base.StatefulObject):
 
         :raises: rabbitpy.exceptions.ConnectionClosed
         """
-        if not self.open:
+        if not self.open and not self.opening:
             raise exceptions.ConnectionClosed()
         if not self._events.is_set(events.SOCKET_CLOSED):
             self._set_state(self.CLOSING)
@@ -600,7 +600,8 @@ class Connection(base.StatefulObject):
 
         """
         # Make sure the heartbeat is not running
-        self._heartbeat.stop()
+        if self._heartbeat is not None:
+            self._heartbeat.stop()
 
         if not self._events.is_set(events.SOCKET_CLOSED):
             self._close_all_channels()

@@ -7,6 +7,10 @@ try:
     import unittest2 as unittest
 except ImportError:
     import unittest
+try:
+    from urllib import parse
+except ImportError:
+    import urlparse as parse
 import uuid
 
 import rabbitpy
@@ -505,3 +509,25 @@ class Issue119TestCase(unittest.TestCase):
         msg = rabbitpy.Message(channel, body_value='hello')
         with self.assertRaises(exceptions.AMQPNotFound):
             msg.publish(exchange='invalid', mandatory=True)
+
+
+
+class AccessDeniedDuringConnectionTests(unittest.TestCase):
+
+    def test_exception_is_raised(self):
+        url_parts = parse.urlsplit(os.environ['RABBITMQ_URL'])
+        netloc = '{}:{}@{}:{}'.format(
+            uuid.uuid4().hex,
+            uuid.uuid4().hex,
+            url_parts.hostname,
+            url_parts.port or 5672,
+        )
+        url = parse.urlunsplit((
+            url_parts.scheme,
+            netloc,
+            url_parts.path,
+            url_parts.query,
+            url_parts.fragment,
+        ))
+        with self.assertRaises(exceptions.AMQPAccessRefused):
+            rabbitpy.Connection(url)
