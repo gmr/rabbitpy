@@ -456,9 +456,8 @@ class IO(threading.Thread, base.StatefulObject):
 
             # If it's channel 0, call the Channel0 directly
             if value[0] == 0:
-                self._lock.acquire(True)
-                self._channels[0][0].on_frame(value[1])
-                self._lock.release()
+                with self._lock:
+                    self._channels[0][0].on_frame(value[1])
                 continue
 
             self._add_frame_to_read_queue(value[0], value[1])
