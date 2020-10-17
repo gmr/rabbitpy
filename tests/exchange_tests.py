@@ -3,7 +3,7 @@ Test the rabbitpy.exchange classes
 
 """
 import mock
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import exchange
 
@@ -14,55 +14,55 @@ class TxTests(helpers.TestCase):
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_declare(self, rpc):
-        rpc.return_value = specification.Exchange.DeclareOk
+        rpc.return_value = commands.Exchange.DeclareOk
         obj = exchange.Exchange(self.channel, 'foo')
         obj.declare()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Exchange.Declare)
+                              commands.Exchange.Declare)
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_delete(self, rpc):
-        rpc.return_value = specification.Exchange.DeleteOk
+        rpc.return_value = commands.Exchange.DeleteOk
         obj = exchange.Exchange(self.channel, 'foo')
         obj.delete()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Exchange.Delete)
+                              commands.Exchange.Delete)
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_bind(self, rpc):
-        rpc.return_value = specification.Exchange.BindOk
+        rpc.return_value = commands.Exchange.BindOk
         obj = exchange.Exchange(self.channel, 'foo')
         obj.bind('a', 'b')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Exchange.Bind)
+                              commands.Exchange.Bind)
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_unbind(self, rpc):
-        rpc.return_value = specification.Exchange.UnbindOk
+        rpc.return_value = commands.Exchange.UnbindOk
         obj = exchange.Exchange(self.channel, 'foo')
         obj.unbind('a', 'b')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Exchange.Unbind)
+                              commands.Exchange.Unbind)
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_bind_obj(self, rpc):
-        rpc.return_value = specification.Exchange.BindOk
+        rpc.return_value = commands.Exchange.BindOk
         obj = exchange.Exchange(self.channel, 'foo')
         val = mock.Mock()
         val.name = 'bar'
         obj.bind(val, 'b')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Exchange.Bind)
+                              commands.Exchange.Bind)
 
     @mock.patch('rabbitpy.exchange.Exchange._rpc')
     def test_bind_sends_exchange_unbind_obj(self, rpc):
-        rpc.return_value = specification.Exchange.UnbindOk
+        rpc.return_value = commands.Exchange.UnbindOk
         obj = exchange.Exchange(self.channel, 'foo')
         val = mock.Mock()
         val.name = 'bar'
         obj.unbind(val, 'b')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Exchange.Unbind)
+                              commands.Exchange.Unbind)
 
 
 class DirectExchangeCreationTests(helpers.TestCase):

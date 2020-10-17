@@ -3,14 +3,8 @@ import re
 import os
 import threading
 import time
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
-try:
-    from urllib import parse
-except ImportError:
-    import urlparse as parse
+import unittest
+from urllib import parse
 import uuid
 
 import rabbitpy
@@ -251,7 +245,6 @@ class ConsumerTagTest(unittest.TestCase):
         self.app_id = 'PublishAndConsumeIteratorTest'
         self.message_body = b'ABC1234567890'
         self.message_type = 'test'
-
         self.msg = rabbitpy.Message(self.channel,
                                     self.message_body,
                                     {'app_id': self.app_id,

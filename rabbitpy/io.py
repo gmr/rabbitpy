@@ -13,7 +13,8 @@ import threading
 
 from pamqp import frame
 from pamqp import exceptions as pamqp_exceptions
-from pamqp import specification
+from pamqp import base
+from pamqp import constants
 
 from rabbitpy import base
 from rabbitpy import events
@@ -21,8 +22,8 @@ from rabbitpy import exceptions
 
 LOGGER = logging.getLogger(__name__)
 
-MAX_READ = specification.FRAME_MAX_SIZE
-MAX_WRITE = specification.FRAME_MAX_SIZE
+MAX_READ = constants.FRAME_MAX_SIZE
+MAX_WRITE = constants.FRAME_MAX_SIZE
 
 # Timeout in seconds
 POLL_TIMEOUT = 1.0
@@ -320,7 +321,7 @@ class IO(threading.Thread, base.StatefulObject):
 
     """
     CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk']
-    READ_BUFFER_SIZE = specification.FRAME_MAX_SIZE
+    READ_BUFFER_SIZE = constants.FRAME_MAX_SIZE
     SSL_KWARGS = {
         'keyfile': 'keyfile',
         'certfile': 'certfile',
@@ -489,7 +490,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         :param int channel_id: The channel id the frame was received on
         :param frame_value: The frame to add
-        :type frame_value: :class:`~pamqp.specification.Frame`
+        :type frame_value: :class:`~pamqp.base.Frame`
 
         """
         # LOGGER.debug('Adding %s to channel %s', frame_value.name, channel_id)
@@ -604,7 +605,7 @@ class IO(threading.Thread, base.StatefulObject):
         """Get the pamqp frame from the string value.
 
         :param str value: The value to parse for an pamqp frame
-        :return (str, int, pamqp.specification.Frame): Remainder of value,
+        :return (str, int, pamqp.base.Frame): Remainder of value,
                                                        channel id and
                                                        frame value
         """
@@ -614,7 +615,7 @@ class IO(threading.Thread, base.StatefulObject):
             byte_count, channel_id, frame_in = frame.unmarshal(value)
         except pamqp_exceptions.UnmarshalingException:
             return value, None, None
-        except specification.AMQPFrameError as error:
+        except exceptions.AMQPFrameError as error:
             LOGGER.error('Failed to demarshal: %r', error, exc_info=True)
             LOGGER.debug(value)
             return value, None, None
@@ -623,7 +624,7 @@ class IO(threading.Thread, base.StatefulObject):
     def _read_frame(self):
         """Read from the buffer and try and get the demarshaled frame.
 
-        :rtype (int, pamqp.specification.Frame): The channel and frame
+        :rtype (int, pamqp.base.Frame): The channel and frame
 
         """
         self._buffer, chan_id, value = self._get_frame_from_str(self._buffer)
@@ -635,7 +636,7 @@ class IO(threading.Thread, base.StatefulObject):
 
         :param int channel_id: The channel to remote close
         :param frame_value: The Channel.Close frame
-        :type frame_value: :class:`~pamqp.specification.Frame`
+        :type frame_value: :class:`~pamqp.base.Frame`
 
         """
         self._channels[channel_id][0].on_remote_close(frame_value)

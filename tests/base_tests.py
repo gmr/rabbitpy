@@ -24,11 +24,6 @@ class AMQPClassTests(helpers.TestCase):
         obj = base.AMQPClass(self.channel, 'Foo')
         self.assertIsInstance(obj.name, str)
 
-    @helpers.unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
-    def test_name_unicode(self):
-        obj = base.AMQPClass(self.channel, unicode('Foo'))
-        self.assertIsInstance(obj.name, unicode)
-
     def test_name_value(self):
         obj = base.AMQPClass(self.channel, 'Foo')
         self.assertEqual(obj.name, 'Foo')

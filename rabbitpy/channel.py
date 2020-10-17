@@ -7,9 +7,8 @@ the communication between the IO thread and the higher-level objects.
 """
 import logging
 
-from pamqp import specification as spec
-from pamqp import PYTHON3
-
+from pamqp import base
+from pamqp import commands
 from rabbitpy import base
 from rabbitpy import exceptions
 from rabbitpy import message
@@ -151,7 +150,7 @@ class Channel(base.AMQPChannel):
         """
         if not self._supports_publisher_confirms:
             raise exceptions.NotSupportedError('Confirm.Select')
-        self.rpc(spec.Confirm.Select())
+        self.rpc(commands.Confirm.Select())
         self._publisher_confirms = True
 
     @property
@@ -178,7 +177,7 @@ class Channel(base.AMQPChannel):
         """
         self._set_state(self.OPENING)
         self.write_frame(self._build_open_frame())
-        self._wait_on_frame(spec.Channel.OpenOk)
+        self._wait_on_frame(commands.Channel.OpenOk)
         self._set_state(self.OPEN)
         LOGGER.debug('Channel #%i open', self._channel_id)
 
@@ -191,7 +190,7 @@ class Channel(base.AMQPChannel):
                                   same connection
 
         """
-        self.rpc(spec.Basic.Qos(prefetch_count=value, global_=all_channels))
+        self.rpc(commands.Basic.Qos(prefetch_count=value, global_=all_channels))
 
     def prefetch_size(self, value, all_channels=False):
         """Set a prefetch size in bytes for the channel (or all channels on the
@@ -204,7 +203,7 @@ class Channel(base.AMQPChannel):
         """
         if value is None:
             return
-        self.rpc(spec.Basic.Qos(prefetch_size=value, global_=all_channels))
+        self.rpc(commands.Basic.Qos(prefetch_size=value, global_=all_channels))
 
     @property
     def publisher_confirms(self):
@@ -222,16 +221,16 @@ class Channel(base.AMQPChannel):
         :param bool requeue: Requeue the message
 
         """
-        self.rpc(spec.Basic.Recover(requeue=requeue))
+        self.rpc(commands.Basic.Recover(requeue=requeue))
 
     @staticmethod
     def _build_open_frame():
         """Build and return a channel open frame
 
-        :rtype: pamqp.spec.Channel.Open
+        :rtype: pamqp.commands.Channel.Open
 
         """
-        return spec.Channel.Open()
+        return commands.Channel.Open()
 
     def _cancel_consumer(self, obj, consumer_tag=None, nowait=False):
         """Cancel the consuming of a queue.
@@ -253,25 +252,25 @@ class Channel(base.AMQPChannel):
         if consumer_tag in self._consumers:
             del self._consumers[consumer_tag]
         if nowait:
-            self.write_frame(spec.Basic.Cancel(consumer_tag=consumer_tag,
+            self.write_frame(commands.Basic.Cancel(consumer_tag=consumer_tag,
                                                nowait=True))
             return
-        self.rpc(spec.Basic.Cancel(consumer_tag=consumer_tag))
+        self.rpc(commands.Basic.Cancel(consumer_tag=consumer_tag))
 
     def _check_for_rpc_request(self, value):
         """Inspect a frame to see if it's a RPC request from RabbitMQ.
 
-        :param spec.Frame value:
+        :param base.Frame value:
 
         """
         LOGGER.debug('Checking for RPC request: %r', value)
         super(Channel, self)._check_for_rpc_request(value)
-        if isinstance(value, spec.Basic.Return):
+        if isinstance(value, commands.Basic.Return):
             raise exceptions.MessageReturnedException(value.reply_code,
                                                       value.reply_text,
                                                       value.exchange,
                                                       value.routing_key)
-        elif isinstance(value, spec.Basic.Cancel):
+        elif isinstance(value, commands.Basic.Cancel):
             self._waiting = False
             if value.consumer_tag in self._consumers:
                 del self._consumers[value.consumer_tag]
@@ -294,7 +293,7 @@ class Channel(base.AMQPChannel):
             if not isinstance(priority, int):
                 raise ValueError('Consumer priority must be an int')
             args['x-priority'] = priority
-        self.rpc(spec.Basic.Consume(queue=obj.name,
+        self.rpc(commands.Basic.Consume(queue=obj.name,
                                     consumer_tag=obj.consumer_tag,
                                     no_ack=no_ack,
                                     arguments=args))
@@ -310,7 +309,7 @@ class Channel(base.AMQPChannel):
         """
         if not self._consumers:
             raise exceptions.NotConsumingError
-        frame_value = self._wait_on_frame([spec.Basic.Deliver])
+        frame_value = self._wait_on_frame([commands.Basic.Deliver])
         LOGGER.debug('Waited on frame, got %r', frame_value)
         if frame_value:
             return self._wait_for_content_frames(frame_value)
@@ -322,7 +321,7 @@ class Channel(base.AMQPChannel):
         created.
 
         :param method_frame: The method frame value
-        :type method_frame: pamqp.specification.Frame
+        :type method_frame: pamqp.base.Frame
         :param header_frame: Header frame value
         :type header_frame: pamqp.header.ContentHeader or None
         :param body: The message body
@@ -345,7 +344,7 @@ class Channel(base.AMQPChannel):
         """Fetch a frame from the read queue and return it, otherwise return
         None
 
-        :rtype: pamqp.specification.Frame
+        :rtype: pamqp.base.Frame
 
         """
         try:
@@ -365,9 +364,9 @@ class Channel(base.AMQPChannel):
         :rtype: rabbitpy.message.Message or None
 
         """
-        frame_value = self._wait_on_frame([spec.Basic.GetOk,
-                                           spec.Basic.GetEmpty])
-        if isinstance(frame_value, spec.Basic.GetEmpty):
+        frame_value = self._wait_on_frame([commands.Basic.GetOk,
+                                           commands.Basic.GetEmpty])
+        if isinstance(frame_value, commands.Basic.GetEmpty):
             return None
         return self._wait_for_content_frames(frame_value)
 
@@ -382,7 +381,7 @@ class Channel(base.AMQPChannel):
             raise exceptions.NotSupportedError('Basic.Nack')
         if self._is_debugging:
             LOGGER.debug('Sending Basic.Nack with requeue')
-        self.rpc(spec.Basic.Nack(delivery_tag=delivery_tag,
+        self.rpc(commands.Basic.Nack(delivery_tag=delivery_tag,
                                  multiple=True,
                                  requeue=requeue))
 
@@ -390,10 +389,10 @@ class Channel(base.AMQPChannel):
         """Used internally to reject a message when it's been received during
         a state that it should not have been.
 
-        :param pamqp.specification.Basic.Deliver method_frame: The method frame
+        :param pamqp.commands.Basic.Deliver method_frame: The method frame
 
         """
-        self.rpc(spec.Basic.Reject(delivery_tag=method_frame.delivery_tag,
+        self.rpc(commands.Basic.Reject(delivery_tag=method_frame.delivery_tag,
                                    requeue=True))
 
     @property
@@ -455,7 +454,7 @@ class Channel(base.AMQPChannel):
         if self.closing or self.closed:
             return None
 
-        consuming = isinstance(method_frame, spec.Basic.Deliver)
+        consuming = isinstance(method_frame, commands.Basic.Deliver)
         if consuming and not self._consumers:
             return None
 
@@ -474,13 +473,7 @@ class Channel(base.AMQPChannel):
 
         error = False
 
-        # To retrieve the message body we must concatenate the binary content
-        # of several frames. The recommended idiom for this differs
-        # in py3 and py2.
-        if PYTHON3:
-            body_value = bytearray()
-        else:
-            body_chunks = []
+        body_value = bytearray()
         body_length_received = 0
         body_total_size = header_value.body_size
 
@@ -502,12 +495,6 @@ class Channel(base.AMQPChannel):
                 return
 
             body_length_received += len(body_part.value)
-            if PYTHON3:
-                body_value += body_part.value
-            else:
-                body_chunks.append(body_part.value)
-
-        if not PYTHON3:
-            body_value = ''.join(body_chunks)
+            body_value += body_part.value
 
         return self._create_message(method_frame, header_value, body_value)

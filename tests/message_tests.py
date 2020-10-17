@@ -12,7 +12,7 @@ import uuid
 import mock
 from pamqp import body
 from pamqp import header
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import channel
 from rabbitpy import exceptions
@@ -205,7 +205,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
 
     def setUp(self):
         super(TestDeliveredMessageObject, self).setUp()
-        self.method = specification.Basic.Deliver(self.CONSUMER_TAG,
+        self.method = commands.Basic.Deliver(self.CONSUMER_TAG,
                                                   self.DELIVERY_TAG,
                                                   self.REDELIVERED,
                                                   self.EXCHANGE,
@@ -238,7 +238,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.ack()
             frame_value = wframe.mock_calls[0][1][0]
-            self.assertIsInstance(frame_value, specification.Basic.Ack)
+            self.assertIsInstance(frame_value, commands.Basic.Ack)
 
     def test_ack_channel_write_frame_delivery_tag_value(self):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
@@ -268,7 +268,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack()
             frame_value = wframe.mock_calls[0][1][0]
-            self.assertIsInstance(frame_value, specification.Basic.Nack)
+            self.assertIsInstance(frame_value, commands.Basic.Nack)
 
     def test_nack_channel_write_frame_delivery_tag_value(self):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
@@ -310,7 +310,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.reject()
             frame_value = wframe.mock_calls[0][1][0]
-            self.assertIsInstance(frame_value, specification.Basic.Reject)
+            self.assertIsInstance(frame_value, commands.Basic.Reject)
 
     def test_reject_channel_write_frame_delivery_tag_value(self):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
@@ -396,7 +396,7 @@ class TestPublishing(helpers.TestCase):
 
     def test_publish_invokes_write_frame_with_basic_publish(self):
         self.assertIsInstance(self.write_frames.mock_calls[0][1][0][0],
-                              specification.Basic.Publish)
+                              commands.Basic.Publish)
 
     def test_publish_with_exchange_object(self):
         _exchange = exchange.Exchange(self.channel, self.EXCHANGE)
@@ -493,14 +493,14 @@ class TestPublisherConfirms(helpers.TestCase):
         self.msg = message.Message(self.channel, self.BODY)
 
     def test_confirm_ack_response_returns_true(self):
-        self._confirm_wait.return_value = specification.Basic.Ack()
+        self._confirm_wait.return_value = commands.Basic.Ack()
         self.assertTrue(self.msg.publish(self.EXCHANGE, self.ROUTING_KEY))
 
     def test_confirm_nack_response_returns_false(self):
-        self._confirm_wait.return_value = specification.Basic.Nack()
+        self._confirm_wait.return_value = commands.Basic.Nack()
         self.assertFalse(self.msg.publish(self.EXCHANGE, self.ROUTING_KEY))
 
     def test_confirm_other_raises(self):
-        self._confirm_wait.return_value = specification.Basic.Consume()
+        self._confirm_wait.return_value = commands.Basic.Consume()
         self.assertRaises(exceptions.UnexpectedResponseError,
                           self.msg.publish, self.EXCHANGE, self.ROUTING_KEY)

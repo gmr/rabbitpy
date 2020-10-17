@@ -3,7 +3,7 @@ Test the rabbitpy.tx classes
 
 """
 import mock
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import exceptions, tx
 
@@ -25,7 +25,7 @@ class TxTests(helpers.TestCase):
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_exit_invokes_commit(self, rpc):
-        rpc.return_value = specification.Tx.SelectOk
+        rpc.return_value = commands.Tx.SelectOk
         with mock.patch('rabbitpy.tx.Tx.select') as select:
             with mock.patch('rabbitpy.tx.Tx.commit') as commit:
                 with tx.Tx(self.channel) as transaction:
@@ -34,7 +34,7 @@ class TxTests(helpers.TestCase):
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_exit_on_exception_invokes_commit_with_selected(self, rpc):
-        rpc.return_value = specification.Tx.SelectOk
+        rpc.return_value = commands.Tx.SelectOk
         with mock.patch('rabbitpy.tx.Tx.select') as select:
             with mock.patch('rabbitpy.tx.Tx.rollback') as rollback:
                 try:
@@ -47,21 +47,21 @@ class TxTests(helpers.TestCase):
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_select_invokes_rpc_with_tx_select(self, rpc):
-        rpc.return_value = specification.Tx.CommitOk
+        rpc.return_value = commands.Tx.CommitOk
         with tx.Tx(self.channel):
             pass
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Tx.Select)
+                              commands.Tx.Select)
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_commit_invokes_rpc_with_tx_commit(self, rpc):
-        rpc.return_value = specification.Tx.SelectOk
+        rpc.return_value = commands.Tx.SelectOk
         obj = tx.Tx(self.channel)
         obj.select()
-        rpc.return_value = specification.Tx.CommitOk
+        rpc.return_value = commands.Tx.CommitOk
         obj.commit()
         self.assertIsInstance(rpc.mock_calls[1][1][0],
-                              specification.Tx.Commit)
+                              commands.Tx.Commit)
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_commit_raises_when_channel_closed(self, rpc):
@@ -73,13 +73,13 @@ class TxTests(helpers.TestCase):
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_rollback_invokes_rpc_with_tx_rollback(self, rpc):
-        rpc.return_value = specification.Tx.SelectOk
+        rpc.return_value = commands.Tx.SelectOk
         obj = tx.Tx(self.channel)
         obj.select()
-        rpc.return_value = specification.Tx.RollbackOk
+        rpc.return_value = commands.Tx.RollbackOk
         obj.rollback()
         self.assertIsInstance(rpc.mock_calls[1][1][0],
-                              specification.Tx.Rollback)
+                              commands.Tx.Rollback)
 
     @mock.patch('rabbitpy.tx.Tx._rpc')
     def test_rollback_raises_when_channel_closed(self, rpc):

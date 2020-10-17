@@ -29,7 +29,7 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
 import logging
 import warnings
 
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import base
 from rabbitpy import exceptions
@@ -172,12 +172,12 @@ class Queue(base.AMQPClass):
         """
         if hasattr(source, 'name'):
             source = source.name
-        frame = specification.Queue.Bind(queue=self.name,
+        frame = commands.Queue.Bind(queue=self.name,
                                          exchange=source,
                                          routing_key=routing_key or '',
                                          arguments=arguments)
         response = self._rpc(frame)
-        return isinstance(response, specification.Queue.BindOk)
+        return isinstance(response, commands.Queue.BindOk)
 
     def consume(self, no_ack=False, prefetch=None, priority=None,
                 consumer_tag=None):
@@ -286,7 +286,7 @@ class Queue(base.AMQPClass):
         :param bool if_empty: Delete only if empty
 
         """
-        self._rpc(specification.Queue.Delete(queue=self.name,
+        self._rpc(commands.Queue.Delete(queue=self.name,
                                              if_unused=if_unused,
                                              if_empty=if_empty))
 
@@ -305,7 +305,7 @@ class Queue(base.AMQPClass):
         :rtype: :class:`~rabbitpy.Message` or None
 
         """
-        self._write_frame(specification.Basic.Get(queue=self.name,
+        self._write_frame(commands.Basic.Get(queue=self.name,
                                                   no_ack=not acknowledge))
 
         return self.channel._get_message()  # pylint: disable=protected-access
@@ -332,7 +332,7 @@ class Queue(base.AMQPClass):
 
     def purge(self):
         """Purge the queue of all of its messages."""
-        self._rpc(specification.Queue.Purge())
+        self._rpc(commands.Queue.Purge())
 
     def stop_consuming(self):
         """Stop consuming messages. This is usually invoked if you want to
@@ -361,7 +361,7 @@ class Queue(base.AMQPClass):
         if hasattr(source, 'name'):
             source = source.name
         routing_key = routing_key or self.name
-        self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
+        self._rpc(commands.Queue.Unbind(queue=self.name, exchange=source,
                                              routing_key=routing_key))
 
     def _consume(self, no_ack=False, prefetch=None, priority=None):
@@ -381,12 +381,12 @@ class Queue(base.AMQPClass):
         self.consuming = True
 
     def _declare(self, passive=False):
-        """Return a specification.Queue.Declare class pre-composed for the rpc
+        """Return a commands.Queue.Declare class pre-composed for the rpc
         method since this can be called multiple times.
 
         :param bool passive: Passive declare to retrieve message count and
                              consumer count information
-        :rtype: pamqp.specification.Queue.Declare
+        :rtype: pamqp.commands.Queue.Declare
 
         """
         arguments = dict(self.arguments)
@@ -406,7 +406,7 @@ class Queue(base.AMQPClass):
                      'exclusive=%s, auto_delete=%s, arguments=%r',
                      self.name, self.durable, passive, self.exclusive,
                      self.auto_delete, arguments)
-        return specification.Queue.Declare(queue=self.name,
+        return commands.Queue.Declare(queue=self.name,
                                            durable=self.durable,
                                            passive=passive,
                                            exclusive=self.exclusive,
