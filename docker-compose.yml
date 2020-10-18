@@ -1,5 +1,5 @@
 rabbitmq:
-  image: rabbitmq:3.7
+  image: rabbitmq:3.8
   ports:
     - 5672
     - 15672

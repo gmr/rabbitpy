@@ -4,20 +4,10 @@ a single API point for rabbitpy to use.
 
 """
 import collections
-# pylint: disable=unused-import,import-error
-try:
-    import Queue as queue
-except ImportError:
-    import queue
+import queue
 import platform
 import socket
-# pylint: disable=import-error
-try:
-    from urllib import parse as _urlparse
-except ImportError:
-    import urlparse as _urlparse
-
-from pamqp import PYTHON3
+from urllib import parse as _urlparse
 
 PYPY = platform.python_implementation() == 'PyPy'
 
@@ -34,12 +24,8 @@ def maybe_utf8_encode(value):
 
     """
 
-    if PYTHON3:
-        if is_string(value) and not isinstance(value, bytes):
-            return bytes(value, 'utf-8')
-        return value
-    if isinstance(value, unicode):  # pylint: disable=undefined-variable
-        return value.encode('utf-8')
+    if is_string(value) and not isinstance(value, bytes):
+        return bytes(value, 'utf-8')
     return value
 
 
@@ -86,9 +72,6 @@ def is_string(value):
 
     """
     checks = [isinstance(value, bytes), isinstance(value, str)]
-    if not PYTHON3:
-        # pylint: disable=undefined-variable
-        checks.append(isinstance(value, unicode))
     return any(checks)
 
 

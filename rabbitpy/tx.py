@@ -4,7 +4,7 @@ and allows for any AMQP command to be issued, then committed or rolled back.
 
 """
 import logging
-from pamqp import specification as spec
+from pamqp import commands
 
 from rabbitpy import base
 from rabbitpy import exceptions
@@ -68,8 +68,8 @@ class Tx(base.AMQPClass):
         :rtype: bool
 
         """
-        response = self._rpc(spec.Tx.Select())
-        result = isinstance(response, spec.Tx.SelectOk)
+        response = self._rpc(commands.Tx.Select())
+        result = isinstance(response, commands.Tx.SelectOk)
         self._selected = result
         return result
 
@@ -85,12 +85,12 @@ class Tx(base.AMQPClass):
 
         """
         try:
-            response = self._rpc(spec.Tx.Commit())
+            response = self._rpc(commands.Tx.Commit())
         except exceptions.ChannelClosedException as error:
             LOGGER.warning('Error committing transaction: %s', error)
             raise exceptions.NoActiveTransactionError()
         self._selected = False
-        return isinstance(response, spec.Tx.CommitOk)
+        return isinstance(response, commands.Tx.CommitOk)
 
     def rollback(self):
         """Abandon the current transaction
@@ -106,9 +106,9 @@ class Tx(base.AMQPClass):
 
         """
         try:
-            response = self._rpc(spec.Tx.Rollback())
+            response = self._rpc(commands.Tx.Rollback())
         except exceptions.ChannelClosedException as error:
             LOGGER.warning('Error rolling back transaction: %s', error)
             raise exceptions.NoActiveTransactionError()
         self._selected = False
-        return isinstance(response, spec.Tx.RollbackOk)
+        return isinstance(response, commands.Tx.RollbackOk)

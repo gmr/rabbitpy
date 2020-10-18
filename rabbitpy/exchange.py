@@ -9,7 +9,7 @@ RabbitMQ and provides four classes as wrappers:
 
 """
 import logging
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import base
 
@@ -52,7 +52,7 @@ class _Exchange(base.AMQPClass):
         """
         if hasattr(source, 'name'):
             source = source.name
-        self._rpc(specification.Exchange.Bind(destination=self.name,
+        self._rpc(commands.Exchange.Bind(destination=self.name,
                                               source=source,
                                               routing_key=routing_key))
 
@@ -63,7 +63,7 @@ class _Exchange(base.AMQPClass):
         :param bool passive: Do not actually create the exchange
 
         """
-        self._rpc(specification.Exchange.Declare(exchange=self.name,
+        self._rpc(commands.Exchange.Declare(exchange=self.name,
                                                  exchange_type=self.type,
                                                  durable=self.durable,
                                                  passive=passive,
@@ -76,7 +76,7 @@ class _Exchange(base.AMQPClass):
         :param bool if_unused: Delete only if unused
 
         """
-        self._rpc(specification.Exchange.Delete(exchange=self.name,
+        self._rpc(commands.Exchange.Delete(exchange=self.name,
                                                 if_unused=if_unused))
 
     def unbind(self, source, routing_key=None):
@@ -90,7 +90,7 @@ class _Exchange(base.AMQPClass):
         """
         if hasattr(source, 'name'):
             source = source.name
-        self._rpc(specification.Exchange.Unbind(destination=self.name,
+        self._rpc(commands.Exchange.Unbind(destination=self.name,
                                                 source=source,
                                                 routing_key=routing_key))
 

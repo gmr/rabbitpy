@@ -2,8 +2,7 @@
 AMQP Adapter
 
 """
-from pamqp import specification as spec
-
+from pamqp import commands
 from rabbitpy import base
 from rabbitpy import message
 from rabbitpy import exceptions
@@ -35,7 +34,7 @@ class AMQP(base.ChannelWriter):
         :param bool multiple: Acknowledge multiple messages
 
         """
-        self._write_frame(spec.Basic.Ack(delivery_tag, multiple))
+        self._write_frame(commands.Basic.Ack(delivery_tag, multiple))
 
     def basic_consume(self, queue='', consumer_tag='', no_local=False,
                       no_ack=False, exclusive=False, nowait=False,
@@ -70,7 +69,7 @@ class AMQP(base.ChannelWriter):
             consumer_tag = self.consumer_tag
         # pylint: disable=protected-access
         self.channel._consumers[consumer_tag] = (self, no_ack)
-        self._rpc(spec.Basic.Consume(0, queue, consumer_tag, no_local, no_ack,
+        self._rpc(commands.Basic.Consume(0, queue, consumer_tag, no_local, no_ack,
                                      exclusive, nowait, arguments))
         self._consuming = True
         try:
@@ -119,7 +118,7 @@ class AMQP(base.ChannelWriter):
         :param bool no_ack: No acknowledgement needed
 
         """
-        self._rpc(spec.Basic.Get(0, queue, no_ack))
+        self._rpc(commands.Basic.Get(0, queue, no_ack))
 
     def basic_nack(self, delivery_tag=0, multiple=False, requeue=True):
         """Reject one or more incoming messages.
@@ -137,7 +136,7 @@ class AMQP(base.ChannelWriter):
         :param bool requeue: Requeue the message
 
         """
-        self._write_frame(spec.Basic.Nack(delivery_tag, multiple, requeue))
+        self._write_frame(commands.Basic.Nack(delivery_tag, multiple, requeue))
 
     def basic_publish(self, exchange='', routing_key='', body='',
                       properties=None, mandatory=False, immediate=False):
@@ -178,7 +177,7 @@ class AMQP(base.ChannelWriter):
         :param bool global_flag: Apply to entire connection
 
         """
-        self._rpc(spec.Basic.Qos(prefetch_size, prefetch_count, global_flag))
+        self._rpc(commands.Basic.Qos(prefetch_size, prefetch_count, global_flag))
 
     def basic_reject(self, delivery_tag=0, requeue=True):
         """Reject an incoming message
@@ -192,7 +191,7 @@ class AMQP(base.ChannelWriter):
         :param bool requeue: Requeue the message
 
         """
-        self._write_frame(spec.Basic.Reject(delivery_tag, requeue))
+        self._write_frame(commands.Basic.Reject(delivery_tag, requeue))
 
     def basic_recover(self, requeue=False):
         """Redeliver unacknowledged messages
@@ -204,14 +203,14 @@ class AMQP(base.ChannelWriter):
         :param bool requeue: Requeue the message
 
         """
-        self._rpc(spec.Basic.Recover(requeue))
+        self._rpc(commands.Basic.Recover(requeue))
 
     def confirm_select(self):
         """This method sets the channel to use publisher acknowledgements. The
         client can only use this method on a non-transactional channel.
 
         """
-        self._rpc(spec.Confirm.Select())
+        self._rpc(commands.Confirm.Select())
 
     def exchange_declare(self, exchange='', exchange_type='direct',
                          passive=False, durable=False, auto_delete=False,
@@ -232,7 +231,7 @@ class AMQP(base.ChannelWriter):
         :param dict arguments: Arguments for declaration
 
         """
-        self._rpc(spec.Exchange.Declare(0, exchange, exchange_type, passive,
+        self._rpc(commands.Exchange.Declare(0, exchange, exchange_type, passive,
                                         durable, auto_delete, internal, nowait,
                                         arguments))
 
@@ -248,7 +247,7 @@ class AMQP(base.ChannelWriter):
         :param bool nowait: Do not send a reply method
 
         """
-        self._rpc(spec.Exchange.Delete(0, exchange, if_unused, nowait))
+        self._rpc(commands.Exchange.Delete(0, exchange, if_unused, nowait))
 
     def exchange_bind(self, destination='', source='',
                       routing_key='', nowait=False, arguments=None):
@@ -263,7 +262,7 @@ class AMQP(base.ChannelWriter):
         :param dict arguments: Optional arguments
 
         """
-        self._rpc(spec.Exchange.Bind(0, destination, source, routing_key,
+        self._rpc(commands.Exchange.Bind(0, destination, source, routing_key,
                                      nowait, arguments))
 
     def exchange_unbind(self, destination='', source='',
@@ -279,7 +278,7 @@ class AMQP(base.ChannelWriter):
         :param dict arguments: Optional arguments
 
         """
-        self._rpc(spec.Exchange.Unbind(0, destination, source, routing_key,
+        self._rpc(commands.Exchange.Unbind(0, destination, source, routing_key,
                                        nowait, arguments))
 
     def queue_bind(self, queue='', exchange='', routing_key='',
@@ -298,7 +297,7 @@ class AMQP(base.ChannelWriter):
         :param dict arguments: Arguments for binding
 
         """
-        self._rpc(spec.Queue.Bind(0, queue, exchange, routing_key, nowait,
+        self._rpc(commands.Queue.Bind(0, queue, exchange, routing_key, nowait,
                                   arguments))
 
     def queue_declare(self, queue='', passive=False, durable=False,
@@ -319,7 +318,7 @@ class AMQP(base.ChannelWriter):
         :param dict arguments: Arguments for declaration
 
         """
-        self._rpc(spec.Queue.Declare(0, queue, passive, durable, exclusive,
+        self._rpc(commands.Queue.Declare(0, queue, passive, durable, exclusive,
                                      auto_delete, nowait, arguments))
 
     def queue_delete(self, queue='', if_unused=False, if_empty=False,
@@ -336,7 +335,7 @@ class AMQP(base.ChannelWriter):
         :param bool nowait: Do not send a reply method
 
         """
-        self._rpc(spec.Queue.Delete(0, queue, if_unused, if_empty, nowait))
+        self._rpc(commands.Queue.Delete(0, queue, if_unused, if_empty, nowait))
 
     def queue_purge(self, queue='', nowait=False):
         """Purge a queue
@@ -348,7 +347,7 @@ class AMQP(base.ChannelWriter):
         :param bool nowait: Do not send a reply method
 
         """
-        self._rpc(spec.Queue.Purge(0, queue, nowait))
+        self._rpc(commands.Queue.Purge(0, queue, nowait))
 
     def queue_unbind(self, queue='', exchange='', routing_key='',
                      arguments=None):
@@ -362,7 +361,7 @@ class AMQP(base.ChannelWriter):
         :param dict arguments: Arguments of binding
 
         """
-        self._rpc(spec.Queue.Unbind(0, queue, exchange, routing_key,
+        self._rpc(commands.Queue.Unbind(0, queue, exchange, routing_key,
                                     arguments))
 
     def tx_select(self):
@@ -373,7 +372,7 @@ class AMQP(base.ChannelWriter):
         or Rollback methods.
 
         """
-        self._rpc(spec.Tx.Select())
+        self._rpc(commands.Tx.Select())
 
     def tx_commit(self):
         """Commit the current transaction
@@ -383,7 +382,7 @@ class AMQP(base.ChannelWriter):
         immediately after a commit.
 
         """
-        self._rpc(spec.Tx.Commit())
+        self._rpc(commands.Tx.Commit())
 
     def tx_rollback(self):
         """Abandon the current transaction
@@ -395,4 +394,4 @@ class AMQP(base.ChannelWriter):
         recover call should be issued.
 
         """
-        self._rpc(spec.Tx.Rollback())
+        self._rpc(commands.Tx.Rollback())

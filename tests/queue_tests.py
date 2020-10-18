@@ -3,7 +3,7 @@ Test the rabbitpy.amqp_queue classes
 
 """
 import mock
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import amqp_queue
 from rabbitpy import channel
@@ -141,12 +141,6 @@ class QueueInitializationTests(helpers.TestCase):
         queue = amqp_queue.Queue(self.channel, dead_letter_exchange='dlx-name')
         self.assertIsInstance(queue.dead_letter_exchange, str)
 
-    @helpers.unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
-    def test_dlx_unicode(self):
-        queue = amqp_queue.Queue(self.channel,
-                                 dead_letter_exchange=unicode('dlx-name'))
-        self.assertIsInstance(queue.dead_letter_exchange, unicode)
-
     def test_message_dlx_validation(self):
         self.assertRaises(ValueError, amqp_queue.Queue, self.channel, '', True,
                           False, True, None, None, None, True)
@@ -169,13 +163,6 @@ class QueueInitializationTests(helpers.TestCase):
         queue = amqp_queue.Queue(self.channel,
                                  dead_letter_routing_key='routing-key')
         self.assertIsInstance(queue.dead_letter_routing_key, str)
-
-    @helpers.unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
-    def test_dlr_unicode(self):
-        routing_key = unicode('routing-key')
-        queue = amqp_queue.Queue(self.channel,
-                                 dead_letter_routing_key=routing_key)
-        self.assertIsInstance(queue.dead_letter_routing_key, unicode)
 
     def test_dlr_validation(self):
         self.assertRaises(ValueError, amqp_queue.Queue, self.channel, '', True,
@@ -367,19 +354,19 @@ class WriteFrameTests(helpers.TestCase):
     def test_declare_invokes_write_frame_with_queue_declare(self, rpc):
         self.queue.declare()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Declare)
+                              commands.Queue.Declare)
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_ha_declare_invokes_write_frame_with_queue_declare(self, rpc):
         self.queue.ha_declare()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Declare)
+                              commands.Queue.Declare)
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_ha_declare_list_invokes_write_frame_with_queue_declare(self, rpc):
         self.queue.ha_declare(['foo', 'bar'])
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Declare)
+                              commands.Queue.Declare)
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_ha_declare_list_sets_proper_attributes(self, rpc):
@@ -399,13 +386,13 @@ class WriteFrameTests(helpers.TestCase):
     def test_bind_invokes_write_frame_with_queue_bind(self, rpc):
         self.queue.bind('foo', 'bar')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Bind)
+                              commands.Queue.Bind)
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_unbind_invokes_write_frame_with_queue_declare(self, rpc):
         self.queue.unbind('foo', 'bar')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Unbind)
+                              commands.Queue.Unbind)
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_unbind_with_obj_invokes_write_frame_with_queue_declare(self, rpc):
@@ -413,17 +400,17 @@ class WriteFrameTests(helpers.TestCase):
         exchange.name = 'foo'
         self.queue.unbind(exchange, 'bar')
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Unbind)
+                              commands.Queue.Unbind)
 
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_unbind_invokes_write_frame_with_queue_delete(self, rpc):
         self.queue.delete()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Delete)
+                              commands.Queue.Delete)
 
     @mock.patch('rabbitpy.amqp_queue.Queue._rpc')
     def test_purge_invokes_write_frame_with_queue_purge(self, rpc):
         self.queue.purge()
         self.assertIsInstance(rpc.mock_calls[0][1][0],
-                              specification.Queue.Purge)
+                              commands.Queue.Purge)

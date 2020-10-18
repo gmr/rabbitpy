@@ -4,10 +4,7 @@ Test the rabbitpy events class
 """
 import mock
 import threading
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+import unittest
 
 from rabbitpy import events
 

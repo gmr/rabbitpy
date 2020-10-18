@@ -3,20 +3,14 @@ The Connection class negotiates and manages the connection state.
 
 """
 import logging
-# pylint: disable=import-error
-try:
-    from urllib import parse as urlparse
-except ImportError:
-    import urlparse
+from urllib import parse as urlparse
 
-try:
-    import ssl
-except ImportError:
-    ssl = None
+import ssl
 import threading
 import time
 
-from pamqp import specification as spec
+from pamqp import base
+from pamqp import constants
 
 from rabbitpy import base
 from rabbitpy import heartbeat
@@ -357,7 +351,7 @@ class Connection(base.StatefulObject):
 
         :param int channel_id: The channel id the message was sent on
         :param method_frame: The method frame value
-        :type method_frame: pamqp.specification.Frame
+        :type method_frame: pamqp.base.Frame
         :param header_frame: The header frame value
         :type header_frame: pamqp.header.ContentHeader
         :param str body: The message body
@@ -398,7 +392,7 @@ class Connection(base.StatefulObject):
 
         :param int channel_id: The channel to normalize for
         :param expectations: List of classes or class name or class obj
-        :type expectations: list or str or pamqp.specification.Frame
+        :type expectations: list or str or pamqp.base.Frame
         :rtype: list
 
         """
@@ -497,7 +491,7 @@ class Connection(base.StatefulObject):
             'heartbeat': self._qargs_int('heartbeat', qargs,
                                          self.DEFAULT_HEARTBEAT_INTERVAL),
             'frame_max': self._qargs_int('frame_max', qargs,
-                                         spec.FRAME_MAX_SIZE),
+                                         constants.FRAME_MAX_SIZE),
             'channel_max': self._qargs_int('channel_max', qargs,
                                            self.DEFAULT_CHANNEL_MAX),
             'locale': self._qargs_value('locale', qargs),

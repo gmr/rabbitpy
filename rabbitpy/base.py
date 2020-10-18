@@ -5,8 +5,8 @@ Base classes for various parts of rabbitpy
 import logging
 import threading
 
-from pamqp import specification
-
+from pamqp import base
+from pamqp import commands
 from rabbitpy import exceptions
 from rabbitpy import utils
 from rabbitpy.utils import queue
@@ -30,8 +30,8 @@ class ChannelWriter(object):  # pylint: disable=too-few-public-methods
     def _rpc(self, frame_value):
         """Execute the RPC command for the frame.
 
-        :param pamqp.specification.Frame frame_value: The frame to send
-        :rtype: pamqp.specification.Frame or pamqp.message.Message
+        :param pamqp.base.Frame frame_value: The frame to send
+        :rtype: pamqp.base.Frame or pamqp.message.Message
 
         """
         LOGGER.debug('Issuing RPC to RabbitMQ: %r', frame_value)
@@ -42,7 +42,7 @@ class ChannelWriter(object):  # pylint: disable=too-few-public-methods
     def _write_frame(self, frame_value):
         """Write a frame to the channel's connection
 
-        :param pamqp.specification.Frame frame_value: The frame to send
+        :param pamqp.base.Frame frame_value: The frame to send
 
         """
         self.channel.write_frame(frame_value)
@@ -158,9 +158,11 @@ class StatefulObject(object):
 class AMQPChannel(StatefulObject):
     """Base AMQP Channel Object"""
 
-    CLOSE_REQUEST_FRAME = specification.Channel.Close
+    CLOSE_REQUEST_FRAME = commands.Channel.Close
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
+    DEFAULT_CLOSE_CLASS_ID = 0
+    DEFAULT_CLOSE_METHOD_ID = 0
     REMOTE_CLOSED = 0x04
 
     def __init__(self, exception_queue, write_trigger, connection,
@@ -219,8 +221,8 @@ class AMQPChannel(StatefulObject):
         """Send a RPC command to the remote server. This should not be directly
         invoked.
 
-        :param pamqp.specification.Frame frame_value: The frame to send
-        :rtype: pamqp.specification.Frame or None
+        :param pamqp.base.Frame frame_value: The frame to send
+        :rtype: pamqp.base.Frame or None
 
         """
         if self.closed:
@@ -238,14 +240,14 @@ class AMQPChannel(StatefulObject):
         :rtype: pamqp.frame.Frame
 
         """
-        return self._wait_on_frame([specification.Basic.Ack,
-                                    specification.Basic.Nack])
+        return self._wait_on_frame([commands.Basic.Ack,
+                                    commands.Basic.Nack])
 
     def write_frame(self, frame):
         """Put the frame in the write queue for the IOWriter object to write to
         the socket when it can. This should not be directly invoked.
 
-        :param pamqp.specification.Frame frame: The frame to write
+        :param pamqp.base.Frame frame: The frame to write
 
         """
         if self._can_write():
@@ -275,11 +277,13 @@ class AMQPChannel(StatefulObject):
     def _build_close_frame(self):
         """Return the proper close frame for this object.
 
-        :rtype: pamqp.specification.Channel.Close
+        :rtype: pamqp.commands.Channel.Close
 
         """
         return self.CLOSE_REQUEST_FRAME(self.DEFAULT_CLOSE_CODE,
-                                        self.DEFAULT_CLOSE_REASON)
+                                        self.DEFAULT_CLOSE_REASON,
+                                        self.DEFAULT_CLOSE_CLASS_ID,
+                                        self.DEFAULT_CLOSE_METHOD_ID)
 
     def _can_write(self):
         self._check_for_exceptions()
@@ -323,7 +327,7 @@ class AMQPChannel(StatefulObject):
         RPC requests from RabbitMQ.
 
         """
-        if isinstance(value, specification.Channel.Close):
+        if isinstance(value, commands.Channel.Close):
             LOGGER.debug('Channel closed')
             self._on_remote_close(value)
 
@@ -368,7 +372,7 @@ class AMQPChannel(StatefulObject):
         """Handle RabbitMQ remotely closing the channel
 
         :param value: The Channel.Close method frame
-        :type value: pamqp.spec.Channel.Close
+        :type value: pamqp.commands.Channel.Close
         :raises: exceptions.RemoteClosedChannelException
         :raises: exceptions.AMQPException
 
@@ -386,7 +390,7 @@ class AMQPChannel(StatefulObject):
     def _read_from_queue(self):
         """Check to see if a frame is in the queue and if so, return it
 
-        :rtype: amqp.specification.Frame or None
+        :rtype: amqp.base.Frame or None
 
         """
         if self._can_write() and not self.closing and self.blocking_read:
@@ -414,9 +418,9 @@ class AMQPChannel(StatefulObject):
         be an individual frame type or a list of frame types.
 
         :param frame_value: The frame to check
-        :type frame_value: pamqp.specification.Frame
+        :type frame_value: pamqp.base.Frame
         :param frame_type: The frame(s) to check against
-        :type frame_type: pamqp.specification.Frame or list
+        :type frame_type: pamqp.base.Frame or list
         :rtype: bool
 
         """
@@ -433,7 +437,7 @@ class AMQPChannel(StatefulObject):
                 if result:
                     return True
             return False
-        elif isinstance(frame_value, specification.Frame):
+        elif isinstance(frame_value, base.Frame):
             return frame_value.name == frame_type.name
         return False
 
@@ -445,7 +449,7 @@ class AMQPChannel(StatefulObject):
         call the method.
 
         :param frame_type: The name or list of names of the frame type(s)
-        :type frame_type: str|list|pamqp.specification.Frame
+        :type frame_type: str|list|pamqp.base.Frame
         :rtype: Frame
 
         """

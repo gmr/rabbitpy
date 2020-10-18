@@ -2,10 +2,7 @@
 Test the rabbitpy utils module
 
 """
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+import unittest
 import sys
 from rabbitpy import utils
 
@@ -55,10 +52,6 @@ class UtilsTestCase(unittest.TestCase):
 
     def test_is_string_bytes(self):
         self.assertTrue(utils.is_string(b'Foo'))
-
-    @unittest.skipIf(sys.version_info[0] == 3, 'No unicode obj in 3')
-    def test_is_string_unicode(self):
-        self.assertTrue(utils.is_string(unicode('Foo')))
 
     def test_is_string_false_int(self):
         self.assertFalse(utils.is_string(123))

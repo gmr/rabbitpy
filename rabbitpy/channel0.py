@@ -9,7 +9,8 @@ import sys
 
 from pamqp import header
 from pamqp import heartbeat
-from pamqp import specification
+from pamqp import commands
+from pamqp import constants
 
 from rabbitpy import __version__
 from rabbitpy import base
@@ -39,7 +40,11 @@ class Channel0(base.AMQPChannel):
     """
     CHANNEL = 0
 
-    CLOSE_REQUEST_FRAME = specification.Connection.Close
+    CLOSE_REQUEST_FRAME = commands.Connection.Close
+    DEFAULT_CLOSE_CODE = 200
+    DEFAULT_CLOSE_REASON = 'Normal Shutdown'
+    DEFAULT_CLOSE_CLASS_ID = 0
+    DEFAULT_CLOSE_METHOD_ID = 0
     DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, connection_args, events_obj, exception_queue,
@@ -63,7 +68,10 @@ class Channel0(base.AMQPChannel):
         """Close the connection via Channel0 communication."""
         if self.open:
             self._set_state(self.CLOSING)
-            self.rpc(specification.Connection.Close())
+            self.rpc(commands.Connection.Close(self.DEFAULT_CLOSE_CODE,
+                                               self.DEFAULT_CLOSE_REASON,
+                                               self.DEFAULT_CLOSE_CLASS_ID,
+                                               self.DEFAULT_CLOSE_METHOD_ID))
 
     @property
     def heartbeat_interval(self):
@@ -133,7 +141,7 @@ class Channel0(base.AMQPChannel):
             pass
         else:
             LOGGER.warning('Unexpected Channel0 Frame: %r', value)
-            raise specification.AMQPUnexpectedFrame(value)
+            raise exceptions.AMQPUnexpectedFrame(value)
 
     def send_heartbeat(self):
         """Send a heartbeat frame to the remote connection."""
@@ -147,15 +155,15 @@ class Channel0(base.AMQPChannel):
     def _build_open_frame(self):
         """Build and return the Connection.Open frame.
 
-        :rtype: pamqp.specification.Connection.Open
+        :rtype: pamqp.commands.Connection.Open
 
         """
-        return specification.Connection.Open(self._args['virtual_host'])
+        return commands.Connection.Open(self._args['virtual_host'])
 
     def _build_start_ok_frame(self):
         """Build and return the Connection.StartOk frame.
 
-        :rtype: pamqp.specification.Connection.StartOk
+        :rtype: pamqp.commands.Connection.StartOk
 
         """
         properties = {
@@ -168,17 +176,17 @@ class Channel0(base.AMQPChannel):
                              'publisher_confirms': True},
             'information': 'See https://rabbitpy.readthedocs.io',
             'version': __version__}
-        return specification.Connection.StartOk(client_properties=properties,
+        return commands.Connection.StartOk(client_properties=properties,
                                                 response=self._credentials,
                                                 locale=self._get_locale())
 
     def _build_tune_ok_frame(self):
         """Build and return the Connection.TuneOk frame.
 
-        :rtype: pamqp.specification.Connection.TuneOk
+        :rtype: pamqp.commands.Connection.TuneOk
 
         """
-        return specification.Connection.TuneOk(self._max_channels,
+        return commands.Connection.TuneOk(self._max_channels,
                                                self._max_frame_size,
                                                self._heartbeat_interval)
 
@@ -224,7 +232,7 @@ class Channel0(base.AMQPChannel):
         """Negotiate the Connection.Start process, writing out a
         Connection.StartOk frame when the Connection.Start frame is received.
 
-        :type frame_value: pamqp.specification.Connection.Start
+        :type frame_value: pamqp.commands.Connection.Start
         :raises: rabbitpy.exceptions.ConnectionException
 
         """
@@ -247,7 +255,7 @@ class Channel0(base.AMQPChannel):
         Connection.Tune frame from RabbitMQ and sending the Connection.TuneOk
         frame.
 
-        :param specification.Connection.Tune frame_value: Tune frame
+        :param commands.Connection.Tune frame_value: Tune frame
 
         """
         self._max_frame_size = self._negotiate(self._max_frame_size,
@@ -271,16 +279,16 @@ class Channel0(base.AMQPChannel):
     def _validate_connection_start(frame_value):
         """Validate the received Connection.Start frame
 
-        :param specification.Connection.Start frame_value: Frame to validate
+        :param commands.Connection.Start frame_value: Frame to validate
         :rtype: bool
 
         """
         if (frame_value.version_major, frame_value.version_minor) != \
-                (specification.VERSION[0], specification.VERSION[1]):
+                (constants.VERSION[0], constants.VERSION[1]):
             LOGGER.warning('AMQP version error (received %i.%i, expected %r)',
                            frame_value.version_major,
                            frame_value.version_minor,
-                           specification.VERSION)
+                           constants.VERSION)
             return False
         return True
 

@@ -28,7 +28,7 @@ rabbitpy contains two types of exceptions, exceptions that are specific to rabbi
         self._write_frame(frame_value)
       File "rabbitpy/base.py", line 311, in _write_frame
         raise exception
-    rabbitpy.exceptions.AMQPPreconditionFailed: <pamqp.specification.Channel.Close object at 0x10e86bd50>
+    rabbitpy.exceptions.AMQPPreconditionFailed: <pamqp.commands.Channel.Close object at 0x10e86bd50>
 
 In this example, the channel that was created on the second line was closed and RabbitMQ is raising the :class:`AMQPPreconditionFailed <rabbitpy.exceptions.AMQPPreconditionFailed>` exception via RPC sent to your application using the AMQP Channel.Close method.
 

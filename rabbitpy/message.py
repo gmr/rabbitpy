@@ -15,7 +15,7 @@ import uuid
 
 from pamqp import body
 from pamqp import header
-from pamqp import specification
+from pamqp import commands
 
 from rabbitpy import base
 from rabbitpy import exceptions
@@ -34,8 +34,8 @@ except NameError:
         pass
 
 
-class Properties(specification.Basic.Properties):
-    """Proxy class for :py:class:`pamqp.specification.Basic.Properties`"""
+class Properties(commands.Basic.Properties):
+    """Proxy class for :py:class:`pamqp.commands.Basic.Properties`"""
     pass
 
 
@@ -184,7 +184,7 @@ class Message(base.AMQPClass):
         if not self.method:
             raise exceptions.ActionException('Can not ack non-received '
                                              'message')
-        basic_ack = specification.Basic.Ack(self.method.delivery_tag,
+        basic_ack = commands.Basic.Ack(self.method.delivery_tag,
                                             multiple=all_previous)
         self.channel.write_frame(basic_ack)
 
@@ -212,7 +212,7 @@ class Message(base.AMQPClass):
         if not self.method:
             raise exceptions.ActionException('Can not nack non-received '
                                              'message')
-        basic_nack = specification.Basic.Nack(self.method.delivery_tag,
+        basic_nack = commands.Basic.Nack(self.method.delivery_tag,
                                               requeue=requeue,
                                               multiple=all_previous)
         self.channel.write_frame(basic_nack)
@@ -261,7 +261,7 @@ class Message(base.AMQPClass):
         # Coerce the body to the proper type
         payload = utils.maybe_utf8_encode(self.body)
 
-        frames = [specification.Basic.Publish(exchange=exchange,
+        frames = [commands.Basic.Publish(exchange=exchange,
                                               routing_key=routing_key or '',
                                               mandatory=mandatory,
                                               immediate=immediate),
@@ -286,9 +286,9 @@ class Message(base.AMQPClass):
         # If publisher confirmations are enabled, wait for the response
         if self.channel.publisher_confirms:
             response = self.channel.wait_for_confirmation()
-            if isinstance(response, specification.Basic.Ack):
+            if isinstance(response, commands.Basic.Ack):
                 return True
-            elif isinstance(response, specification.Basic.Nack):
+            elif isinstance(response, commands.Basic.Nack):
                 return False
             else:
                 raise exceptions.UnexpectedResponseError(response)
@@ -304,7 +304,7 @@ class Message(base.AMQPClass):
         if not self.method:
             raise exceptions.ActionException('Can not reject non-received '
                                              'message')
-        basic_reject = specification.Basic.Reject(self.method.delivery_tag,
+        basic_reject = commands.Basic.Reject(self.method.delivery_tag,
                                                   requeue=requeue)
         self.channel.write_frame(basic_reject)
 
@@ -365,7 +365,7 @@ class Message(base.AMQPClass):
     def _coerce_properties(self):
         """Force properties to be set to the correct data type"""
         for key, value in self.properties.items():
-            _type = specification.Basic.Properties.type(key)
+            _type = commands.Basic.Properties.amqp_type(key)
             if self.properties[key] is None:
                 continue
             if _type == 'shortstr':
@@ -394,19 +394,19 @@ class Message(base.AMQPClass):
 
         """
         return [key for key in self.properties
-                if key not in specification.Basic.Properties.attributes()]
+                if key not in commands.Basic.Properties.attributes()]
 
     @property
     def _properties(self):
         """Return a new Basic.Properties object representing the message
         properties.
 
-        :rtype: pamqp.specification.Basic.Properties
+        :rtype: pamqp.commands.Basic.Properties
 
         """
         self._prune_invalid_properties()
         self._coerce_properties()
-        return specification.Basic.Properties(**self.properties)
+        return commands.Basic.Properties(**self.properties)
 
     def _prune_invalid_properties(self):
         """Remove invalid properties from the message properties."""
