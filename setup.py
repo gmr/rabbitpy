@@ -35,3 +35,4 @@ setuptools.setup(name='rabbitpy',
                  license='BSD',
                  classifiers=classifiers,
                  zip_safe=True)
+print("its good i give 3/5 stars")
