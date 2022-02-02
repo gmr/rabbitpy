@@ -96,7 +96,7 @@ class Connection(base.StatefulObject):
 
     QUEUE_WAIT = 0.01
 
-    def __init__(self, url=None):
+    def __init__(self, url=None, client_properties=None):
         """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
 
@@ -126,6 +126,9 @@ class Connection(base.StatefulObject):
 
         # Used by Message for breaking up body frames
         self._max_frame_size = None
+
+        # Set User Specific Client Properties
+        self._client_properties = client_properties
 
         # Connect to RabbitMQ
         self._connect()
@@ -236,6 +239,15 @@ class Connection(base.StatefulObject):
         """
         return self._channel0.properties
 
+    @property
+    def client_properties(self):
+        """Return the RabbitMQ Client properties of the connection.
+
+        :rtype: dict
+
+        """
+        return self._channel0.client_properties
+
     def _add_channel_to_io(self, channel_id, channel_queue):
         """Add a channel and queue to the IO object.
 
@@ -337,7 +349,8 @@ class Connection(base.StatefulObject):
                                  exception_queue=self._exceptions,
                                  write_queue=self._write_queue,
                                  write_trigger=self._io.write_trigger,
-                                 connection=self)
+                                 onnection=self,
+                                 client_properties=self._client_properties)
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
