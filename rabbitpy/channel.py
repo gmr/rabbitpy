@@ -107,6 +107,7 @@ class Channel(base.AMQPChannel):
 
         """
         if self._connection.closed:
+            self._set_state(self.CLOSED)
             LOGGER.debug('Channel %i close invoked when connection closed',
                          self._channel_id)
         elif self.closed:
