@@ -310,7 +310,10 @@ class Connection(base.StatefulObject):
         self._channel0.start()
 
         # Wait for Channel0 to raise an exception or negotiate the connection
+        _channel0_timeout = time.time() + 10
         while not self._channel0.open:
+            if _channel0_timeout < time.time():
+                raise TimeoutError("Channel open Timeout")
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 self._io.stop()
