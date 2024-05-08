@@ -579,7 +579,8 @@ class IO(threading.Thread, base.StatefulObject):
                 if self._args[key]:
                     kwargs[argv] = self._args[key]
             LOGGER.debug('Wrapping socket for SSL: %r', kwargs)
-            return ssl.wrap_socket(**kwargs)
+            context = ssl.SSLContext()
+            return context.wrap_socket(**kwargs)
         return sock
 
     def _disconnect_socket(self):

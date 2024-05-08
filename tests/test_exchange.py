@@ -7,7 +7,7 @@ from pamqp import specification
 
 from rabbitpy import exchange
 
-from . import helpers
+from tests import helpers
 
 
 class TxTests(helpers.TestCase):

@@ -1,5 +1,10 @@
 Version History
 ---------------
+- 3.0.0 - released *2024-05-08*
+    - Change to use `ssl.SSLContext` since `ssl.wrap_socket` was deprecated in Python 3.7 and removed in 3.12
+    - Drops support for Python < 3.8
+    - Adds support for Python 3.10, 3.11 and 3.12
+    - Change tests over to use `coverage` instead of `nose`
 - 2.0.1 - released *2019-08-06*
     - Fixed an issue with the IO loop poller on MacOS (#111)
 - 2.0.0 - released *2019-04-19*

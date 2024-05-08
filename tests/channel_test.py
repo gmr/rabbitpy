@@ -4,7 +4,7 @@ Test the rabbitpy.channel classes
 """
 from rabbitpy import exceptions
 
-from . import helpers
+from tests import helpers
 
 class ServerCapabilitiesTest(helpers.TestCase):
 
