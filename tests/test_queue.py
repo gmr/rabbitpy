@@ -10,7 +10,7 @@ from rabbitpy import channel
 from rabbitpy import exceptions
 from rabbitpy import utils
 
-from . import helpers
+from tests import helpers
 
 
 class QueueInitializationTests(helpers.TestCase):

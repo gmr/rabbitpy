@@ -19,7 +19,7 @@ from rabbitpy import exceptions
 from rabbitpy import exchange
 from rabbitpy import message
 
-from . import helpers
+from tests import helpers
 
 logging.basicConfig(level=logging.DEBUG)
 

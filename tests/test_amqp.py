@@ -6,7 +6,7 @@ import mock
 
 from rabbitpy import amqp, base, channel
 
-from . import helpers
+from tests import helpers
 
 class BasicAckTests(helpers.TestCase):
 

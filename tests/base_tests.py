@@ -4,7 +4,7 @@ Test the rabbitpy.base classes
 """
 from rabbitpy import base, utils
 
-from . import helpers
+from tests import helpers
 
 
 class AMQPClassTests(helpers.TestCase):

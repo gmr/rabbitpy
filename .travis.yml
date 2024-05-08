@@ -1,18 +1,18 @@
-dist: xenial
+dist: focal
 language: python
 python:
-  - 2.7
-  - 3.4
-  - 3.5
-  - 3.6
-  - 3.7
+  - 3.8
+  - 3.9
+  - 3.10
+  - 3.11
+  - 3.12
 services:
   - docker
 install:
   - pip install --upgrade -r test-requirements.txt
 before_script:
   - ./bootstrap.sh
-script: nosetests
+script: coverage run
 after_success:
   - codecov
   - CODECLIMATE_REPO_TOKEN=ed39a2c039a29b0965bfdd243fea7caba2a83a4945bbd69fe95f506066754bd1 codeclimate-test-reporter
@@ -21,7 +21,7 @@ deploy:
   provider: pypi
   user: crad
   on:
-    python: 3.7
+    python: 3.12
     tags: true
     all_branches: true
   password:
