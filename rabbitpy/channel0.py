@@ -169,8 +169,6 @@ class Channel0(base.AMQPChannel):
         :rtype: pamqp.specification.Connection.StartOk
 
         """
-  
-        
         return specification.Connection.StartOk(client_properties=self.client_properties,
                                                 response=self._credentials,
                                                 locale=self._get_locale())
