@@ -96,7 +96,7 @@ class Connection(base.StatefulObject):
 
     QUEUE_WAIT = 0.01
 
-    def __init__(self, url=None):
+    def __init__(self, url=None, client_properties={}):
         """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
 
@@ -123,6 +123,9 @@ class Connection(base.StatefulObject):
         self._channels = dict()
         self._heartbeat = None
         self._io = None
+        
+        # Client properties
+        self.client_properties = client_properties
 
         # Used by Message for breaking up body frames
         self._max_frame_size = None
@@ -337,7 +340,7 @@ class Connection(base.StatefulObject):
                                  exception_queue=self._exceptions,
                                  write_queue=self._write_queue,
                                  write_trigger=self._io.write_trigger,
-                                 connection=self)
+                                 connection=self, client_properties=self.client_properties)
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
