@@ -52,7 +52,7 @@ def consume(uri=None, queue_name=None, no_ack=False, prefetch=None,
 
     .. code:: python
 
-        for message in rabbitpy.consume('amqp://localhost/%2F', 'my_queue'):
+        for message in rabbitpy.consume('amqp://localhost/%2F', 'my-queue'):
             message.ack()
 
     :param str uri: AMQP connection URI
