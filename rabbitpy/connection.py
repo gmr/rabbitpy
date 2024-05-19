@@ -340,7 +340,8 @@ class Connection(base.StatefulObject):
                                  exception_queue=self._exceptions,
                                  write_queue=self._write_queue,
                                  write_trigger=self._io.write_trigger,
-                                 connection=self, client_properties=self.client_properties)
+                                 connection=self,
+                                 client_properties=self.client_properties)
 
     def _create_io_thread(self):
         """Create the IO thread and the objects it uses for communication.
