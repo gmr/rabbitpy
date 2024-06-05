@@ -1,0 +1,41 @@
+name: Testing
+on:
+  push:
+    branches: ["*"]
+    paths-ignore:
+      - 'docs/**'
+      - '*.rst'
+    tags-ignore: ["*"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    container:
+      image: python:${{ matrix.python }}-alpine
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install testing dependencies
+        run: pip install --upgrade -r test-requirements.txt
+
+      - name: Bootstrap
+        run: ./bootstrap.sh
+
+      - name: Run unit tests
+        run: coverage run
+
+      - name: Generate coverage report
+        run: coverage report && coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true
+          file: build/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          token: ${{secrets.CODECOV_TOKEN}}
