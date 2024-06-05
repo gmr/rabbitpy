@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 # NAME
 #    bootstrap -- initialize/update docker environment

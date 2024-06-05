@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install testing dependencies
-        run: pip install --upgrade -r test-requirements.txt
+        run: pip install -e '.[dev]'
 
       - name: Bootstrap
         run: ./bootstrap.sh
