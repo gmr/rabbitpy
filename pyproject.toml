@@ -1,0 +1,64 @@
+[project]
+name = "rabbitpy"
+version = "2.0.1"
+description = "A pure python, thread-safe, minimalistic and pythonic RabbitMQ client library"
+readme = "README.rst"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [ { name = "Gavin M. Roy", email = "gavinmroy@gmail.com" } ]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Communications",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries"
+]
+dependencies = [
+  "pamqp>=2.3.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "codecov",
+    "coverage[toml]",
+    "mock",
+    "flake8",
+    "flake8-comprehensions",
+    "flake8-deprecated",
+    "flake8-html",
+    "flake8-import-order",
+    "flake8-pyproject",
+    "flake8-quotes",
+    "flake8-rst-docstrings",
+    "flake8-tuple",
+    "codeclimate-test-reporter",
+]
+
+[project.urls]
+Documentation = "https://rabbitpy.readthedocs.io"
+Repository = "https://github.com/gmr/rabbitpy.git"
+"Code Coverage" = "https://app.codecov.io/github/gmr/rabbitpy"
+
+[tool.flake8]
+application-import-names = ["rabbitpy"]
+exclude = ["build", "ci", "docs", "env"]
+ignore = "RST304"
+import-order-style = "google"
+
+[tool.coverage.xml]
+output = "build/coverage.xml"
+
+[tool.coverage.run]
+branch = true
+source = ["rabbitpy"]
+command_line = "-m unittest discover tests --buffer --verbose"
