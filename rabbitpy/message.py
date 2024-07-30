@@ -10,31 +10,18 @@ import json
 import logging
 import math
 import time
+import typing
 import pprint
 import uuid
 
-from pamqp import body
-from pamqp import header
-from pamqp import specification
+from pamqp import body, commands, common, header
 
-from rabbitpy import base
-from rabbitpy import exceptions
-from rabbitpy import utils
+from rabbitpy import base, channel as chan, exceptions, exchange as exc, utils
 
 LOGGER = logging.getLogger(__name__)
 
 
-# Python 2.6 does not have a memoryview object, create dummy for isinstance
-try:
-    _PY_VERSION_CHECK = memoryview(b'foo')
-except NameError:
-    # pylint: disable=too-few-public-methods, redefined-builtin
-    # pylint: disable=invalid-name, missing-docstring
-    class memoryview(object):
-        pass
-
-
-class Properties(specification.Basic.Properties):
+class Properties(commands.Basic.Properties):
     """Proxy class for :py:class:`pamqp.specification.Basic.Properties`"""
     pass
 
@@ -82,25 +69,21 @@ class Message(base.AMQPClass):
     is not specified when passing in ``properties``, the current Unix epoch
     value will be set in the message properties.
 
-    .. note:: As of 0.21.0 ``auto_id`` is deprecated in favor of
-    ``opinionated`` and it will be removed in a future version. As of
-    0.22.0 ``opinionated`` is defaulted to ``False``.
-
     :param channel: The channel object for the message object to act upon
-    :type channel: :py:class:`rabbitpy.channel.Channel`
     :param body_value: The message body
-    :type body_value: str|bytes|unicode|memoryview|dict|json
-    :param dict properties: A dictionary of message properties
-    :param bool auto_id: Add a message id if no properties were passed in.
-    :param bool opinionated: Automatically populate properties if True
+    :param properties: A dictionary of message properties
+    :param opinionated: Automatically populate properties if True
     :raises KeyError: Raised when an invalid property is passed in
 
     """
     method = None
     name = 'Message'
 
-    def __init__(self, channel, body_value, properties=None, auto_id=False,
-                 opinionated=False):
+    def __init__(self,
+                 channel: chan.Channel,
+                 body_value: typing.Union[str, bytes, memoryview, dict, list],
+                 properties: typing.Optional[dict] = None,
+                 opinionated: bool = False):
         """Create a new instance of the Message object."""
         super(Message, self).__init__(channel, 'Message')
 
@@ -111,13 +94,10 @@ class Message(base.AMQPClass):
         if isinstance(body_value, memoryview):
             self.body = bytes(body_value)
         else:
-            # pylint: disable=redefined-variable-type
             self.body = self._auto_serialize(body_value)
 
         # Add a message id if auto_id is not turned off and it is not set
-        if (opinionated or auto_id) and 'message_id' not in self.properties:
-            if auto_id:
-                raise DeprecationWarning('Use opinionated instead of auto_id')
+        if opinionated and 'message_id' not in self.properties:
             self._add_auto_message_id()
 
         if opinionated:
@@ -131,50 +111,42 @@ class Message(base.AMQPClass):
 
         # Don't let invalid property keys in
         if self._invalid_properties:
-            msg = 'Invalid property: %s' % self._invalid_properties[0]
-            raise KeyError(msg)
+            raise KeyError('Invalid property: {}'.format(
+                self._invalid_properties[0]))
 
     @property
-    def delivery_tag(self):
+    def delivery_tag(self) -> typing.Union[int, None]:
         """Return the delivery tag for a message that was delivered or gotten
         from RabbitMQ.
-
-        :rtype: int or None
 
         """
         return self.method.delivery_tag if self.method else None
 
     @property
-    def redelivered(self):
+    def redelivered(self) -> typing.Union[bool, None]:
         """Indicates if this message may have been delivered before (but not
-        acknowledged)"
-
-        :rtype: bool or None
+        acknowledged)
 
         """
         return self.method.redelivered if self.method else None
 
     @property
-    def routing_key(self):
+    def routing_key(self) -> typing.Union[str, None]:
         """Return the routing_key for a message that was delivered or gotten
         from RabbitMQ.
-
-        :rtype: int or None
 
         """
         return self.method.routing_key if self.method else None
 
     @property
-    def exchange(self):
+    def exchange(self) -> typing.Union[str, None]:
         """Return the source exchange for a message that was delivered or
         gotten from RabbitMQ.
-
-        :rtype: string or None
 
         """
         return self.method.exchange if self.method else None
 
-    def ack(self, all_previous=False):
+    def ack(self, all_previous: bool = False) -> None:
         """Acknowledge receipt of the message to RabbitMQ. Will raise an
         ActionException if the message was not received from a broker.
 
@@ -182,45 +154,41 @@ class Message(base.AMQPClass):
 
         """
         if not self.method:
-            raise exceptions.ActionException('Can not ack non-received '
-                                             'message')
-        basic_ack = specification.Basic.Ack(self.method.delivery_tag,
-                                            multiple=all_previous)
+            raise exceptions.ActionException(
+                'Can not ack non-received message')
+        basic_ack = commands.Basic.Ack(self.method.delivery_tag,
+                                       multiple=all_previous)
         self.channel.write_frame(basic_ack)
 
-    def json(self):
-        """Deserialize the message body if it is JSON, returning the value.
-
-        :rtype: any
-
-        """
+    def json(self) -> bytes:
+        """Deserialize the message body if it is JSON, returning the value."""
         try:
             return json.loads(self.body)
         except TypeError:  # pragma: no cover
             return json.loads(self.body.decode('utf-8'))
 
-    def nack(self, requeue=False, all_previous=False):
+    def nack(self, requeue: bool = False, all_previous: bool = False) -> None:
         """Negatively acknowledge receipt of the message to RabbitMQ. Will
         raise an ActionException if the message was not received from a broker.
 
-        :param bool requeue: Requeue the message
-        :param bool all_previous: Nack all previous unacked messages up to and
-                                  including this one
+        :param requeue: Requeue the message
+        :param all_previous: Nack all previous unacked messages up to and
+                             including this one
         :raises: ActionException
 
         """
         if not self.method:
-            raise exceptions.ActionException('Can not nack non-received '
-                                             'message')
-        basic_nack = specification.Basic.Nack(self.method.delivery_tag,
-                                              requeue=requeue,
-                                              multiple=all_previous)
+            raise exceptions.ActionException(
+                'Can not nack non-received message')
+        basic_nack = commands.Basic.Nack(self.method.delivery_tag,
+                                         requeue=requeue,
+                                         multiple=all_previous)
         self.channel.write_frame(basic_nack)
 
-    def pprint(self, properties=False):  # pragma: no cover
+    def pprint(self, properties: bool = False) -> None:  # pragma: no cover
         """Print a formatted representation of the message.
 
-        :param bool properties: Include properties in the representation
+        :param properties: Include properties in the representation
 
         """
         print('Exchange: %s\n' % self.method.exchange)
@@ -231,27 +199,23 @@ class Message(base.AMQPClass):
             print('\nBody:\n')
         pprint.pprint(self.body)
 
-    def publish(self, exchange, routing_key='', mandatory=False,
-                immediate=False):
+    def publish(self,
+                exchange: typing.Union[str, exc.Exchange],
+                routing_key: str = '',
+                mandatory: bool = False,
+                immediate: bool = False) -> typing.Union[bool, None]:
         """Publish the message to the exchange with the specified routing
         key.
 
-        In Python 2 if the message is a ``unicode`` value it will be converted
-        to a ``str`` using ``str.encode('UTF-8')``. If you do not want the
-        auto-conversion to take place, set the body to a ``str`` or ``bytes``
-        value prior to publishing.
-
-        In Python 3 if the message is a ``str`` value it will be converted to
+        If the message is a ``str`` value it will be converted to
         a ``bytes`` value using ``bytes(value.encode('UTF-8'))``. If you do
         not want the auto-conversion to take place, set the body to a
         ``bytes`` value prior to publishing.
 
         :param exchange: The exchange to publish the message to
-        :type exchange: str or :class:`rabbitpy.Exchange`
-        :param str routing_key: The routing key to use
-        :param bool mandatory: Requires the message is published
-        :param bool immediate: Request immediate delivery
-        :return: bool or None
+        :param routing_key: The routing key to use
+        :param mandatory: Requires the message is published
+        :param immediate: Request immediate delivery
         :raises: rabbitpy.exceptions.MessageReturnedException
 
         """
@@ -261,16 +225,18 @@ class Message(base.AMQPClass):
         # Coerce the body to the proper type
         payload = utils.maybe_utf8_encode(self.body)
 
-        frames = [specification.Basic.Publish(exchange=exchange,
-                                              routing_key=routing_key or '',
-                                              mandatory=mandatory,
-                                              immediate=immediate),
-                  header.ContentHeader(body_size=len(payload),
-                                       properties=self._properties)]
+        frames = [
+            commands.Basic.Publish(exchange=exchange,
+                                   routing_key=routing_key or '',
+                                   mandatory=mandatory,
+                                   immediate=immediate),
+            header.ContentHeader(body_size=len(payload),
+                                 properties=self._properties)
+        ]
 
         # Calculate how many body frames are needed
-        pieces = int(math.ceil(len(payload) /
-                               float(self.channel.maximum_frame_size)))
+        pieces = int(
+            math.ceil(len(payload) / float(self.channel.maximum_frame_size)))
 
         # Send the message
         for offset in range(0, pieces):
@@ -286,49 +252,44 @@ class Message(base.AMQPClass):
         # If publisher confirmations are enabled, wait for the response
         if self.channel.publisher_confirms:
             response = self.channel.wait_for_confirmation()
-            if isinstance(response, specification.Basic.Ack):
+            if isinstance(response, commands.Basic.Ack):
                 return True
-            elif isinstance(response, specification.Basic.Nack):
+            elif isinstance(response, commands.Basic.Nack):
                 return False
             else:
                 raise exceptions.UnexpectedResponseError(response)
 
-    def reject(self, requeue=False):
+    def reject(self, requeue: bool = False) -> None:
         """Reject receipt of the message to RabbitMQ. Will raise
         an ActionException if the message was not received from a broker.
 
-        :param bool requeue: Requeue the message
+        :param requeue: Requeue the message
         :raises: ActionException
 
         """
         if not self.method:
-            raise exceptions.ActionException('Can not reject non-received '
-                                             'message')
-        basic_reject = specification.Basic.Reject(self.method.delivery_tag,
-                                                  requeue=requeue)
+            raise exceptions.ActionException(
+                'Can not reject non-received message')
+        basic_reject = commands.Basic.Reject(self.method.delivery_tag,
+                                             requeue=requeue)
         self.channel.write_frame(basic_reject)
 
-    def _add_auto_message_id(self):
+    def _add_auto_message_id(self) -> None:
         """Set the message_id property to a new UUID."""
         self.properties['message_id'] = str(uuid.uuid4())
 
-    def _add_timestamp(self):
+    def _add_timestamp(self) -> None:
         """Add the timestamp to the properties"""
         self.properties['timestamp'] = datetime.datetime.utcnow()
 
     @staticmethod
-    def _as_datetime(value):
+    def _as_datetime(value: typing.Union[datetime.datetime,
+                                         time.struct_time, int, float,
+                                         str, bytes]) \
+            -> typing.Union[datetime.datetime, None]:
         """Return the passed in value as a ``datetime.datetime`` value.
 
         :param value: The value to convert or pass through
-        :type value: datetime.datetime
-        :type value: time.struct_time
-        :type value: int
-        :type value: float
-        :type value: str
-        :type value: bytes
-        :type value: unicode
-        :rtype: datetime.datetime
         :raises: TypeError
 
         """
@@ -341,74 +302,74 @@ class Message(base.AMQPClass):
         if isinstance(value, time.struct_time):
             return datetime.datetime(*value[:6])
 
-        if utils.is_string(value):
+        if isinstance(value, (bytes, str)):
             value = int(value)
 
         if isinstance(value, float) or isinstance(value, int):
             return datetime.datetime.fromtimestamp(value)
 
-        raise TypeError('Could not cast a %s value to a datetime.datetime' %
-                        type(value))
+        raise TypeError(
+            f'Could not cast a {value} value to a datetime.datetime')
 
-    def _auto_serialize(self, body_value):
+    def _auto_serialize(self, value: typing.Union[str, bytes, memoryview,
+                                                  dict, list]) \
+            -> typing.Union[str, bytes]:
         """Automatically serialize the body as JSON if it is a dict or list.
 
-        :param mixed body_value: The message body passed into the constructor
-        :return: bytes|str
+        :param value: The message body passed into the constructor
 
         """
-        if isinstance(body_value, dict) or isinstance(body_value, list):
+        if isinstance(value, dict) or isinstance(value, list):
             self.properties['content_type'] = 'application/json'
-            return json.dumps(body_value, ensure_ascii=False)
-        return body_value
+            return json.dumps(value, ensure_ascii=False)
+        return value
 
-    def _coerce_properties(self):
+    def _coerce_properties(self) -> None:
         """Force properties to be set to the correct data type"""
         for key, value in self.properties.items():
-            _type = specification.Basic.Properties.type(key)
             if self.properties[key] is None:
                 continue
-            if _type == 'shortstr':
-                if not utils.is_string(value):
+            if commands.Basic.Properties.__annotations__[key] == str:
+                if not isinstance(value, (bytes, str)):
                     LOGGER.warning('Coercing property %s to bytes', key)
                     value = str(value)
                 self.properties[key] = utils.maybe_utf8_encode(value)
-            elif _type == 'octet' and not isinstance(value, int):
+            elif commands.Basic.Properties.__annotations__[key] == int:
                 LOGGER.warning('Coercing property %s to int', key)
                 try:
                     self.properties[key] = int(value)
                 except TypeError as error:
                     LOGGER.warning('Could not coerce %s: %s', key, error)
-            elif _type == 'table' and not isinstance(value, dict):
+            elif commands.Basic.Properties.__annotations__[key] == \
+                    common.FieldTable and not isinstance(value, dict):
                 LOGGER.warning('Resetting invalid value for %s to None', key)
                 self.properties[key] = {}
-            if key == 'timestamp':
+            if commands.Basic.Properties.__annotations__[key] == \
+                    datetime.datetime:
                 self.properties[key] = self._as_datetime(value)
 
     @property
-    def _invalid_properties(self):
+    def _invalid_properties(self) -> typing.List[str]:
         """Return a list of invalid properties that currently exist in the the
         properties that are set.
 
-        :rtype: list
-
         """
-        return [key for key in self.properties
-                if key not in specification.Basic.Properties.attributes()]
+        return [
+            key for key in self.properties
+            if key not in commands.Basic.Properties.attributes()
+        ]
 
     @property
-    def _properties(self):
+    def _properties(self) -> commands.Basic.Properties:
         """Return a new Basic.Properties object representing the message
         properties.
-
-        :rtype: pamqp.specification.Basic.Properties
 
         """
         self._prune_invalid_properties()
         self._coerce_properties()
-        return specification.Basic.Properties(**self.properties)
+        return commands.Basic.Properties(**self.properties)
 
-    def _prune_invalid_properties(self):
+    def _prune_invalid_properties(self) -> None:
         """Remove invalid properties from the message properties."""
         for key in self._invalid_properties:
             LOGGER.warning('Removing invalid property "%s"', key)
