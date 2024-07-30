@@ -1,6 +1,6 @@
 [project]
 name = "rabbitpy"
-version = "2.0.1"
+version = "3.0.0"
 description = "A pure python, thread-safe, minimalistic and pythonic RabbitMQ client library"
 readme = "README.rst"
 requires-python = ">=3.8"
@@ -24,7 +24,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries"
 ]
 dependencies = [
-  "pamqp>=2.3.0,<3.0",
+  "pamqp>=3.0,<4.0",
 ]
 
 [project.optional-dependencies]
