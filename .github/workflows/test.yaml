@@ -1,0 +1,46 @@
+name: Testing
+on:
+  push:
+    branches: ["*"]
+    paths-ignore:
+      - 'docs/**'
+      - '*.rst'
+    tags-ignore: ["*"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    env:
+      TEST_HOST: docker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install testing dependencies
+        run: pip install -e '.[dev]'
+
+      - name: Bootstrap
+        run: ./bootstrap.sh
+
+      - name: Run unit tests
+        run: coverage run
+
+      - name: Generate coverage report
+        run: coverage report && coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          fail_ci_if_error: true
+          file: ./build/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          token: ${{secrets.CODECOV_TOKEN}}
