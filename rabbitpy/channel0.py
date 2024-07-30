@@ -43,7 +43,7 @@ class Channel0(base.AMQPChannel):
     DEFAULT_LOCALE = 'en-US'
 
     def __init__(self, connection_args, events_obj, exception_queue,
-                 write_queue, write_trigger, connection):
+                 write_queue, write_trigger, connection, client_properties=None):
         super(Channel0, self).__init__(
             exception_queue, write_trigger, connection)
         self._channel_id = 0
@@ -59,11 +59,35 @@ class Channel0(base.AMQPChannel):
         self._heartbeat_interval = connection_args['heartbeat']
         self.properties = None
 
+        if not isinstance(client_properties, dict):
+            client_properties = {}
+        self._client_properties = {
+            'product': 'rabbitpy',
+            'platform': 'Python {0}.{1}.{2}'.format(*sys.version_info),
+            'capabilities': {'authentication_failure_close': True,
+                             'basic.nack': True,
+                             'connection.blocked': True,
+                             'consumer_cancel_notify': True,
+                             'publisher_confirms': True},
+            'information': 'See https://rabbitpy.readthedocs.io',
+            'version': __version__,
+            **client_properties
+        }
+
     def close(self):
         """Close the connection via Channel0 communication."""
         if self.open:
             self._set_state(self.CLOSING)
             self.rpc(specification.Connection.Close())
+
+    @property
+    def client_properties(self):
+        """Return the AMQP client properties for the connection.
+
+        :rtype: dict
+
+        """
+        return self._client_properties
 
     @property
     def heartbeat_interval(self):
@@ -158,17 +182,7 @@ class Channel0(base.AMQPChannel):
         :rtype: pamqp.specification.Connection.StartOk
 
         """
-        properties = {
-            'product': 'rabbitpy',
-            'platform': 'Python {0}.{1}.{2}'.format(*sys.version_info),
-            'capabilities': {'authentication_failure_close': True,
-                             'basic.nack': True,
-                             'connection.blocked': True,
-                             'consumer_cancel_notify': True,
-                             'publisher_confirms': True},
-            'information': 'See https://rabbitpy.readthedocs.io',
-            'version': __version__}
-        return specification.Connection.StartOk(client_properties=properties,
+        return specification.Connection.StartOk(client_properties=self._client_properties,
                                                 response=self._credentials,
                                                 locale=self._get_locale())
 
