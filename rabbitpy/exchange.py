@@ -17,6 +17,10 @@ from rabbitpy import base, channel as chan
 
 LOGGER = logging.getLogger(__name__)
 
+ExchangeTypes = typing.Union[str, '_Exchange', 'Exchange', 'DirectExchange',
+                             'FanoutExchange', 'HeadersExchange',
+                             'TopicExchange']
+
 
 class _Exchange(base.AMQPClass):
     """Exchange class for interacting with an exchange in RabbitMQ including
@@ -47,7 +51,7 @@ class _Exchange(base.AMQPClass):
         self.arguments = arguments or dict()
 
     def bind(self,
-             source: typing.Union[str, '_Exchange'],
+             source: ExchangeTypes,
              routing_key: typing.Optional[str] = None) -> None:
         """Bind to another exchange with the routing key.
 
@@ -84,7 +88,8 @@ class _Exchange(base.AMQPClass):
             commands.Exchange.Delete(
                 exchange=self.name, if_unused=if_unused))
 
-    def unbind(self, source: typing.Union[str, '_Exchange'],
+    def unbind(self,
+               source: ExchangeTypes,
                routing_key: typing.Optional[str] = None) -> None:
         """Unbind the exchange from the source exchange with the
         routing key. If routing key is None, use the queue or exchange name.
