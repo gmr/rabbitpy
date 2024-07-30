@@ -18,15 +18,17 @@ SOCKET_CLOSE = 0x07
 SOCKET_CLOSED = 0x08
 SOCKET_OPENED = 0x09
 
-DESCRIPTIONS = {0x01: 'Channel 0 Close Requested',
-                0x02: 'Channel 0 Closed',
-                0x03: 'Channel 0 Opened',
-                0x04: 'Connection is blocked',
-                0x05: 'Connection Event Occurred',
-                0x06: 'Exception Raised',
-                0x07: 'Socket Close Requested',
-                0x08: 'Socket Closed',
-                0x09: 'Socket Connected'}
+DESCRIPTIONS = {
+    0x01: 'Channel 0 Close Requested',
+    0x02: 'Channel 0 Closed',
+    0x03: 'Channel 0 Opened',
+    0x04: 'Connection is blocked',
+    0x05: 'Connection Event Occurred',
+    0x06: 'Exception Raised',
+    0x07: 'Socket Close Requested',
+    0x08: 'Socket Closed',
+    0x09: 'Socket Connected'
+}
 
 
 def description(event_id: int) -> str:
@@ -39,6 +41,7 @@ class Events:
     object for a common structure and method for raising and checking for them.
 
     """
+
     def __init__(self):
         """Create a new instance of Events"""
         self._events = self._create_event_objects()
@@ -51,15 +54,11 @@ class Events:
 
         """
         events = dict()
-        for event in [CHANNEL0_CLOSE,
-                      CHANNEL0_CLOSED,
-                      CHANNEL0_OPENED,
-                      CONNECTION_BLOCKED,
-                      CONNECTION_EVENT,
-                      EXCEPTION_RAISED,
-                      SOCKET_CLOSE,
-                      SOCKET_CLOSED,
-                      SOCKET_OPENED]:
+        for event in [
+                CHANNEL0_CLOSE, CHANNEL0_CLOSED, CHANNEL0_OPENED,
+                CONNECTION_BLOCKED, CONNECTION_EVENT, EXCEPTION_RAISED,
+                SOCKET_CLOSE, SOCKET_CLOSED, SOCKET_OPENED
+        ]:
             events[event] = threading.Event()
         return events
 
@@ -125,6 +124,6 @@ class Events:
         if event_id not in self._events:
             LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
-        LOGGER.debug('Waiting for %i seconds on event: %s',
-                     timeout, description(event_id))
+        LOGGER.debug('Waiting for %i seconds on event: %s', timeout,
+                     description(event_id))
         return self._events[event_id].wait(timeout)
