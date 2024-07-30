@@ -6,12 +6,12 @@ Exceptions that may be raised by rabbitpy during use
 
 
 class RabbitpyException(Exception):
-    """Base exception of all rabbitpy exceptions."""
+    """Base exception for all rabbitpy exceptions."""
     pass
 
 
 class AMQPException(RabbitpyException):
-    """Base exception of all AMQP exceptions."""
+    """Base exception for all AMQP exceptions."""
     pass
 
 
@@ -22,12 +22,14 @@ class ActionException(RabbitpyException):
     sent by RabbitMQ via an AMQP Basic.Get or Basic.Consume.
 
     """
+
     def __str__(self):
         return self.args[0]
 
 
 class ChannelClosedException(RabbitpyException):
     """Raised when an action is attempted on a channel that is closed."""
+
     def __str__(self):
         return 'Can not perform RPC requests on a closed channel, you must ' \
                'create a new channel'
@@ -39,8 +41,9 @@ class ConnectionException(RabbitpyException):
     authentication_failure_close feature added in RabbitMQ 3.2.
 
     """
+
     def __str__(self):
-        return 'Unable to connect to the remote server {0}'.format(self.args)
+        return f'Unable to connect to the remote server {self.args}'
 
 
 class ConnectionClosed(ConnectionException):
@@ -48,6 +51,7 @@ class ConnectionClosed(ConnectionException):
     open.
 
     """
+
     def __str__(self):
         return 'The connection is closed'
 
@@ -58,12 +62,14 @@ class ConnectionResetException(ConnectionException):
     missed heartbeat intervals if heartbeats are enabled.
 
     """
+
     def __str__(self):
         return 'Connection was reset at socket level'
 
 
 class RemoteCancellationException(RabbitpyException):
     """Raised if RabbitMQ cancels an active consumer"""
+
     def __str__(self):
         return 'Remote server cancelled the active consumer'
 
@@ -73,6 +79,7 @@ class RemoteClosedChannelException(RabbitpyException):
     Channel.Close RPC request does not have a mapped exception in Rabbitpy.
 
     """
+
     def __str__(self):
         return 'Channel {0} was closed by the remote server ' \
                '({1}): {2}'.format(*self.args)
@@ -83,6 +90,7 @@ class RemoteClosedException(RabbitpyException):
     Connection.Close RPC request does not have a mapped exception in Rabbitpy.
 
     """
+
     def __str__(self):
         return 'Connection was closed by the remote server ' \
                '({0}): {1}'.format(*self.args)
@@ -93,6 +101,7 @@ class MessageReturnedException(RabbitpyException):
     the Basic.Return RPC call.
 
     """
+
     def __str__(self):
         return 'Message was returned by RabbitMQ: ({0}) ' \
                'for exchange {1}'.format(*self.args)
@@ -103,6 +112,7 @@ class NoActiveTransactionError(RabbitpyException):
     been initiated.
 
     """
+
     def __str__(self):
         return 'No active transaction for the request, channel closed'
 
@@ -112,6 +122,7 @@ class NotConsumingError(RabbitpyException):
     actively consuming.
 
     """
+
     def __str__(self):
         return 'No active consumer to cancel'
 
@@ -121,6 +132,7 @@ class NotSupportedError(RabbitpyException):
     server.
 
     """
+
     def __str__(self):
         return 'The selected feature "{0}" is not supported'.format(self.args)
 
@@ -133,6 +145,7 @@ class TooManyChannelsError(RabbitpyException):
     this exception will be raised.
 
     """
+
     def __str__(self):
         return 'The maximum amount of negotiated channels has been reached'
 
@@ -142,6 +155,7 @@ class UnexpectedResponseError(RabbitpyException):
     back is not recognized.
 
     """
+
     def __str__(self):
         return 'Received an expected response, expected {0}, ' \
                'received {1}'.format(*self.args)
@@ -314,21 +328,23 @@ class AMQPInternalError(AMQPException):
     pass
 
 
-AMQP = {311: AMQPContentTooLarge,
-        312: AMQPNoRoute,
-        313: AMQPNoConsumers,
-        320: AMQPConnectionForced,
-        402: AMQPInvalidPath,
-        403: AMQPAccessRefused,
-        404: AMQPNotFound,
-        405: AMQPResourceLocked,
-        406: AMQPPreconditionFailed,
-        501: AMQPFrameError,
-        502: AMQPSyntaxError,
-        503: AMQPCommandInvalid,
-        504: AMQPChannelError,
-        505: AMQPUnexpectedFrame,
-        506: AMQPResourceError,
-        530: AMQPNotAllowed,
-        540: AMQPNotImplemented,
-        541: AMQPInternalError}
+AMQP = {
+    311: AMQPContentTooLarge,
+    312: AMQPNoRoute,
+    313: AMQPNoConsumers,
+    320: AMQPConnectionForced,
+    402: AMQPInvalidPath,
+    403: AMQPAccessRefused,
+    404: AMQPNotFound,
+    405: AMQPResourceLocked,
+    406: AMQPPreconditionFailed,
+    501: AMQPFrameError,
+    502: AMQPSyntaxError,
+    503: AMQPCommandInvalid,
+    504: AMQPChannelError,
+    505: AMQPUnexpectedFrame,
+    506: AMQPResourceError,
+    530: AMQPNotAllowed,
+    540: AMQPNotImplemented,
+    541: AMQPInternalError
+}
