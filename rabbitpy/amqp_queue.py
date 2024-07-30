@@ -158,7 +158,7 @@ class Queue(base.AMQPClass):
         super(Queue, self).__setattr__(name, value)
 
     def bind(self,
-             source: typing.Union[str, exchange.Exchange],
+             source: exchange.ExchangeTypes,
              routing_key: typing.Optional[str] = None,
              arguments: typing.Optional[dict] = None) -> bool:
         """Bind the queue to the specified exchange or routing key.
@@ -307,7 +307,7 @@ class Queue(base.AMQPClass):
         self.consuming = False
 
     def unbind(self,
-               source: typing.Union[str, exchange.Exchange],
+               source: exchange.ExchangeTypes,
                routing_key: typing.Optional[str] = None) -> None:
         """Unbind queue from the specified exchange where it is bound the
         routing key. If routing key is None, use the queue name.

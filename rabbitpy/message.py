@@ -200,7 +200,7 @@ class Message(base.AMQPClass):
         pprint.pprint(self.body)
 
     def publish(self,
-                exchange: typing.Union[str, exc.Exchange],
+                exchange: exc.ExchangeTypes,
                 routing_key: str = '',
                 mandatory: bool = False,
                 immediate: bool = False) -> typing.Union[bool, None]:
