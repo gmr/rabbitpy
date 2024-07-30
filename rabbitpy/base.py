@@ -8,7 +8,7 @@ import socket
 import threading
 import typing
 
-from pamqp import base, commands
+from pamqp import base, body, commands, header
 
 from rabbitpy import (connection as conn, channel as chan, exceptions, message,
                       utils)
@@ -398,7 +398,10 @@ class AMQPChannel(StatefulObject):
             return frame_value.name == frame_type.name
         return False
 
-    def _wait_on_frame(self, frame_type: FrameTypes) -> base.Frame:
+    def _wait_on_frame(self, frame_type: FrameTypes) \
+            -> typing.Union[base.Frame,
+                            header.ContentHeader,
+                            body.ContentBody]:
         """Read from the queue, blocking until a result is returned. An
         individual frame type or a list of frame types can be passed in to wait
         for specific frame types. If there is no match on the frame retrieved
