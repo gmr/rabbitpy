@@ -310,12 +310,22 @@ class Connection(base.StatefulObject):
         self._channel0.start()
 
         # Wait for Channel0 to raise an exception or negotiate the connection
-        while not self._channel0.open:
+        timeout_start = time.time()
+        while time.time() < timeout_start + self.DEFAULT_TIMEOUT:
+
+            if self._channel0.open:
+                break
+
             if not self._exceptions.empty():
                 exception = self._exceptions.get()
                 self._io.stop()
                 raise exception
+
             time.sleep(0.01)
+
+        # Raise exception if channel not opened before timeout
+        if not self._channel0.open:
+            raise exceptions.ConnectionException
 
         # Set the maximum frame size for channel use
         self._max_frame_size = self._channel0.maximum_frame_size
