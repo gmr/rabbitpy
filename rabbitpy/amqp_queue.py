@@ -27,13 +27,12 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
 
 """
 import logging
-import warnings
+import typing
 
-from pamqp import specification
+from pamqp import commands
 
-from rabbitpy import base
-from rabbitpy import exceptions
-from rabbitpy import utils
+from rabbitpy import (base, channel as chan, exceptions, exchange, message,
+                      utils)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,23 +41,18 @@ class Queue(base.AMQPClass):
     """Create and manage RabbitMQ queues.
 
     :param channel: The channel object to communicate on
-    :type channel: :py:class:`~rabbitpy.Channel`
-    :param str name: The name of the queue
-    :param exclusive: Queue can only be used by this channel and will
+    :param name: The queue name
+    :param exclusive: The queue can only be used by this channel and will
                       auto-delete once the channel is closed.
-    :type exclusive: bool
     :param durable: Indicates if the queue should survive a RabbitMQ is restart
-    :type durable: bool
-    :param bool auto_delete: Automatically delete when all consumers disconnect
-    :param int max_length: Maximum queue length
-    :param int message_ttl: Time-to-live of a message in milliseconds
-    :param expires: Milliseconds until a queue is removed after becoming idle
-    :type expires: int
+    :param auto_delete: Automatically delete when all consumers disconnect
+    :param max_length: Maximum queue length
+    :param message_ttl: Time-to-live of a message in milliseconds
+    :param expires: Number of milliseconds until a queue is removed after
+                    becoming idle
     :param dead_letter_exchange: Dead letter exchange for rejected messages
-    :type dead_letter_exchange: str
     :param dead_letter_routing_key: Routing key for dead lettered messages
-    :type dead_letter_routing_key: str
-    :param dict arguments: Custom arguments for the queue
+    :param arguments: Custom arguments for the queue
 
     :attributes:
       - **consumer_tag** (*str*) – Contains the consumer tag used to register
@@ -79,11 +73,18 @@ class Queue(base.AMQPClass):
     message_ttl = None
 
     # pylint: disable=too-many-arguments
-    def __init__(self, channel, name='',
-                 durable=False, exclusive=False, auto_delete=False,
-                 max_length=None, message_ttl=None, expires=None,
-                 dead_letter_exchange=None, dead_letter_routing_key=None,
-                 arguments=None):
+    def __init__(self,
+                 channel: chan.Channel,
+                 name: str = '',
+                 durable: bool = False,
+                 exclusive: bool = False,
+                 auto_delete: bool = False,
+                 max_length: typing.Optional[int] = None,
+                 message_ttl: typing.Optional[int] = None,
+                 expires: typing.Optional[int] = None,
+                 dead_letter_exchange: typing.Optional[str] = None,
+                 dead_letter_routing_key: typing.Optional[str] = None,
+                 arguments: typing.Optional[dict] = None):
         """Create a new Queue object instance. Only the
         :py:class:`rabbitpy.Channel` object is required.
 
@@ -110,7 +111,7 @@ class Queue(base.AMQPClass):
         self.dead_letter_exchange = dead_letter_exchange
         self.dead_letter_routing_key = dead_letter_routing_key
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterable[message.Message]:
         """Quick way to consume messages using defaults of ``no_ack=False``,
         prefetch and priority not set.
 
@@ -123,64 +124,65 @@ class Queue(base.AMQPClass):
         """
         return self.consume()
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Return the pending number of messages in the queue by doing a
         passive Queue declare.
-
-        :rtype: int
 
         """
         response = self._rpc(self._declare(True))
         return response.message_count
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: typing.Any) -> None:
         """Validate the data types for specific attributes when setting them,
         otherwise fall throw to the parent ``__setattr__``
 
-        :param str name: The attribute to set
-        :param mixed value: The value to set
+        :param name: The attribute to set
+        :param value: The value to set
         :raises: ValueError
 
         """
         if value is not None:
-            if (name in ['auto_delete', 'durable', 'exclusive'] and
-                    not isinstance(value, bool)):
-                raise ValueError('%s must be True or False' % name)
-            elif (name in ['max_length', 'message_ttl', 'expires'] and
-                    not isinstance(value, int)):
-                raise ValueError('%s must be an int' % name)
-            elif (name in ['consumer_tag',
-                           'dead_letter_exchange',
-                           'dead_letter_routing_key'] and
-                  not utils.is_string(value)):
-                raise ValueError('%s must be a str, bytes or unicode' % name)
+            if (name in ['auto_delete', 'durable', 'exclusive']
+                    and not isinstance(value, bool)):
+                raise ValueError(f'{name} must be True or False')
+            elif (name in ['max_length', 'message_ttl', 'expires']
+                  and not isinstance(value, int)):
+                raise ValueError(f'{name} must be an int')
+            elif (name in [
+                    'consumer_tag', 'dead_letter_exchange',
+                    'dead_letter_routing_key'
+            ] and not isinstance(value, (bytes, str))):
+                raise ValueError(f'{name} must be a str or bytes')
             elif name == 'arguments' and not isinstance(value, dict):
                 raise ValueError('arguments must be a dict')
-
-        # Set the value
         super(Queue, self).__setattr__(name, value)
 
-    def bind(self, source, routing_key=None, arguments=None):
+    def bind(self,
+             source: typing.Union[str, exchange.Exchange],
+             routing_key: typing.Optional[str] = None,
+             arguments: typing.Optional[dict] = None) -> bool:
         """Bind the queue to the specified exchange or routing key.
 
-        :type source: str or :py:class:`rabbitpy.exchange.Exchange` exchange
         :param source: The exchange to bind to
-        :param str routing_key: The routing key to use
-        :param dict arguments: Optional arguments for for RabbitMQ
-        :return: bool
+        :param routing_key: The routing key to use
+        :param arguments: Optional arguments for RabbitMQ
 
         """
         if hasattr(source, 'name'):
             source = source.name
-        frame = specification.Queue.Bind(queue=self.name,
-                                         exchange=source,
-                                         routing_key=routing_key or '',
-                                         arguments=arguments)
+        frame = commands.Queue.Bind(queue=self.name,
+                                    exchange=source,
+                                    routing_key=routing_key or '',
+                                    arguments=arguments)
         response = self._rpc(frame)
-        return isinstance(response, specification.Queue.BindOk)
+        return isinstance(response, commands.Queue.BindOk)
 
-    def consume(self, no_ack=False, prefetch=None, priority=None,
-                consumer_tag=None):
+    def consume(self,
+                no_ack: bool = False,
+                prefetch: typing.Optional[int] = None,
+                priority: typing.Optional[int] = None,
+                consumer_tag: typing.Optional[str] = None) \
+            -> typing.Generator[message.Message, None, None]:
         """Consume messages from the queue as a :py:class:`generator`:
 
         .. code:: python
@@ -191,29 +193,25 @@ class Queue(base.AMQPClass):
         if you need to alter the prefect count, set the consumer priority or
         consume in no_ack mode.
 
-        .. versionadded:: 0.26
-
         .. warning:: You should only use a single :py:class:`~rabbitpy.Queue`
              instance per channel when consuming messages. Failure to do so can
              have unintended consequences.
 
-        :param bool no_ack: Do not require acknowledgements
-        :param int prefetch: Set a prefetch count for the channel
-        :param int priority: Consumer priority
-        :param str consumer_tag: Optional consumer tag
-        :rtype: :py:class:`generator`
+        :param no_ack: Do not require acknowledgements
+        :param prefetch: Set a prefetch count for the channel
+        :param priority: Consumer priority
+        :param consumer_tag: Optional consumer tag
         :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
 
         """
         if consumer_tag:
             self.consumer_tag = consumer_tag
-        self._consume(no_ack, prefetch, priority)
+        self._register_consumer(no_ack, prefetch, priority)
         try:
             while self.consuming:
-                # pylint: disable=protected-access
-                message = self.channel._consume_message()
-                if message:
-                    yield message
+                value = self.channel.consume_message()
+                if value:
+                    yield value
                 else:
                     if self.consuming:
                         self.stop_consuming()
@@ -222,48 +220,7 @@ class Queue(base.AMQPClass):
             if self.consuming:
                 self.stop_consuming()
 
-    def consume_messages(self, no_ack=False, prefetch=None, priority=None):
-        """Consume messages from the queue as a generator.
-
-        .. warning:: This method is deprecated in favor of
-           :py:meth:`Queue.consume` and will be removed in future releases.
-
-        .. deprecated:: 0.26
-
-        You can use this message instead of the queue object as an iterator
-        if you need to alter the prefect count, set the consumer priority or
-        consume in no_ack mode.
-
-        :param bool no_ack: Do not require acknowledgements
-        :param int prefetch: Set a prefetch count for the channel
-        :param int priority: Consumer priority
-        :rtype: :py:class:`Generator`
-        :raises: :exc:`~rabbitpy.exceptions.RemoteCancellationException`
-
-        """
-        warnings.warn('This method is deprecated in favor Queue.consume',
-                      DeprecationWarning)
-        return self.consume(no_ack, prefetch, priority)
-
-    # pylint: disable=no-self-use, unused-argument
-    def consumer(self, no_ack=False, prefetch=None, priority=None):
-        """Method for returning the contextmanager for consuming messages. You
-        should not use this directly.
-
-        .. warning:: This method is deprecated and will be removed in a future
-           release.
-
-        .. deprecated:: 0.26
-
-        :param bool no_ack: Do not require acknowledgements
-        :param int prefetch: Set a prefetch count for the channel
-        :param int priority: Consumer priority
-        :return:  None
-
-        """
-        raise DeprecationWarning()
-
-    def declare(self, passive=False):
+    def declare(self, passive: bool = False) -> typing.Tuple[int, int]:
         """Declare the queue on the RabbitMQ channel passed into the
         constructor, returning the current message count for the queue and
         its consumer count as a tuple.
@@ -279,18 +236,20 @@ class Queue(base.AMQPClass):
             self.name = response.queue
         return response.message_count, response.consumer_count
 
-    def delete(self, if_unused=False, if_empty=False):
+    def delete(self, if_unused: bool = False, if_empty: bool = False) -> None:
         """Delete the queue
 
-        :param bool if_unused: Delete only if unused
-        :param bool if_empty: Delete only if empty
+        :param if_unused: Delete only if unused
+        :param if_empty: Delete only if empty
 
         """
-        self._rpc(specification.Queue.Delete(queue=self.name,
-                                             if_unused=if_unused,
-                                             if_empty=if_empty))
+        self._rpc(
+            commands.Queue.Delete(queue=self.name,
+                                  if_unused=if_unused,
+                                  if_empty=if_empty))
 
-    def get(self, acknowledge=True):
+    def get(self, acknowledge: bool = True) \
+            -> typing.Union[message.Message, None]:
         """Request a single message from RabbitMQ using the Basic.Get AMQP
         command.
 
@@ -299,26 +258,24 @@ class Queue(base.AMQPClass):
              have unintended consequences.
 
 
-        :param bool acknowledge: Let RabbitMQ know if you will manually
-                                 acknowledge or negatively acknowledge the
-                                 message after each get.
-        :rtype: :class:`~rabbitpy.Message` or None
+        :param acknowledge: Let RabbitMQ know if you will manually
+                            acknowledge or negatively acknowledge the
+                            message after each get.
 
         """
-        self._write_frame(specification.Basic.Get(queue=self.name,
-                                                  no_ack=not acknowledge))
+        self._write_frame(
+            commands.Basic.Get(queue=self.name, no_ack=not acknowledge))
+        return self.channel.get_message()
 
-        return self.channel._get_message()  # pylint: disable=protected-access
-
-    def ha_declare(self, nodes=None):
-        """Declare a the queue as highly available, passing in a list of nodes
+    def ha_declare(self, nodes: typing.Optional[typing.List[str]] = None) \
+            -> typing.Tuple[int, int]:
+        """Declare the queue as highly available, passing in a list of nodes
         the queue should live  on. If no nodes are passed, the queue will be
         declared across all nodes in the cluster.
 
         :param list nodes: A list of nodes to declare. If left empty, queue
                            will be declared on all cluster nodes.
         :return: Message count, Consumer count
-        :rtype: tuple(int, int)
 
         """
         if nodes:
@@ -330,11 +287,11 @@ class Queue(base.AMQPClass):
                 del self.arguments['x-ha-nodes']
         return self.declare()
 
-    def purge(self):
+    def purge(self) -> None:
         """Purge the queue of all of its messages."""
-        self._rpc(specification.Queue.Purge())
+        self._rpc(commands.Queue.Purge())
 
-    def stop_consuming(self):
+    def stop_consuming(self) -> None:
         """Stop consuming messages. This is usually invoked if you want to
         cancel your consumer from outside the context manager or generator.
 
@@ -346,47 +303,33 @@ class Queue(base.AMQPClass):
             return
         if not self.consuming:
             raise exceptions.NotConsumingError()
-        self.channel._cancel_consumer(self)  # pylint: disable=protected-access
+        self.channel.cancel_consumer(self)
         self.consuming = False
 
-    def unbind(self, source, routing_key=None):
+    def unbind(self,
+               source: typing.Union[str, exchange.Exchange],
+               routing_key: typing.Optional[str] = None) -> None:
         """Unbind queue from the specified exchange where it is bound the
         routing key. If routing key is None, use the queue name.
 
-        :type source: str or :py:class:`rabbitpy.exchange.Exchange` exchange
         :param source: The exchange to unbind from
-        :param str routing_key: The routing key that binds them
+        :param routing_key: The routing key that binds them
 
         """
         if hasattr(source, 'name'):
             source = source.name
         routing_key = routing_key or self.name
-        self._rpc(specification.Queue.Unbind(queue=self.name, exchange=source,
-                                             routing_key=routing_key))
+        self._rpc(
+            commands.Queue.Unbind(queue=self.name,
+                                  exchange=source,
+                                  routing_key=routing_key))
 
-    def _consume(self, no_ack=False, prefetch=None, priority=None):
-        """Return a :py:class:_Consumer instance as a contextmanager, properly
-        shutting down the consumer when the generator is exited.
-
-        :param bool no_ack: Do not require acknowledgements
-        :param int prefetch: Set a prefetch count for the channel
-        :param int priority: Consumer priority
-        :return: _Consumer
-
-        """
-        if prefetch:
-            self.channel.prefetch_count(prefetch, False)
-        # pylint: disable=protected-access
-        self.channel._consume(self, no_ack, priority)
-        self.consuming = True
-
-    def _declare(self, passive=False):
-        """Return a specification.Queue.Declare class pre-composed for the rpc
+    def _declare(self, passive: bool = False) -> commands.Queue.Declare:
+        """Return a commands.Queue.Declare class pre-composed for the rpc
         method since this can be called multiple times.
 
-        :param bool passive: Passive declare to retrieve message count and
-                             consumer count information
-        :rtype: pamqp.specification.Queue.Declare
+        :param passive: Passive declare to retrieve message count and
+                        consumer count information
 
         """
         arguments = dict(self.arguments)
@@ -402,13 +345,29 @@ class Queue(base.AMQPClass):
             arguments['x-dead-letter-routing-key'] = \
                 self.dead_letter_routing_key
 
-        LOGGER.debug('Declaring Queue %s, durable=%s, passive=%s, '
-                     'exclusive=%s, auto_delete=%s, arguments=%r',
-                     self.name, self.durable, passive, self.exclusive,
-                     self.auto_delete, arguments)
-        return specification.Queue.Declare(queue=self.name,
-                                           durable=self.durable,
-                                           passive=passive,
-                                           exclusive=self.exclusive,
-                                           auto_delete=self.auto_delete,
-                                           arguments=arguments)
+        LOGGER.debug(
+            'Declaring Queue %s, durable=%s, passive=%s, '
+            'exclusive=%s, auto_delete=%s, arguments=%r', self.name,
+            self.durable, passive, self.exclusive, self.auto_delete, arguments)
+        return commands.Queue.Declare(queue=self.name,
+                                      durable=self.durable,
+                                      passive=passive,
+                                      exclusive=self.exclusive,
+                                      auto_delete=self.auto_delete,
+                                      arguments=arguments)
+
+    def _register_consumer(self,
+                           no_ack: bool = False,
+                           prefetch: typing.Optional[int] = None,
+                           priority: typing.Optional[int] = None) -> None:
+        """Start consuming on the channel, optionally setting the prefect count
+
+        :param no_ack: Do not require acknowledgements
+        :param prefetch: Set a prefetch count for the channel
+        :param priority: Consumer priority
+
+        """
+        if prefetch:
+            self.channel.prefetch_count(prefetch, False)
+        self.channel.register_consumer(self, no_ack, priority)
+        self.consuming = True

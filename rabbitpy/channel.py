@@ -11,7 +11,7 @@ import socket
 import types
 import typing
 
-from pamqp import base as pamqp_base, body as pamqp_body, commands, header
+from pamqp import base as pamqp_base, commands, header
 
 from rabbitpy import (amqp, amqp_queue, base, connection as conn, events as
                       rabbitpy_events, exceptions, message)
@@ -51,7 +51,7 @@ class Channel(base.AMQPChannel):
     :param write_queue: The queue to write pending AMQP objs to
     :param maximum_frame_size: The max frame size for msg bodies
     :param write_trigger: Write to this socket to break IO waiting
-    :param blocking_read: Use blocking Queue.get to improve performance
+    :param blocking_read: Use blocking `Queue.get` to improve performance
     :raises: rabbitpy.exceptions.RemoteClosedChannelException
     :raises: rabbitpy.exceptions.AMQPException
 
@@ -248,6 +248,34 @@ class Channel(base.AMQPChannel):
         """
         self.rpc(commands.Basic.Recover(requeue=requeue))
 
+    def register_consumer(self,
+                          obj: amqp_queue.Queue,
+                          no_ack: bool,
+                          priority: typing.Optional[int] = None) -> None:
+        """Register a Queue object as a consumer, issuing Basic.Consume.
+
+        .. note:: This is a low level method and should not be called directly.
+
+        :param obj: The queue to consume
+        :param no_ack: no_ack mode
+        :param priority: Consumer priority
+        :raises: ValueError
+
+        """
+        args = dict()
+        if priority is not None:
+            if not self._supports_consumer_priorities:
+                raise exceptions.NotSupportedError('consumer_priorities')
+            if not isinstance(priority, int):
+                raise ValueError('Consumer priority must be an int')
+            args['x-priority'] = priority
+        self.rpc(
+            commands.Basic.Consume(queue=obj.name,
+                                   consumer_tag=obj.consumer_tag,
+                                   no_ack=no_ack,
+                                   arguments=args))
+        self.consumers[obj.consumer_tag] = (obj, no_ack)
+
     @staticmethod
     def _build_open_frame() -> commands.Channel.Open:
         """Build and return a channel open frame"""
@@ -269,7 +297,7 @@ class Channel(base.AMQPChannel):
         self.rpc(commands.Basic.Cancel(consumer_tag=consumer_tag))
 
     def _check_for_rpc_request(self, value: pamqp_base.Frame) -> None:
-        """Inspect a frame to see if it's a RPC request from RabbitMQ."""
+        """Inspect a frame to see if it's an RPC request from RabbitMQ."""
         LOGGER.debug('Checking for RPC request: %r', value)
         super(Channel, self)._check_for_rpc_request(value)
         if isinstance(value, commands.Basic.Return):
@@ -282,32 +310,6 @@ class Channel(base.AMQPChannel):
             if value.consumer_tag in self.consumers:
                 del self.consumers[value.consumer_tag]
             raise exceptions.RemoteCancellationException(value.consumer_tag)
-
-    def _consume(self,
-                 obj: amqp_queue.Queue,
-                 no_ack: bool,
-                 priority: typing.Optional[int] = None) -> None:
-        """Register a Queue object as a consumer, issuing Basic.Consume.
-
-        :param obj: The queue to consume
-        :param no_ack: no_ack mode
-        :param priority: Consumer priority
-        :raises: ValueError
-
-        """
-        args = dict()
-        if priority is not None:
-            if not self._supports_consumer_priorities:
-                raise exceptions.NotSupportedError('consumer_priorities')
-            if not isinstance(priority, int):
-                raise ValueError('Consumer priority must be an int')
-            args['x-priority'] = priority
-        self.rpc(
-            commands.Basic.Consume(queue=obj.name,
-                                   consumer_tag=obj.consumer_tag,
-                                   no_ack=no_ack,
-                                   arguments=args))
-        self.consumers[obj.consumer_tag] = (obj, no_ack)
 
     def _create_message(self,
                         method_frame: typing.Optional[pamqp_base.Frame],
@@ -350,8 +352,12 @@ class Channel(base.AMQPChannel):
             pass
         return frame_value
 
-    def _get_message(self) -> typing.Union[message.Message, None]:
-        """Try and get a delivered message from the connection's stack."""
+    def get_message(self) -> typing.Union[message.Message, None]:
+        """Try and get a delivered message from the connection's stack.
+
+        .. note: This is for internal use only
+
+        """
         frame_value = self._wait_on_frame(
             [commands.Basic.GetOk, commands.Basic.GetEmpty])
         if isinstance(frame_value, commands.Basic.GetEmpty):

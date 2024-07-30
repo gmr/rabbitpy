@@ -5,17 +5,14 @@ client on channel 0.
 """
 import locale
 import logging
+import queue
+import socket
 import sys
+import typing
 
-from pamqp import header
-from pamqp import heartbeat
-from pamqp import specification
+from pamqp import base as pamqp_base, commands, header, heartbeat
 
-from rabbitpy import __version__
-from rabbitpy import base
-from rabbitpy import events
-from rabbitpy import exceptions
-from rabbitpy.utils import queue
+from rabbitpy import __version__, connection as conn, base, events, exceptions
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_LOCALE = locale.getdefaultlocale()
@@ -26,26 +23,27 @@ class Channel0(base.AMQPChannel):
     """Channel0 is used to negotiate a connection with RabbitMQ and for
     processing and dispatching events on channel 0 once connected.
 
-    :param dict connection_args: Data required to negotiate the connection
+    :param connection_args: Data required to negotiate the connection
     :param events_obj: The shared events coordination object
-    :type events_obj: rabbitpy.events.Events
     :param exception_queue: The queue where any pending exceptions live
-    :type exception_queue: queue.Queue
     :param write_queue: The queue to place data to write in
-    :type write_queue: queue.Queue
     :param write_trigger: The socket to write to, to trigger IO writes
-    :type write_trigger: socket.socket
 
     """
     CHANNEL = 0
 
-    CLOSE_REQUEST_FRAME = specification.Connection.Close
+    CLOSE_REQUEST_FRAME = commands.Connection.Close
     DEFAULT_LOCALE = 'en-US'
 
-    def __init__(self, connection_args, events_obj, exception_queue,
-                 write_queue, write_trigger, connection):
-        super(Channel0, self).__init__(
-            exception_queue, write_trigger, connection)
+    def __init__(self,
+                 connection_args: dict,
+                 events_obj: events.Events,
+                 exception_queue: queue.Queue,
+                 write_queue: queue.Queue,
+                 write_trigger: socket.socket,
+                 connection: conn.Connection):
+        super(Channel0, self).__init__(exception_queue, write_trigger,
+                                       connection)
         self._channel_id = 0
         self._args = connection_args
         self._events = events_obj
@@ -57,13 +55,13 @@ class Channel0(base.AMQPChannel):
         self._max_channels = connection_args['channel_max']
         self._max_frame_size = connection_args['frame_max']
         self._heartbeat_interval = connection_args['heartbeat']
-        self.properties = None
+        self.properties: typing.Optional[dict] = None
 
     def close(self):
         """Close the connection via Channel0 communication."""
         if self.open:
             self._set_state(self.CLOSING)
-            self.rpc(specification.Connection.Close())
+            self.rpc(commands.Connection.Close())
 
     @property
     def heartbeat_interval(self):
@@ -92,12 +90,12 @@ class Channel0(base.AMQPChannel):
         """
         return self._max_frame_size
 
-    def on_frame(self, value):
-        """Process a RPC frame received from the server
-
-        :param pamqp.message.Message value: The message value
-
-        """
+    def on_frame(self, value: typing.Union[commands.Connection.Blocked,
+                                           commands.Connection.Close,
+                                           commands.Connection.Start,
+                                           commands.Connection.Tune,
+                                           pamqp_base.Frame]) -> None:
+        """Process an RPC frame received from the server"""
         LOGGER.debug('Received frame: %r', value.name)
         if value.name == 'Connection.Close':
             LOGGER.warning('RabbitMQ closed the connection (%s): %s',
@@ -133,69 +131,54 @@ class Channel0(base.AMQPChannel):
             pass
         else:
             LOGGER.warning('Unexpected Channel0 Frame: %r', value)
-            raise specification.AMQPUnexpectedFrame(value)
+            raise commands.AMQPUnexpectedFrame(value)
 
-    def send_heartbeat(self):
+    def send_heartbeat(self) -> None:
         """Send a heartbeat frame to the remote connection."""
         self.write_frame(heartbeat.Heartbeat())
 
-    def start(self):
+    def start(self) -> None:
         """Start the AMQP protocol negotiation"""
         self._set_state(self.OPENING)
         self._write_protocol_header()
 
-    def _build_open_frame(self):
-        """Build and return the Connection.Open frame.
+    def _build_open_frame(self) -> commands.Connection.Open:
+        """Build and return the Connection.Open frame."""
+        return commands.Connection.Open(self._args['virtual_host'])
 
-        :rtype: pamqp.specification.Connection.Open
-
-        """
-        return specification.Connection.Open(self._args['virtual_host'])
-
-    def _build_start_ok_frame(self):
-        """Build and return the Connection.StartOk frame.
-
-        :rtype: pamqp.specification.Connection.StartOk
-
-        """
+    def _build_start_ok_frame(self) -> commands.Connection.StartOk:
+        """Build and return the Connection.StartOk frame."""
         properties = {
             'product': 'rabbitpy',
             'platform': 'Python {0}.{1}.{2}'.format(*sys.version_info),
-            'capabilities': {'authentication_failure_close': True,
-                             'basic.nack': True,
-                             'connection.blocked': True,
-                             'consumer_cancel_notify': True,
-                             'publisher_confirms': True},
+            'capabilities': {
+                'authentication_failure_close': True,
+                'basic.nack': True,
+                'connection.blocked': True,
+                'consumer_cancel_notify': True,
+                'publisher_confirms': True
+            },
             'information': 'See https://rabbitpy.readthedocs.io',
-            'version': __version__}
-        return specification.Connection.StartOk(client_properties=properties,
-                                                response=self._credentials,
-                                                locale=self._get_locale())
+            'version': __version__
+        }
+        return commands.Connection.StartOk(
+            client_properties=properties,
+            response=self._credentials,
+            locale=self._get_locale())
 
-    def _build_tune_ok_frame(self):
-        """Build and return the Connection.TuneOk frame.
-
-        :rtype: pamqp.specification.Connection.TuneOk
-
-        """
-        return specification.Connection.TuneOk(self._max_channels,
-                                               self._max_frame_size,
-                                               self._heartbeat_interval)
+    def _build_tune_ok_frame(self) -> commands.Connection.TuneOk:
+        """Build and return the Connection.TuneOk frame."""
+        return commands.Connection.TuneOk(
+            self._max_channels, self._max_frame_size, self._heartbeat_interval)
 
     @property
-    def _credentials(self):
-        """Return the marshaled credentials for the AMQP connection.
-
-        :rtype: str
-
-        """
+    def _credentials(self) -> str:
+        """Return the marshaled credentials for the AMQP connection."""
         return '\0%s\0%s' % (self._args['username'], self._args['password'])
 
-    def _get_locale(self):
+    def _get_locale(self) -> str:
         """Return the current locale for the python interpreter or the default
         locale.
-
-        :rtype: str
 
         """
         if not self._args['locale']:
@@ -203,87 +186,82 @@ class Channel0(base.AMQPChannel):
         return self._args['locale']
 
     @staticmethod
-    def _negotiate(client_value, server_value):
+    def _negotiate(client_value: int, server_value: int) -> int:
         """Return the negotiated value between what the client has requested
         and the server has requested for how the two will communicate.
 
-        :param int client_value:
-        :param int server_value:
-        :return: int
+        :param client_value:
+        :param server_value:
 
         """
-        return min(client_value, server_value) or \
-            (client_value or server_value)
+        return (min(client_value, server_value) or
+                (client_value or server_value))
 
-    def _on_connection_open_ok(self):
+    def _on_connection_open_ok(self) -> None:
         LOGGER.debug('Connection opened')
         self._set_state(self.OPEN)
         self._events.set(events.CHANNEL0_OPENED)
 
-    def _on_connection_start(self, frame_value):
+    def _on_connection_start(self, value: commands.Connection.Start) -> None:
         """Negotiate the Connection.Start process, writing out a
         Connection.StartOk frame when the Connection.Start frame is received.
 
-        :type frame_value: pamqp.specification.Connection.Start
         :raises: rabbitpy.exceptions.ConnectionException
 
         """
-        if not self._validate_connection_start(frame_value):
+        if not self._validate_connection_start(value):
             LOGGER.error('Could not negotiate a connection, disconnecting')
             raise exceptions.ConnectionResetException()
 
-        self.properties = frame_value.server_properties
+        self.properties = value.server_properties
         for key in self.properties:
             if key == 'capabilities':
                 for capability in self.properties[key]:
-                    LOGGER.debug('Server supports %s: %r',
-                                 capability, self.properties[key][capability])
+                    LOGGER.debug('Server supports %s: %r', capability,
+                                 self.properties[key][capability])
             else:
                 LOGGER.debug('Server %s: %r', key, self.properties[key])
         self.write_frame(self._build_start_ok_frame())
 
-    def _on_connection_tune(self, frame_value):
+    def _on_connection_tune(self, value: commands.Connection.Tune) -> None:
         """Negotiate the Connection.Tune frames, waiting for the
         Connection.Tune frame from RabbitMQ and sending the Connection.TuneOk
         frame.
 
-        :param specification.Connection.Tune frame_value: Tune frame
-
         """
-        self._max_frame_size = self._negotiate(self._max_frame_size,
-                                               frame_value.frame_max)
-        self._max_channels = self._negotiate(self._max_channels,
-                                             frame_value.channel_max)
+        self._max_frame_size = self._negotiate(
+            self._max_frame_size, value.frame_max)
+        self._max_channels = self._negotiate(
+            self._max_channels, value.channel_max)
 
         LOGGER.debug('Heartbeat interval (server/client): %r/%r',
-                     frame_value.heartbeat, self._heartbeat_interval)
+                     value.heartbeat, self._heartbeat_interval)
 
         # Properly negotiate the heartbeat interval
         if self._heartbeat_interval is None:
-            self._heartbeat_interval = frame_value.heartbeat
-        elif self._heartbeat_interval == 0 or frame_value.heartbeat == 0:
+            self._heartbeat_interval = value.heartbeat
+        elif self._heartbeat_interval == 0 or value.heartbeat == 0:
             self._heartbeat_interval = 0
 
         self.write_frame(self._build_tune_ok_frame())
         self.write_frame(self._build_open_frame())
 
     @staticmethod
-    def _validate_connection_start(frame_value):
+    def _validate_connection_start(value: commands.Connection.Start) -> bool:
         """Validate the received Connection.Start frame
 
-        :param specification.Connection.Start frame_value: Frame to validate
+        :param value: Frame to validate
         :rtype: bool
 
         """
-        if (frame_value.version_major, frame_value.version_minor) != \
-                (specification.VERSION[0], specification.VERSION[1]):
+        if (value.version_major, value.version_minor) != \
+                (commands.VERSION[0], commands.VERSION[1]):
             LOGGER.warning('AMQP version error (received %i.%i, expected %r)',
-                           frame_value.version_major,
-                           frame_value.version_minor,
-                           specification.VERSION)
+                           value.version_major,
+                           value.version_minor, commands.VERSION)
             return False
         return True
 
-    def _write_protocol_header(self):
+    def _write_protocol_header(self) -> None:
         """Send the protocol header to the connected server."""
         self.write_frame(header.ProtocolHeader())

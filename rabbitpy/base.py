@@ -8,7 +8,7 @@ import socket
 import threading
 import typing
 
-from pamqp import base, body, commands, header
+from pamqp import base, body, commands, header, heartbeat
 
 from rabbitpy import (connection as conn, channel as chan, exceptions, message,
                       utils)
@@ -39,7 +39,11 @@ class ChannelWriter:  # pylint: disable=too-few-public-methods
         self.channel = channel
 
     def _rpc(self, frame_value: base.Frame) \
-            -> typing.Union[base.Frame, message.Message]:
+            -> typing.Union[base.Frame,
+                            message.Message,
+                            commands.Basic.GetOk,
+                            commands.Basic.GetEmpty,
+                            commands.Queue.DeclareOk]:
         """Execute the RPC command for the frame.
 
         :param frame_value: The frame to send
@@ -140,6 +144,7 @@ class StatefulObject(utils.DebuggingOptimizationMixin):
 
 class AMQPChannel(StatefulObject):
     """Base AMQP Channel Object"""
+    CLOSE_REQUEST_FRAME = commands.Channel.Close
     DEFAULT_CLOSE_CODE = 200
     DEFAULT_CLOSE_REASON = 'Normal Shutdown'
     REMOTE_CLOSED = 0x04
@@ -200,7 +205,9 @@ class AMQPChannel(StatefulObject):
             LOGGER.debug('Channel #%i closed', self._channel_id)
         self._set_state(self.CLOSED)
 
-    def rpc(self, frame_value: base.Frame) -> typing.Union[base.Frame]:
+    def rpc(self, frame_value: base.Frame) \
+            -> typing.Union[base.Frame,
+                            commands.Queue.DeclareOk]:
         """Send an RPC command to the remote server. This should not be
         directly invoked.
 
@@ -222,7 +229,7 @@ class AMQPChannel(StatefulObject):
         """
         return self._wait_on_frame([commands.Basic.Ack, commands.Basic.Nack])
 
-    def write_frame(self, value: base.Frame) -> None:
+    def write_frame(self, value: [base.Frame, heartbeat.Heartbeat]) -> None:
         """Put the frame in the write queue for the IOWriter object to write to
         the socket when it can. This should not be directly invoked.
 
@@ -254,8 +261,8 @@ class AMQPChannel(StatefulObject):
 
     def _build_close_frame(self) -> commands.Channel.Close:
         """Return the proper close frame for this object."""
-        return commands.Channel.Close(self.DEFAULT_CLOSE_CODE,
-                                      self.DEFAULT_CLOSE_REASON)
+        return self.CLOSE_REQUEST_FRAME(self.DEFAULT_CLOSE_CODE,
+                                        self.DEFAULT_CLOSE_REASON)
 
     def _can_write(self) -> bool:
         self._check_for_exceptions()
@@ -347,7 +354,8 @@ class AMQPChannel(StatefulObject):
             raise exceptions.RemoteClosedChannelException(
                 self._channel_id, value.reply_code, value.reply_text)
 
-    def _read_from_queue(self) -> typing.Union[base.Frame, None]:
+    def _read_from_queue(self) \
+            -> typing.Union[base.Frame, commands.Basic.Deliver, None]:
         """Check to see if a frame is in the queue and if so, return it"""
         if self._can_write() and not self.closing and self.blocking_read:
             if self._is_debugging:
@@ -400,6 +408,8 @@ class AMQPChannel(StatefulObject):
 
     def _wait_on_frame(self, frame_type: FrameTypes) \
             -> typing.Union[base.Frame,
+                            commands.Basic.Deliver,
+                            commands.Queue.DeclareOk,
                             header.ContentHeader,
                             body.ContentBody]:
         """Read from the queue, blocking until a result is returned. An
