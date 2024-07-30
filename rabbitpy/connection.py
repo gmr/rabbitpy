@@ -3,41 +3,37 @@ The Connection class negotiates and manages the connection state.
 
 """
 import logging
-# pylint: disable=import-error
-try:
-    from urllib import parse as urlparse
-except ImportError:
-    import urlparse
-
+import queue
 try:
     import ssl
 except ImportError:
     ssl = None
 import threading
 import time
+import types
+import typing
+from urllib import parse
 
-from pamqp import specification as spec
+from pamqp import base as pamqp_base, commands, constants, header
 
-from rabbitpy import base
-from rabbitpy import heartbeat
-from rabbitpy import io
-from rabbitpy import channel
-from rabbitpy import channel0
-from rabbitpy import events
-from rabbitpy import exceptions
-from rabbitpy import message
-from rabbitpy.utils import queue
-from rabbitpy import utils
+from rabbitpy import (base, channel as chan, channel0, events, exceptions,
+                      heartbeat, io, message, utils)
 
 LOGGER = logging.getLogger(__name__)
 
 AMQP = 'amqp'
 AMQPS = 'amqps'
 
+FrameExpectations = typing.Union[str, pamqp_base.Frame,
+                                 typing.List[typing.Union[str,
+                                                          pamqp_base.Frame]]]
+
 if ssl:
-    SSL_CERT_MAP = {'ignore': ssl.CERT_NONE,
-                    'optional': ssl.CERT_OPTIONAL,
-                    'required': ssl.CERT_REQUIRED}
+    SSL_CERT_MAP = {
+        'ignore': ssl.CERT_NONE,
+        'optional': ssl.CERT_OPTIONAL,
+        'required': ssl.CERT_REQUIRED
+    }
     SSL_VERSION_MAP = dict()
     if hasattr(ssl, 'PROTOCOL_SSLv2'):
         SSL_VERSION_MAP['SSLv2'] = getattr(ssl, 'PROTOCOL_SSLv2')
@@ -87,7 +83,7 @@ class Connection(base.StatefulObject):
     CANCEL_METHOD = ['Basic.Cancel']
     DEFAULT_CHANNEL_MAX = 65535
     DEFAULT_TIMEOUT = 3
-    DEFAULT_HEARTBEAT_INTERVAL = 60.0
+    DEFAULT_HEARTBEAT_INTERVAL = 60
     DEFAULT_LOCALE = 'en_US'
     DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
     DEFAULT_VHOST = '%2F'
@@ -96,7 +92,7 @@ class Connection(base.StatefulObject):
 
     QUEUE_WAIT = 0.01
 
-    def __init__(self, url=None):
+    def __init__(self, url: typing.Optional[str] = None):
         """Create a new instance of the Connection object"""
         super(Connection, self).__init__()
 
@@ -119,27 +115,27 @@ class Connection(base.StatefulObject):
         self._channel_lock = threading.Lock()
 
         # Attributes for core object threads
-        self._channel0 = None
+        self._channel0: typing.Optional[channel0.Channel0] = None
         self._channels = dict()
-        self._heartbeat = None
-        self._io = None
+        self._heartbeat: typing.Optional[heartbeat.Heartbeat] = None
+        self._io: typing.Optional[io.IO] = None
 
         # Used by Message for breaking up body frames
-        self._max_frame_size = None
+        self._max_frame_size: typing.Optional[int] = None
 
         # Connect to RabbitMQ
         self._connect()
 
-    def __enter__(self):
+    def __enter__(self) -> 'Connection':
         """For use as a context manager, return a handle to this object
         instance.
-
-        :rtype: Connection
 
         """
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: typing.Optional[typing.Type[BaseException]],
+                 exc_val: typing.Optional[BaseException],
+                 unused_exc_tb: typing.Optional[types.TracebackType]):
         """When leaving the context, examine why the context is leaving, if
         it's an exception or what.
 
@@ -150,37 +146,31 @@ class Connection(base.StatefulObject):
         self.close()
 
     @property
-    def args(self):
-        """Return the connection arguments.
-
-        :rtype: dict
-
-        """
+    def args(self) -> dict:
+        """Return the connection arguments."""
         return dict(self._args)
 
     @property
-    def blocked(self):
+    def blocked(self) -> bool:
         """Indicates if the connection is blocked from publishing by RabbitMQ.
 
         This flag indicates communication from RabbitMQ that the connection is
         blocked using the Connection.Blocked RPC notification from RabbitMQ
         that was added in RabbitMQ 3.2.
 
-        :rtype: bool
-
         """
         return self._events.is_set(events.CONNECTION_BLOCKED)
 
-    def channel(self, blocking_read=False):
+    def channel(self, blocking_read: bool = False) -> chan.Channel:
         """Create a new channel
 
-        If blocking_read is True, the cross-thread Queue.get use will use
+        If blocking_read is True, the cross-thread `Queue.get` use will use
         blocking operations that lower resource utilization and increase
-        throughput. However, due to how Python's blocking Queue.get is
+        throughput. However, due to how Python's blocking `Queue.get` is
         implemented, KeyboardInterrupt is not raised when CTRL-C is
         pressed.
 
-        :param bool blocking_read: Enable for higher throughput
+        :param blocking_read: Enable for higher throughput
         :raises: rabbitpy.exceptions.AMQPException
         :raises: rabbitpy.exceptions.RemoteClosedChannelException
 
@@ -189,24 +179,25 @@ class Connection(base.StatefulObject):
             channel_id = self._get_next_channel_id()
             channel_frames = queue.Queue()
             self._channels[channel_id] = \
-                channel.Channel(channel_id,
-                                self.capabilities,
-                                self._events,
-                                self._exceptions,
-                                channel_frames,
-                                self._write_queue,
-                                self._max_frame_size,
-                                self._io.write_trigger,
-                                self,
-                                blocking_read)
+                chan.Channel(channel_id,
+                             self.capabilities,
+                             self._events,
+                             self._exceptions,
+                             channel_frames,
+                             self._write_queue,
+                             self._max_frame_size,
+                             self._io.write_trigger,
+                             self,
+                             blocking_read)
             self._add_channel_to_io(self._channels[channel_id], channel_frames)
             self._channels[channel_id].open()
             return self._channels[channel_id]
 
-    def close(self):
+    def close(self) -> None:
         """Close the connection, including all open channels.
 
         :raises: rabbitpy.exceptions.ConnectionClosed
+
         """
         if not self.open and not self.opening:
             raise exceptions.ConnectionClosed()
@@ -217,70 +208,66 @@ class Connection(base.StatefulObject):
         self._set_state(self.CLOSED)
 
     @property
-    def capabilities(self):
+    def capabilities(self) -> dict:
         """Return the RabbitMQ Server capabilities from the connection
         negotiation process.
-
-        :rtype: dict
 
         """
         return self._channel0.properties.get('capabilities', dict())
 
     @property
-    def server_properties(self):
+    def server_properties(self) -> dict:
         """Return the RabbitMQ Server properties from the connection
         negotiation process.
-
-        :rtype: dict
 
         """
         return self._channel0.properties
 
-    def _add_channel_to_io(self, channel_id, channel_queue):
+    def _add_channel_to_io(self,
+                           channel: typing.Union[chan.Channel,
+                                                 channel0.Channel0],
+                           channel_queue: typing.Optional[queue.Queue]) \
+            -> None:
         """Add a channel and queue to the IO object.
 
-        :param Queue.Queue channel_queue: Channel inbound msg queue
-        :param rabbitpy.base.AMQPChannel: The channel to add
+        :param channel: The channel object to add
+        :param channel_queue: Channel inbound msg queue
 
         """
-        LOGGER.debug('Adding channel %s to io', int(channel_id))
-        self._io.add_channel(channel_id, channel_queue)
+        LOGGER.debug('Adding channel %s to io', channel.id)
+        self._io.add_channel(channel, channel_queue)
 
     @property
-    def _api_credentials(self):
-        """Return the auth credentials as a tuple
-
-        @rtype: tuple
-
-        """
+    def _api_credentials(self) -> typing.Tuple[str, str]:
+        """Return the auth credentials as a tuple"""
         return self._args['username'], self._args['password']
 
     @property
-    def _channel0_closed(self):
+    def _channel0_closed(self) -> bool:
         """Returns a boolean indicating if the base connection channel (0)
         is closed.
-
-        :rtype: bool
 
         """
         return self._channel0.open and not \
             self._events.is_set(events.CHANNEL0_CLOSED)
 
-    def _close_all_channels(self):
+    def _close_all_channels(self) -> None:
         """Close all open channels"""
-        for chan_id in [chan_id for chan_id in self._channels
-                        if not self._channels[chan_id].closed]:
+        for chan_id in [
+                chan_id for chan_id in self._channels
+                if not self._channels[chan_id].closed
+        ]:
             self._channels[chan_id].close()
         self._channel0.close()
 
-    def _close_channels(self):
+    def _close_channels(self) -> None:
         """Close all the channels that are currently open."""
         for channel_id in self._channels:
-            if (self._channels[channel_id].open and
-                    not self._channels[channel_id].closing):
+            if (self._channels[channel_id].open
+                    and not self._channels[channel_id].closing):
                 self._channels[channel_id].close()
 
-    def _connect(self):
+    def _connect(self) -> None:
         """Connect to the RabbitMQ Server"""
         self._set_state(self.OPENING)
         # Create and start the IO object that reads, writes & dispatches frames
@@ -336,12 +323,8 @@ class Connection(base.StatefulObject):
         self._heartbeat.start()
         self._set_state(self.OPEN)
 
-    def _create_channel0(self):
-        """Each connection should have a distinct channel0
-
-        :rtype: rabbitpy.channel0.Channel0
-
-        """
+    def _create_channel0(self) -> channel0.Channel0:
+        """Each connection should have a distinct channel0"""
         return channel0.Channel0(connection_args=self._args,
                                  events_obj=self._events,
                                  exception_queue=self._exceptions,
@@ -349,44 +332,39 @@ class Connection(base.StatefulObject):
                                  write_trigger=self._io.write_trigger,
                                  connection=self)
 
-    def _create_io_thread(self):
-        """Create the IO thread and the objects it uses for communication.
-
-        :rtype: rabbitpy.io.IO
-
-        """
+    def _create_io_thread(self) -> io.IO:
+        """Create the IO thread and the objects it uses for communication."""
         return io.IO(name='%s-io' % self._name,
-                     kwargs={'events': self._events,
-                             'exceptions': self._exceptions,
-                             'connection_args': self._args,
-                             'write_queue': self._write_queue})
+                     kwargs={
+                         'events': self._events,
+                         'exceptions': self._exceptions,
+                         'connection_args': self._args,
+                         'write_queue': self._write_queue
+                     })
 
-    def _create_message(self, channel_id, method_frame, header_frame, body):
+    def _create_message(self, channel_id: int,
+                        method_frame: typing.Union[commands.Basic.Deliver,
+                                                   commands.Basic.GetOk,
+                                                   commands.Basic.Deliver],
+                        header_frame: header.ContentHeader,
+                        body: typing.Union[bytes, str]) -> message.Message:
         """Create a message instance with the channel it was received on and
         the dictionary of message parts.
 
         :param int channel_id: The channel id the message was sent on
         :param method_frame: The method frame value
-        :type method_frame: pamqp.specification.Frame
         :param header_frame: The header frame value
-        :type header_frame: pamqp.header.ContentHeader
-        :param str body: The message body
-        :rtype: rabbitpy.message.Message
+        :param body: The message body
 
         """
-        msg = message.Message(self._channels[channel_id],
-                              body,
+        msg = message.Message(self._channels[channel_id], body,
                               header_frame.properties.to_dict())
         msg.method = method_frame
         msg.name = method_frame.name
         return msg
 
-    def _get_next_channel_id(self):
-        """Return the next channel id
-
-        :rtype: int
-
-        """
+    def _get_next_channel_id(self) -> int:
+        """Return the next channel id"""
         if not self._channels:
             return 1
         if self._max_channel_id == self._channel0.maximum_channels:
@@ -394,37 +372,33 @@ class Connection(base.StatefulObject):
         return self._max_channel_id + 1
 
     @property
-    def _max_channel_id(self):
-        """Return the maximum channel ID that is currently being used.
-
-        :rtype: int
-
-        """
+    def _max_channel_id(self) -> int:
+        """Return the maximum channel ID that is currently being used."""
         return max(list(self._channels.keys()))
 
     @staticmethod
-    def _normalize_expectations(channel_id, expectations):
+    def _normalize_expectations(channel_id: int,
+                                expectations: FrameExpectations) \
+            -> typing.List[str]:
         """Turn a class or list of classes into a list of class names.
 
-        :param int channel_id: The channel to normalize for
+        :param channel_id: The channel to normalize for
         :param expectations: List of classes or class name or class obj
-        :type expectations: list or str or pamqp.specification.Frame
-        :rtype: list
 
         """
         if isinstance(expectations, list):
             output = list()
             for value in expectations:
                 if isinstance(value, str):
-                    output.append('%i:%s' % (channel_id, value))
+                    output.append(f'{channel_id}:{value}')
                 else:
-                    output.append('%i:%s' % (channel_id, value.name))
+                    output.append(f'{channel_id}:{value.name}')
             return output
-        elif utils.is_string(expectations):
-            return ['%i:%s' % (channel_id, expectations)]
-        return ['%i:%s' % (channel_id, expectations.name)]
+        elif isinstance(expectations, str):
+            return [f'{channel_id}:{expectations}']
+        return [f'{channel_id}:{expectations.name}']
 
-    def _process_url(self, url):
+    def _process_url(self, url: str) -> dict:
         """Parse the AMQP URL passed in and return the configuration
         information in a dictionary of values.
 
@@ -469,7 +443,6 @@ class Connection(base.StatefulObject):
               - TLSv1
 
         :param str url: The AMQP url passed in
-        :rtype: dict
         :raises: ValueError
 
         """
@@ -494,121 +467,123 @@ class Connection(base.StatefulObject):
             vhost = parsed.path[1:] or self.DEFAULT_VHOST
 
         # Parse the query string
-        qargs = utils.parse_qs(parsed.query)
+        query_args = parse.parse_qs(parsed.query)
 
         # Return the configuration dictionary to use when connecting
         return {
             'host': parsed.hostname,
             'port': parsed.port or scheme_port,
-            'virtual_host': utils.unquote(vhost),
-            'username': urlparse.unquote(parsed.username or self.GUEST),
-            'password': urlparse.unquote(parsed.password or self.GUEST),
-            'timeout': self._qargs_int('timeout', qargs, self.DEFAULT_TIMEOUT),
-            'heartbeat': self._qargs_int('heartbeat', qargs,
-                                         self.DEFAULT_HEARTBEAT_INTERVAL),
-            'frame_max': self._qargs_int('frame_max', qargs,
-                                         spec.FRAME_MAX_SIZE),
-            'channel_max': self._qargs_int('channel_max', qargs,
-                                           self.DEFAULT_CHANNEL_MAX),
-            'locale': self._qargs_value('locale', qargs),
+            'virtual_host': parse.unquote(vhost),
+            'username': parse.unquote(parsed.username or self.GUEST),
+            'password': parse.unquote(parsed.password or self.GUEST),
+            'timeout': self._query_args_int(
+                'timeout', query_args, self.DEFAULT_TIMEOUT),
+            'heartbeat': self._query_args_int(
+                'heartbeat', query_args, self.DEFAULT_HEARTBEAT_INTERVAL),
+            'frame_max': self._query_args_int(
+                'frame_max', query_args, constants.FRAME_MAX_SIZE),
+            'channel_max': self._query_args_int(
+                'channel_max', query_args, self.DEFAULT_CHANNEL_MAX),
+            'locale': self._query_args_value('locale', query_args),
             'ssl': use_ssl,
-            'cacertfile': self._qargs_mk_value(['cacertfile', 'ssl_cacert'],
-                                               qargs),
-            'certfile': self._qargs_mk_value(['certfile', 'ssl_cert'], qargs),
-            'keyfile': self._qargs_mk_value(['keyfile', 'ssl_key'], qargs),
-            'verify': self._qargs_ssl_validation(qargs),
-            'ssl_version': self._qargs_ssl_version(qargs)}
+            'cacertfile': self._query_args_mk_value(
+                ['cacertfile', 'ssl_cacert'], query_args),
+            'certfile': self._query_args_mk_value(
+                ['certfile', 'ssl_cert'], query_args),
+            'keyfile': self._query_args_mk_value(
+                ['keyfile', 'ssl_key'], query_args),
+            'verify': self._query_args_ssl_validation(query_args),
+            'ssl_version': self._query_args_ssl_version(query_args)
+        }
 
     @staticmethod
-    def _qargs_int(key, values, default):
+    def _query_args_int(key: str, values: dict, default: int) -> int:
         """Return the query arg value as an integer for the specified key or
         return the specified default value.
 
-        :param str key: The key to return the value for
-        :param dict values: The query value dict returned by urlparse
-        :param int default: The default return value
-        :rtype: int
+        :param key: The key to return the value for
+        :param values: The query value dict returned by urlparse
+        :param default: The default return value
 
         """
         return int(values.get(key, [default])[0])
 
     @staticmethod
-    def _qargs_float(key, values, default):
+    def _query_args_float(key: str, values: dict, default: float) -> float:
         """Return the query arg value as a float for the specified key or
         return the specified default value.
 
-        :param str key: The key to return the value for
-        :param dict values: The query value dict returned by urlparse
-        :param float default: The default return value
-        :rtype: float
+        :param key: The key to return the value for
+        :param values: The query value dict returned by urlparse
+        :param default: The default return value
 
         """
         return float(values.get(key, [default])[0])
 
-    def _qargs_ssl_validation(self, values):
+    def _query_args_ssl_validation(self, values: dict) \
+            -> typing.Union[int, None]:
         """Return the value mapped from the string value in the query string
         for the AMQP URL specifying which level of server certificate
         validation is required, if any.
 
-        :param dict values: The dict of query values from the AMQP URI
-        :rtype: int
+        :param values: The dict of query values from the AMQP URI
 
         """
-        validation = self._qargs_mk_value(['verify', 'ssl_validation'], values)
+        validation = self._query_args_mk_value(['verify', 'ssl_validation'],
+                                               values)
         if not validation:
             return
         elif validation not in SSL_CERT_MAP:
-            raise ValueError(
-                'Unsupported server cert validation option: %s',
-                validation)
+            raise ValueError('Unsupported server cert validation option: %s',
+                             validation)
         return SSL_CERT_MAP[validation]
 
-    def _qargs_ssl_version(self, values):
+    def _query_args_ssl_version(self, values: dict) \
+            -> typing.Union[int, None]:
         """Return the value mapped from the string value in the query string
         for the AMQP URL for SSL version.
 
-        :param dict values: The dict of query values from the AMQP URI
-        :rtype: int
+        :param values: The dict of query values from the AMQP URI
 
         """
-        version = self._qargs_value('ssl_version', values)
+        version = self._query_args_value('ssl_version', values)
         if not version:
             return
         elif version not in SSL_VERSION_MAP:
-            raise ValueError('Unuspported SSL version: %s' % version)
+            raise ValueError(f'Unsupported SSL version: {version}')
         return SSL_VERSION_MAP[version]
 
     @staticmethod
-    def _qargs_value(key, values, default=None):
+    def _query_args_value(key: str, values: dict,
+                          default: typing.Union[int, float,
+                                                str, None] = None) \
+            -> typing.Union[int, float, str, None]:
         """Return the value from the query arguments for the specified key
         or the default value.
 
-        :param str key: The key to get the value for
-        :param dict values: The query value dict returned by urlparse
-        :return: mixed
+        :param key: The key to get the value for
+        :param values: The query value dict returned by urlparse
 
         """
         return values.get(key, [default])[0]
 
-    def _qargs_mk_value(self, keys, values):
+    def _query_args_mk_value(self, keys: typing.List[str], values: dict) \
+            -> typing.Union[int, float, str, None]:
         """Try and find the query string value where the value can be specified
         with different keys.
 
-        :param lists keys: The keys to check
-        :param dict values: The query value dict returned by urlparse
-        :return: mixed
+        :param keys: The keys to check
+        :param values: The query value dict returned by urlparse
 
         """
         for key in keys:
-            value = self._qargs_value(key, values)
+            value = self._query_args_value(key, values)
             if value is not None:
                 return value
         return None
 
-    def _shutdown_connection(self):
-        """Tell Channel0 and IO to stop if they are not stopped.
-
-        """
+    def _shutdown_connection(self) -> None:
+        """Tell Channel0 and IO to stop if they are not stopped."""
         # Make sure the heartbeat is not running
         if self._heartbeat is not None:
             self._heartbeat.stop()
@@ -622,8 +597,8 @@ class Connection(base.StatefulObject):
             # Break out of select waiting
             self._trigger_write()
 
-            if (self._events.is_set(events.SOCKET_OPENED) and
-                    not self._events.is_set(events.SOCKET_CLOSED)):
+            if (self._events.is_set(events.SOCKET_OPENED)
+                    and not self._events.is_set(events.SOCKET_CLOSED)):
                 LOGGER.debug('Waiting on socket to close')
                 self._events.wait(events.SOCKET_CLOSED, 0.1)
 
@@ -634,17 +609,17 @@ class Connection(base.StatefulObject):
         while self._io.is_alive():
             time.sleep(0.1)
 
-    def _trigger_write(self):
+    def _trigger_write(self) -> None:
         """Notifies the IO loop we need to write a frame by writing a byte
         to a local socket.
 
         """
         utils.trigger_write(self._io.write_trigger)
 
-    def _validate_uri_scheme(self, scheme):
-        """Insure that the specified URI scheme is supported by rabbitpy
+    def _validate_uri_scheme(self, scheme: str) -> None:
+        """Ensure that the specified URI scheme is supported by rabbitpy
 
-        :param str scheme: The value to validate
+        :param scheme: The value to validate
         :raises: ValueError
 
         """
