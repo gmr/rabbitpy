@@ -1,6 +1,6 @@
 services:
   rabbitmq:
-    image: rabbitmq:3.13
+    image: rabbitmq:4-management
     ports:
       - 5672
       - 15672

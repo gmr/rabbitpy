@@ -55,6 +55,7 @@ wait_for rabbitmq
 
 docker compose exec -T rabbitmq rabbitmqctl await_startup
 
-cat > build/test-environment<<EOF
+cat > build/test.env <<EOF
+export MANAGEMENT_URL=http://${TEST_HOST}:$(get_exposed_port rabbitmq 15672)/%2f
 export RABBITMQ_URL=amqp://guest:guest@${TEST_HOST}:$(get_exposed_port rabbitmq 5672)/%2f
 EOF
