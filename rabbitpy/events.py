@@ -1,7 +1,8 @@
 """
-Common rabbitpy events
+A high-level wrapper for using threading.Event objects to signal state changes
 
 """
+
 import logging
 import threading
 import typing
@@ -27,7 +28,7 @@ DESCRIPTIONS = {
     0x06: 'Exception Raised',
     0x07: 'Socket Close Requested',
     0x08: 'Socket Closed',
-    0x09: 'Socket Connected'
+    0x09: 'Socket Connected',
 }
 
 
@@ -47,18 +48,22 @@ class Events:
         self._events = self._create_event_objects()
 
     @staticmethod
-    def _create_event_objects() -> typing.Dict[int, threading.Event]:
+    def _create_event_objects() -> dict[int, threading.Event]:
         """Events are used like signals across threads for communicating state
         changes, used by the various threaded objects to communicate with each
         other when an action needs to be taken.
 
         """
-        events = dict()
-        for event in [
-                CHANNEL0_CLOSE, CHANNEL0_CLOSED, CHANNEL0_OPENED,
-                CONNECTION_BLOCKED, CONNECTION_EVENT, EXCEPTION_RAISED,
-                SOCKET_CLOSE, SOCKET_CLOSED, SOCKET_OPENED
-        ]:
+        events = {}
+        for event in [CHANNEL0_CLOSE,
+                      CHANNEL0_CLOSED,
+                      CHANNEL0_OPENED,
+                      CONNECTION_BLOCKED,
+                      CONNECTION_EVENT,
+                      EXCEPTION_RAISED,
+                      SOCKET_CLOSE,
+                      SOCKET_CLOSED,
+                      SOCKET_OPENED]:
             events[event] = threading.Event()
         return events
 
@@ -110,8 +115,9 @@ class Events:
         self._events[event_id].set()
         return True
 
-    def wait(self, event_id: int, timeout: float = 1) \
-            -> typing.Union[bool, None]:
+    def wait(self,
+             event_id: int,
+             timeout: float = 1) -> typing.Union[bool, None]:
         """Wait for an event to be set for up to `timeout` seconds. If
         `timeout` is None, block until the event is set. If the event is
         invalid, None will be returned, otherwise False is used to indicate
@@ -124,6 +130,6 @@ class Events:
         if event_id not in self._events:
             LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
-        LOGGER.debug('Waiting for %i seconds on event: %s', timeout,
-                     description(event_id))
+        LOGGER.debug('Waiting for %i seconds on event: %s',
+                     timeout, description(event_id))
         return self._events[event_id].wait(timeout)
