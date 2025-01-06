@@ -1,558 +1,150 @@
-"""
-Core Threaded IO implementation used to communicate with RabbitMQ at the socket
-level.
-
-"""
+import asyncio
 import collections
-import errno
 import logging
 import queue
-import select
 import socket
 import ssl
 import threading
 import typing
-from socket import AddressFamily, SocketKind
-from typing import List, Any, Tuple
 
-from pamqp import (base as pamqp_base, constants,
-                   exceptions as pamqp_exceptions, frame)
+import pamqp.exceptions
+from pamqp import base, frame
 
-from rabbitpy import base, channel as chan, events, exceptions
+import rabbitpy.events
+import rabbitpy.exceptions
+from rabbitpy import state
 
 LOGGER = logging.getLogger(__name__)
+MAX_BUFFER_PROCESSING_RETRIES = 5
 
-MAX_READ = constants.FRAME_MAX_SIZE
-MAX_WRITE = constants.FRAME_MAX_SIZE
-
-# Timeout in seconds
-POLL_TIMEOUT = 1.0
-
-
-class _SelectPoller:
-
-    def __init__(self, fd, write_trigger):
-        self.read = [[fd, write_trigger], [], [fd], POLL_TIMEOUT]
-        self.write = [[fd, write_trigger], [fd], [fd], POLL_TIMEOUT]
-
-    def poll(self, write_wanted: bool) \
-            -> typing.Tuple[typing.List[int],
-                            typing.List[int],
-                            typing.List[int]]:
-        """Invoke `select.select`, waiting for it to return with the per action
-        list of file descriptors that are returned to the IO Loop.
-
-        :param write_wanted: Is there data pending to be written
-        :return: (read, write, error)
-
-        """
-        try:
-            if write_wanted:
-                rlist, wlist, xlist = select.select(*self.write)
-            else:
-                rlist, wlist, xlist = select.select(*self.read)
-        except select.error:
-            return [], [], []
-        return ([sock.fileno()
-                 for sock in rlist], [sock.fileno() for sock in wlist],
-                [sock.fileno() for sock in xlist])
+AddrInfo = typing.Union[
+    list[typing.Any],
+    list[tuple[socket.AddressFamily, socket.SocketKind, int, str,
+         tuple[str, int], tuple[str, int, int, int]]]
+]
 
 
-class _KQueuePoller:
-
-    MAX_EVENTS = 1000
-
-    def __init__(self, fd, write_trigger):
-        self._fd = fd
-        self._write_trigger = write_trigger
-        self._kqueue = select.kqueue()
-        self._kqueue.control(
-            [select.kevent(fd, select.KQ_FILTER_READ, select.KQ_EV_ADD)], 0)
-        self._kqueue.control([
-            select.kevent(write_trigger, select.KQ_FILTER_READ,
-                          select.KQ_EV_ADD)
-        ], 0)
-        self._write_in_last_poll = False
-
-    def poll(self, write_wanted: bool) \
-            -> typing.Tuple[typing.List[int],
-                            typing.List[int],
-                            typing.List[int]]:
-        """Update the KQueue object with the desired actions to block on,
-        waiting until the `KQueue.control` method returns events and then
-        returns the list of actions containing file descriptors to act on for
-        those actions.
-
-        :param write_wanted: Is there data pending to be written
-        :return: (read, write, error)
-
-        """
-        rlist, wlist, xlist = [], [], []
-        try:
-            kq_events = self._kqueue.control(self._changelist(write_wanted),
-                                             self.MAX_EVENTS, POLL_TIMEOUT)
-        except select.error as error:
-            LOGGER.debug('kqueue.control error: %s', error)
-            return [], [], []
-        for event in kq_events:
-            if event.filter == select.KQ_FILTER_READ:
-                rlist.append(event.ident)
-            elif event.filter == select.KQ_FILTER_WRITE:
-                wlist.append(event.ident)
-            if event.flags & select.KQ_EV_ERROR:
-                xlist.append(event.ident)
-            if event.flags & select.KQ_EV_EOF == select.KQ_EV_EOF:
-                xlist.append(event.data)
-        if xlist:
-            self._cleanup()
-        return rlist, wlist, xlist
-
-    def _changelist(self, write_wanted: bool) \
-            -> typing.Union[typing.List[select.kevent], None]:
-        if write_wanted and not self._write_in_last_poll:
-            self._write_in_last_poll = True
-            return [
-                select.kevent(self._fd, select.KQ_FILTER_WRITE,
-                              select.KQ_EV_ADD)
-            ]
-        elif self._write_in_last_poll and not write_wanted:
-            self._write_in_last_poll = False
-            return [
-                select.kevent(self._fd, select.KQ_FILTER_WRITE,
-                              select.KQ_EV_DELETE)
-            ]
-        return None
-
-    def _cleanup(self) -> typing.Union[typing.List[select.kevent], None]:
-        self._kqueue.control([
-            select.kevent(self._fd, select.KQ_FILTER_READ, select.KQ_EV_DELETE)
-        ], 0)
-        self._kqueue.control([
-            select.kevent(self._write_trigger, select.KQ_FILTER_READ,
-                          select.KQ_EV_DELETE)
-        ], 0)
-        if self._write_in_last_poll:
-            return [
-                select.kevent(self._fd, select.KQ_FILTER_WRITE,
-                              select.KQ_EV_DELETE)
-            ]
-
-
-class _PollPoller:
-
-    # Register constants to prevent platform specific errors
-    POLLIN = 1
-    POLLOUT = 4
-    POLLERR = 8
-
-    READ = POLLIN | POLLERR
-    WRITE = POLLIN | POLLOUT | POLLERR
-
-    def __init__(self, fd: int, write_trigger: bool):
-        self._fd = fd
-        self._poll = select.poll()
-        self._poll.register(fd, self.READ)
-        self._poll.register(write_trigger, self.READ)
-        self._write_in_last_poll = False
-
-    def poll(self, write_wanted: bool) \
-            -> typing.Tuple[typing.List[int],
-                            typing.List[int],
-                            typing.List[int]]:
-        """Update the Poll object with the desired actions to block on, waiting
-        until the poll returns events and then returns the list of actions
-        containing file descriptors to act on for those actions.
-
-        :param bool write_wanted: Is there data pending to be written
-        :rtype: tuple(list, list, list)
-        :return: (read, write, error)
-
-        """
-        self._update_poll(write_wanted)
-        rlist, wlist, xlist = [], [], []
-        try:
-            poll_events = self._poll.poll(POLL_TIMEOUT * 1000)
-        except select.error:
-            return [], [], []
-        for fileno, event in poll_events:
-            if event & self.POLLIN:
-                rlist.append(fileno)
-            if event & self.POLLOUT:
-                wlist.append(fileno)
-            if event & self.POLLERR:
-                xlist.append(fileno)
-        return rlist, wlist, xlist
-
-    def _update_poll(self, write_wanted: bool) -> None:
-        if self._write_in_last_poll:
-            if not write_wanted:
-                self._write_in_last_poll = False
-                self._poll.modify(self._fd, self.READ)
-        else:
-            self._write_in_last_poll = True
-            self._poll.modify(self._fd, self.WRITE)
-
-
-class _IOLoop:
-    """Generic base IOLoop implementation that leverages different types of
-    Polling (select, KQueue, poll).
-
-    """
+class IO(threading.Thread, state.StatefulBase):
 
     def __init__(self,
-                 fd: socket.socket,
-                 error_callback: typing.Callable,
-                 read_callback: typing.Callable,
-                 write_callback: typing.Callable,
-                 write_queue: queue.Queue,
-                 event_obj: events.Events,
-                 write_trigger: socket.socket,
-                 exception_stack: queue.Queue):
-        self._data = threading.local()
-        self._data.fd = fd
-        self._data.error_callback = error_callback
-        self._data.read_callback = read_callback
-        self._data.running = False
-        self._data.ssl = hasattr(fd, 'read')
-        self._data.events = event_obj
-        self._data.write_buffer = collections.deque()
-        self._data.write_callback = write_callback
-        self._data.write_queue = write_queue
-        self._data.write_trigger = write_trigger
-        self._server_sock: typing.Optional[socket.socket] = None
-        self._exceptions = exception_stack
-        self._poller = self._create_poller()
+                 host: str,
+                 port: int,
+                 use_ssl: bool,
+                 ssl_options: dict,
+                 events: rabbitpy.events.Events,
+                 exceptions: queue.Queue,
+                 timeout: float = 0.01):
+        super().__init__(group=None,
+                         target=None,
+                         name='IO',
+                         args=(),
+                         kwargs={},
+                         daemon=True)
+        self._events = events
+        self._exceptions = exceptions
+        self._host = host
+        self._port = port
+        self._ssl_options = ssl_options
+        self._timeout = timeout
+        self._use_ssl = use_ssl
 
-    def run(self) -> None:
-        """Run the IOLoop, blocking until the socket is closed or there is
-        another exception.
-
-        """
-        self._data.running = True
-        while self._data.running:
-            try:
-                self._poll()
-            except EnvironmentError as exception:
-                if getattr(exception, 'errno') == errno.EINTR:
-                    continue
-                elif (isinstance(getattr(exception, 'args'), tuple)
-                      and len(exception.args) == 2
-                      and exception.args[0] == errno.EINTR):
-                    continue
-            if self._data.events.is_set(events.SOCKET_CLOSED):
-                LOGGER.debug('Exiting due to closed socket')
-                break
-            elif self._data.events.is_set(events.SOCKET_CLOSE):
-                LOGGER.debug('Exiting due to closing socket')
-                self._exceptions.put(exceptions.ConnectionResetException())
-                break
-        LOGGER.debug('Exiting IOLoop.run')
-
-    def stop(self) -> None:
-        """Stop the IOLoop."""
-        LOGGER.debug('Stopping IOLoop')
-        self._data.running = False
-        try:
-            self._data.write_trigger.close()
-        except socket.error:
-            pass
-
-    def _create_poller(self) \
-            -> typing.Union[_KQueuePoller, _PollPoller, _SelectPoller]:
-        if hasattr(select, 'kqueue'):
-            LOGGER.debug('Returning KQueuePoller')
-            return _KQueuePoller(self._data.fd, self._data.write_trigger)
-        elif hasattr(select, 'poll'):
-            LOGGER.debug('Returning PollPoller')
-            return _PollPoller(self._data.fd, self._data.write_trigger)
-        else:
-            LOGGER.debug('Returning SelectPoller')
-            return _SelectPoller(self._data.fd, self._data.write_trigger)
-
-    def _poll(self) -> None:
-        # Poll select with the materialized lists
-        if not self._data.running:
-            LOGGER.debug('Exiting poll')
-
-        # Build the outbound write buffer of marshalled frames
-        while not self._data.write_queue.empty():
-            data = self._data.write_queue.get(False)
-            self._data.write_buffer.append(frame.marshal(data[1], data[0]))
-
-        # Poll the poller, passing in a bool if there is data to write
-        rlist, wlist, xlist = self._poller.poll(bool(self._data.write_buffer))
-
-        if xlist:
-            LOGGER.debug('Poll errors: %r', xlist)
-            self._data.events.set(events.SOCKET_CLOSE)
-            self._data.error_callback('Connection reset')
-            return
-
-        # Clear out the trigger socket
-        if self._data.write_trigger.fileno() in rlist:
-            self._data.write_trigger.recv(1024)
-
-        # Read if the data socket is in the read list
-        if self._data.fd.fileno() in rlist:
-            self._read()
-
-        # Write if the data socket is writable
-        if wlist and self._data.write_buffer:
-            self._write()
-
-    def _read(self) -> None:
-        if not self._data.running:
-            LOGGER.debug('Skipping read, not running')
-            return
-        try:
-            if self._data.ssl:
-                self._data.read_callback(self._data.fd.read(MAX_READ))
-            else:
-                self._data.read_callback(self._data.fd.recv(MAX_READ))
-        except socket.timeout:
-            LOGGER.warning('Timed out reading from socket')
-        except socket.error as exception:
-            self._data.running = False
-            self._data.error_callback(exception)
-
-    def _write(self) -> None:
-        if not self._data.running:
-            LOGGER.debug('Skipping write frame, not running')
-            return
-
-        frame_data = self._data.write_buffer.popleft()
-        try:
-            bytes_sent = self._data.fd.send(frame_data)
-        except socket.timeout:
-            LOGGER.warning('Timed out writing %i bytes to socket',
-                           len(frame_data))
-            self._data.write_buffer.appendleft(frame_data)
-        except socket.error as error:
-            if error.errno == 35:
-                LOGGER.debug('socket resource temp unavailable')
-                self._data.write_buffer.appendleft(frame_data)
-            else:
-                self._data.running = False
-                self._data.error_callback(error)
-        else:
-            self._data.write_callback(bytes_sent)
-            # If the entire frame could not be sent, send the rest next time
-            if bytes_sent < len(frame_data):
-                self._data.write_buffer.appendleft(frame_data[bytes_sent:])
-
-
-class IO(threading.Thread, base.StatefulObject):
-    """IO is the primary IO thread that is responsible for communicating with
-    RabbitMQ at the socket level and adds demashaled frames to the appropriate
-    thread-safe data structures.
-
-    """
-    CONTENT_METHODS = ['Basic.Deliver', 'Basic.GetOk']
-    READ_BUFFER_SIZE = constants.FRAME_MAX_SIZE
-    SSL_KWARGS = {
-        'keyfile': 'keyfile',
-        'certfile': 'certfile',
-        'cert_reqs': 'verify',
-        'ssl_version': 'ssl_version',
-        'ca_certs': 'cacertfile'
-    }
-
-    def __init__(self,
-                 group: None = None,
-                 target: typing.Optional[typing.Callable] = None,
-                 name: typing.Optional[str] = None,
-                 args: typing.Optional[tuple] = (),
-                 kwargs: typing.Optional[dict] = None):
-        if kwargs is None:
-            kwargs = dict()
-        super(IO, self).__init__(group, target, name, args, kwargs)
-
-        self._args = kwargs['connection_args']
-        self._events = kwargs['events']
-        self._exceptions = kwargs['exceptions']
-        self._write_queue = kwargs['write_queue']
-
-        # A socket to trigger write interrupts with
-        self._write_listener, self._write_trigger = self._socketpair()
-
+        self._buffer = b''
+        self._lock = threading.Lock()
         self._bytes_read = 0
         self._bytes_written = 0
-
-        self._buffer = bytes()
-        self._lock = threading.RLock()
-        self._channels = dict()
+        self._channels: collections.defaultdict[int, queue.Queue] = (
+            collections.defaultdict(queue.Queue))
+        self._ioloop: typing.Optional[asyncio.AbstractEventLoop] = None
         self._remote_name: typing.Optional[str] = None
-        self._socket: typing.Optional[socket.socket] = None
-        self._loop: typing.Optional[_IOLoop] = None
+        self._running = threading.Event()
+        self._write_buffer = collections.deque()
 
-    def add_channel(self,
-                    channel: chan.Channel,
-                    write_queue: queue.Queue) -> None:
+        self._write_queue: queue.Queue = queue.Queue()
+
+    def run(self):
+        asyncio.run(self._run())
+        try:
+            self._ioloop.run_forever()
+        finally:
+            self._ioloop.close()
+
+    async def _run(self):
+        self._ioloop = asyncio.get_running_loop()
+        await self._connect()
+
+        self._ioloop.add_reader(self._socket, self._on_read_ready)
+        self._ioloop.add_writer(self._socket, self._on_write_ready)
+
+        local_sock = self._socket.getsockname()
+        peer_sock = self._socket.getpeername()
+        self._remote_name = \
+            f'{local_sock[0]}:{local_sock[1]} -> {peer_sock[0]}:{peer_sock[1]}'
+
+        if self.is_open:
+            LOGGER.info('Connected to %s:%i', self._host, self._port)
+            self._running.set()
+            while self._running.is_set():
+                await asyncio.sleep(10)
+            LOGGER.info('Disconnected from %s:%i', self._host, self._port)
+        self.stop()
+
+    def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
         """Add a channel to the channel queue dict for dispatching frames
         to the channel.
 
         :param channel: The channel to add
-        :param write_queue: Queue for sending frames to the channel
+        :param read_queue: Queue for sending frames to the channel
 
         """
-        self._channels[int(channel)] = channel, write_queue
+        self._channels[int(channel)] = read_queue
 
     @property
     def bytes_received(self) -> int:
         """Return the number of bytes read/received from RabbitMQ"""
-        return self._bytes_read
+        with self._lock:
+            return self._bytes_read
 
     @property
     def bytes_written(self) -> int:
         """Return the number of bytes written to RabbitMQ"""
-        return self._bytes_written
-
-    def run(self) -> None:
-        """The blocking method to execute the core IO object, that connects
-        and then blocks on the IOLoop, exiting when the IOLoop stops.
-
-        """
-        self._connect()
-        if not self._socket:
-            LOGGER.warning('Could not connect to %s:%s', self._args['host'],
-                           self._args['port'])
-            return
-
-        LOGGER.debug('Socket connected')
-
-        # Create the remote name
-        local_socket = self._socket.getsockname()
-        peer_socket = self._socket.getpeername()
-        self._remote_name = (f'{local_socket[0]}:{local_socket[1]} '
-                             f'-> {peer_socket[0]}:{peer_socket[1]}')
-        self._loop = _IOLoop(self._socket, self.on_error, self.on_read,
-                             self.on_write, self._write_queue, self._events,
-                             self._write_listener, self._exceptions)
-        self._loop.run()
-        if not self._exceptions.empty() and \
-                not self._events.is_set(events.EXCEPTION_RAISED):
-            self._events.set(events.EXCEPTION_RAISED)
-        LOGGER.debug('Exiting IO.run')
-
-    def on_error(self, exception: socket.error) -> None:
-        """Common functions when a socket error occurs. Make sure to set closed
-        and add the exception, and note an exception event.
-
-        :param exception: The socket error
-
-        """
-        LOGGER.critical('In on_error: %r', exception)
-        if self._events.is_set(events.SOCKET_CLOSED):
-            return
-        args = [self._args['host'], self._args['port'], str(exception)]
-        if self._channels[0][0].open:
-            self._exceptions.put(exceptions.ConnectionResetException(*args))
-        else:
-            self._exceptions.put(exceptions.ConnectionException(*args))
-        self._events.set(events.EXCEPTION_RAISED)
-
-    def on_read(self, data: bytes) -> None:
-        """Append the data that is read to the buffer and try and parse
-        frames out of it.
-
-        :param data: The data that has been read in
-
-        """
-        self._buffer += data
-
-        while self._buffer:
-
-            # Read and process data
-            value = self._read_frame()
-
-            # Increment the byte counter used by the heartbeat timer
-            self._bytes_read += len(value)
-
-            # Break out if a frame could not be decoded
-            if self._buffer and value[0] is None:
-                break
-
-            # If it's channel 0, call the Channel0 directly
-            if value[0] == 0:
-                with self._lock:
-                    self._channels[0][0].on_frame(value[1])
-                continue
-
-            self._add_frame_to_read_queue(value[0], value[1])
-
-    def on_write(self, bytes_written: int) -> None:
-        """Keep track of how many bytes have been written.
-
-        :param bytes_written: How many bytes were written to the socket.
-
-        """
-        self._bytes_written += bytes_written
-
-    def stop(self) -> None:
-        """Stop the IO Layer due to exception or other problem."""
-        self._close()
+        with self._lock:
+            return self._bytes_written
 
     @property
-    def write_trigger(self) -> socket.socket:
-        """Return the write trigger socket.
+    def remote_name(self) -> str:
+        """Return the remote name of the socket"""
+        return self._remote_name
 
-        :rtype: socket.socket
+    def write_frame(self, channel: int, frame_value: base.Frame) -> None:
+        with self._lock:
+            payload = frame.marshal(frame_value, channel)
+            self._write_buffer.append(payload)
 
-        """
-        return self._write_trigger
-
-    def _add_frame_to_read_queue(self,
-                                 channel_id: int,
-                                 value: pamqp_base.Frame):
-        """Add the frame to the stack by creating the key value used in
-        expectations and then add it to the list.
-
-        :param int channel_id: The channel id the frame was received on
-        :param value: The frame to add
-
-        """
-        self._channels[channel_id][1].put(value)
+    def stop(self):
+        pass
 
     def _close(self) -> None:
         """Close the socket and set the proper event states"""
-        self._events.clear(events.SOCKET_OPENED)
+        self._events.clear(rabbitpy.events.SOCKET_OPENED)
         self._set_state(self.CLOSING)
-        if hasattr(self, '_socket') and self._socket:
-            self._close_socket(self._socket)
-        if hasattr(self, '_write_listener') and self._write_listener:
-            self._close_socket(self._write_listener)
-        if hasattr(self, '_write_trigger') and self._write_trigger:
-            self._close_socket(self._write_trigger)
-        if hasattr(self, '_server_socket') and self._server_socket:
-            self._close_socket(self._server_sock)
-        if not self._events.is_set(events.SOCKET_CLOSED):
-            self._events.set(events.SOCKET_CLOSED)
-        if not self.closed:
+        if hasattr(self, '_socket'):
+            self._close_socket()
+        if not self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
+            self._events.set(rabbitpy.events.SOCKET_CLOSED)
+        if not self.is_closed:
             self._set_state(self.CLOSED)
 
-    @staticmethod
-    def _close_socket(sock: socket.socket) -> None:
+    def _close_socket(self) -> None:
+        if hasattr(self, '_ioloop'):
+            self._ioloop.remove_reader(self._socket)
+            self._ioloop.remove_writer(self._socket)
         try:
-            sock.shutdown(socket.SHUT_RDWR)
-            sock.close()
-        except (OSError, socket.error):
+            self._socket.shutdown(socket.SHUT_RDWR)
+            self._socket.close()
+        except OSError:
             pass
 
-    def _connect_socket(self,
-                        sock: socket.socket,
-                        address: typing.Tuple[str, int]) -> None:
-        """Connect the socket to the specified host and port, setting the
-        timeout.
-
-        :param sock: The socket to connect
-        :param address: The address tuple to connect to
-
-        """
-        LOGGER.debug('Connecting to %r', address)
-        sock.settimeout(self._args['timeout'])
-        sock.connect(address)
-
-    def _connect(self) -> None:
+    async def _connect(self) -> None:
         """Connect to the RabbitMQ Server
 
         :raises: ConnectionException
@@ -560,30 +152,33 @@ class IO(threading.Thread, base.StatefulObject):
         """
         self._set_state(self.OPENING)
         sock = None
-        for (address_family, sock_type,
-             proto, _cname, sock_addr) in self._get_addr_info():
+        for (addr_family, sock_type, protocol, _cname, sock_addr) \
+                in self._get_addr_info():
             try:
-                sock = self._create_socket(address_family, sock_type, proto)
-                self._connect_socket(sock, sock_addr)
-                break
-            except socket.error as error:
+                sock = self._create_socket(addr_family, sock_type, protocol)
+                sock.connect(sock_addr)
+            except OSError as error:
                 LOGGER.debug('Error connecting to %r: %s', sock_addr, error)
                 sock = None
                 continue
+            else:
+                break
 
         if not sock:
-            args = [
-                self._args['host'], self._args['port'], 'Could not connect'
-            ]
-            self._exceptions.put(exceptions.ConnectionException(*args))
-            self._events.set(events.EXCEPTION_RAISED)
+            self._exceptions.put(
+                rabbitpy.exceptions.ConnectionException(
+                    self._host, self._port, 'Could not connect'))
+            self._events.set(rabbitpy.events.EXCEPTION_RAISED)
             return
 
         self._socket = sock
-        self._events.set(events.SOCKET_OPENED)
+        self._socket.setblocking(False)
+        self._socket.settimeout(self._timeout)
+        self._events.set(rabbitpy.events.SOCKET_OPENED)
         self._set_state(self.OPEN)
 
-    def _create_socket(self, address_family: int,
+    def _create_socket(self,
+                       address_family: int,
                        sock_type: int,
                        protocol: int) \
             -> typing.Union[socket.socket, ssl.SSLSocket]:
@@ -591,115 +186,137 @@ class IO(threading.Thread, base.StatefulObject):
 
         :param address_family: The address family to use when creating
         :param sock_type: The type of socket to create
-        :param protocol: The protocol to use
 
         """
         sock = socket.socket(address_family, sock_type, protocol)
-        if self._args['ssl']:
-            kwargs = {'sock': sock, 'server_side': False}
-            for argv, key in self.SSL_KWARGS.items():
-                if self._args[key]:
-                    kwargs[argv] = self._args[key]
-            LOGGER.debug('Wrapping socket for SSL: %r', kwargs)
-            context = ssl.SSLContext()
-            return context.wrap_socket(**kwargs)
+        context = self._get_ssl_context()
+        if context:
+            return context.wrap_socket(sock=sock)
         return sock
 
     def _disconnect_socket(self) -> None:
         """Close the existing socket connection"""
         self._socket.close()
 
-    def _get_addr_info(self) \
-            -> list[Any] | list[tuple[
-                AddressFamily, SocketKind, int, str, tuple[str, int] | tuple[
-                    str, int, int, int]]]:
+    def _get_addr_info(self) -> AddrInfo:
         family = socket.AF_UNSPEC
         if not socket.has_ipv6:
             family = socket.AF_INET
         try:
             res = socket.getaddrinfo(
-                self._args['host'], self._args['port'], family,
-                socket.SOCK_STREAM, 0)
-        except socket.error as error:
-            LOGGER.error('Could not resolve %s: %s',
-                         self._args['host'], error, exc_info=True)
+                self._host, self._port, family, socket.SOCK_STREAM, 0)
+        except OSError as error:
+            LOGGER.exception('Could not resolve %s: %s', self._host, error)
             return []
         return res
 
+    def _get_ssl_context(self) -> typing.Optional[ssl.SSLContext]:
+        """Return the configured SSLContext to use if needed"""
+        if self._use_ssl:
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            if self._ssl_options.get('cafile') \
+                    or self._ssl_options.get('capath'):
+                ssl_context.load_verify_locations(
+                    cafile=self._ssl_options.get('cafile'),
+                    capath=self._ssl_options.get('capath'))
+            else:
+                ssl_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+            if self._ssl_options.get('certfile'):
+                ssl_context.load_cert_chain(
+                    self._ssl_options.get('certfile'),
+                    self._ssl_options.get('keyfile'))
+            if self._ssl_options.get('verify') is not None:
+                ssl_context.verify_mode = self._ssl_options['verify']
+                if self._ssl_options.get('verify') == ssl.CERT_NONE:
+                    ssl_context.check_hostname = False
+            return ssl_context
+        return None
+
+    def _on_connection_lost(self, error: typing.Optional[Exception]) -> None:
+        LOGGER.exception('Connection lost: %r', error)
+        with self._lock:
+            if error:
+                self._exceptions.put(error)
+                self._events.set(rabbitpy.events.EXCEPTION_RAISED)
+            self._events.set(rabbitpy.events.SOCKET_CLOSED)
+
     @staticmethod
-    def _get_frame(value: bytes) \
-            -> typing.Tuple[bytes, typing.Optional[int],
-                            typing.Optional[pamqp_base.Frame]]:
-        """Get the pamqp frame from the string value.
+    def _on_data_received(value: bytes) \
+            -> tuple[bytes,
+                     typing.Optional[int],
+                     typing.Optional[base.Frame],
+                     int]:
+        """Get the pamqp frame from the value read from the socket.
 
         :param value: The value to parse for a pamqp frame
-        :return Remainder of value, channel id, and frame value
+        :return: Remainder of value, channel id, frame value, and bytes read
+
         """
         if not value:
-            return value, None, None
+            return value, None, None, 0
         try:
             byte_count, channel_id, frame_in = frame.unmarshal(value)
-        except pamqp_exceptions.UnmarshalingException:
-            return value, None, None
-        except pamqp_exceptions.AMQPFrameError as error:
-            LOGGER.error('Failed to demarshal: %r', error, exc_info=True)
-            LOGGER.debug(value)
-            return value, None, None
-        return value[byte_count:], channel_id, frame_in
+        except (pamqp.exceptions.UnmarshalingException, ValueError):
+            return value, None, None, 0
+        return value[byte_count:], channel_id, frame_in, byte_count
 
-    def _read_frame(self) \
-            -> typing.Tuple[int, typing.Optional[pamqp_base.Frame]]:
-        """Read from the buffer and try and get the demarshaled frame.
-
-        :rtype (int, pamqp.specification.Frame): The channel and frame
+    def _on_read_ready(self) -> None:
+        """Append the data that is read to the buffer and try and parse
+        frames out of it.
 
         """
-        self._buffer, chan_id, value = self._get_frame(self._buffer)
-        return chan_id, value
+        with self._lock:
+            self._buffer += self._socket.recv(32768)
+            while self._buffer:
+                remaining, channel_id, frame_value, bytes_read =\
+                    self._on_data_received(self._buffer)
+                if remaining == self._buffer:
+                    break
+                self._buffer = remaining
+                self._bytes_read += bytes_read
+                if channel_id not in self._channels:
+                    self._exceptions.put(
+                        rabbitpy.exceptions.ReceivedOnClosedChannelException(
+                            channel_id))
+                self._channels[channel_id].put(frame_value)
 
-    def _remote_close_channel(self, channel_id: int,
-                              value: pamqp_base.Frame) -> None:
-        """Invoke the on_channel_close code in the specified channel. This will
-        block the IO loop unless the exception is caught.
+    def _on_write_ready(self) -> None:
+        """Write the next frame to the socket"""
+        with self._lock:
+            try:
+                payload = self._write_buffer.popleft()
+            except IndexError:
+                return
+            try:
+                bytes_written =  self._socket.send(payload)
+            except socket.timeout:
+                LOGGER.warning('Timed out writing %i bytes to socket',
+                               len(payload))
+                self._write_buffer.appendleft(payload)
+            except OSError as error:
+                if error.errno == 35:
+                    LOGGER.debug('socket resource temp unavailable')
+                    self._write_buffer.appendleft(payload)
+                else:
+                    self._on_error(error)
+            else:
+                self._bytes_written += bytes_written
 
-        :param int channel_id: The channel to remote close
-        :param value: The Channel.Close frame
+    def _on_error(self, exception: OSError) -> None:
+        """Common functions when a socket error occurs. Make sure to set closed
+        and add the exception, and note an exception event.
+
+        :param exception: The socket error
 
         """
-        self._channels[channel_id][0].on_remote_close(value)
-
-    def _socketpair(self) -> typing.Tuple[socket.socket, socket.socket]:
-        """Return a socket pair regardless of platform."""
-        try:
-            server, client = socket.socketpair()
-        except AttributeError:
-            # Connect in Windows
-            LOGGER.debug('Falling back to emulated socketpair behavior')
-
-            # Create the listening server socket & bind it to a random port
-            self._server_sock = socket.socket(
-                socket.AF_INET, socket.SOCK_STREAM)
-            self._server_sock.bind(('127.0.0.1', 0))
-
-            # Get the port for the notifying socket to connect to
-            port = self._server_sock.getsockname()[1]
-
-            # Create the notifying client socket and connect using a timer
-            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-            def connect():
-                """Connect to the client to the server socket pair"""
-                client.connect(('127.0.0.1', port))
-
-            timer = threading.Timer(0.01, connect)
-            timer.start()
-
-            # Have the listening server socket listen and accept the connect
-            self._server_sock.listen(0)
-            server, _unused = self._server_sock.accept()
-
-        # Don't block on either socket
-        server.setblocking(False)
-        client.setblocking(False)
-
-        return server, client
+        if self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
+            return
+        args = [self._host, self._port, str(exception)]
+        """
+        if self._channels[0][0].open:
+            self._exceptions.put(
+                rabbitpy_exceptions.ConnectionResetException(*args))
+        else:
+        """
+        self._exceptions.put(rabbitpy.exceptions.ConnectionException(*args))
+        self._events.set(rabbitpy.events.EXCEPTION_RAISED)
