@@ -24,7 +24,7 @@ AddrInfo = typing.Union[
 ]
 
 
-class IO(threading.Thread, state.StatefulBase):
+class IO(threading.Thread):
 
     def __init__(self,
                  host: str,
@@ -49,6 +49,8 @@ class IO(threading.Thread, state.StatefulBase):
         self._use_ssl = use_ssl
 
         self._buffer = b''
+        self._closed = asyncio.Event()
+        self._closed.set()
         self._lock = threading.Lock()
         self._bytes_read = 0
         self._bytes_written = 0
@@ -56,37 +58,12 @@ class IO(threading.Thread, state.StatefulBase):
             collections.defaultdict(queue.Queue))
         self._ioloop: typing.Optional[asyncio.AbstractEventLoop] = None
         self._remote_name: typing.Optional[str] = None
-        self._running = threading.Event()
+        self._socket: typing.Optional[socket.socket] = None
         self._write_buffer = collections.deque()
-
         self._write_queue: queue.Queue = queue.Queue()
 
     def run(self):
         asyncio.run(self._run())
-        try:
-            self._ioloop.run_forever()
-        finally:
-            self._ioloop.close()
-
-    async def _run(self):
-        self._ioloop = asyncio.get_running_loop()
-        await self._connect()
-
-        self._ioloop.add_reader(self._socket, self._on_read_ready)
-        self._ioloop.add_writer(self._socket, self._on_write_ready)
-
-        local_sock = self._socket.getsockname()
-        peer_sock = self._socket.getpeername()
-        self._remote_name = \
-            f'{local_sock[0]}:{local_sock[1]} -> {peer_sock[0]}:{peer_sock[1]}'
-
-        if self.is_open:
-            LOGGER.info('Connected to %s:%i', self._host, self._port)
-            self._running.set()
-            while self._running.is_set():
-                await asyncio.sleep(10)
-            LOGGER.info('Disconnected from %s:%i', self._host, self._port)
-        self.stop()
 
     def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
         """Add a channel to the channel queue dict for dispatching frames
@@ -96,7 +73,16 @@ class IO(threading.Thread, state.StatefulBase):
         :param read_queue: Queue for sending frames to the channel
 
         """
-        self._channels[int(channel)] = read_queue
+        with self._lock:
+            self._channels[int(channel)] = read_queue
+
+    def close(self) -> None:
+        """Close the socket and set the proper event states"""
+        with self._lock:
+            self._events.clear(rabbitpy.events.SOCKET_OPENED)
+            self._close_socket()
+            self._closed.set()
+            self._events.set(rabbitpy.events.SOCKET_CLOSED)
 
     @property
     def bytes_received(self) -> int:
@@ -111,38 +97,28 @@ class IO(threading.Thread, state.StatefulBase):
             return self._bytes_written
 
     @property
+    def is_connected(self):
+        """Returns True if the socket is connected"""
+        with self._lock:
+            return not self._closed.is_set()
+
+    @property
     def remote_name(self) -> str:
         """Return the remote name of the socket"""
-        return self._remote_name
+        with self._lock:
+            return self._remote_name
 
     def write_frame(self, channel: int, frame_value: base.Frame) -> None:
         with self._lock:
             payload = frame.marshal(frame_value, channel)
             self._write_buffer.append(payload)
 
-    def stop(self):
-        pass
-
-    def _close(self) -> None:
-        """Close the socket and set the proper event states"""
-        self._events.clear(rabbitpy.events.SOCKET_OPENED)
-        self._set_state(self.CLOSING)
-        if hasattr(self, '_socket'):
-            self._close_socket()
-        if not self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
-            self._events.set(rabbitpy.events.SOCKET_CLOSED)
-        if not self.is_closed:
-            self._set_state(self.CLOSED)
-
     def _close_socket(self) -> None:
-        if hasattr(self, '_ioloop'):
-            self._ioloop.remove_reader(self._socket)
-            self._ioloop.remove_writer(self._socket)
-        try:
-            self._socket.shutdown(socket.SHUT_RDWR)
-            self._socket.close()
-        except OSError:
-            pass
+        """Close the socket, removing the FDs from the IOLoop"""
+        self._ioloop.remove_reader(self._socket)
+        self._ioloop.remove_writer(self._socket)
+        self._socket.shutdown(socket.SHUT_RDWR)
+        self._socket.close()
 
     async def _connect(self) -> None:
         """Connect to the RabbitMQ Server
@@ -150,7 +126,6 @@ class IO(threading.Thread, state.StatefulBase):
         :raises: ConnectionException
 
         """
-        self._set_state(self.OPENING)
         sock = None
         for (addr_family, sock_type, protocol, _cname, sock_addr) \
                 in self._get_addr_info():
@@ -158,8 +133,9 @@ class IO(threading.Thread, state.StatefulBase):
                 sock = self._create_socket(addr_family, sock_type, protocol)
                 sock.connect(sock_addr)
             except OSError as error:
-                LOGGER.debug('Error connecting to %r: %s', sock_addr, error)
+                sock.close()
                 sock = None
+                LOGGER.debug('Error connecting to %r: %s', sock_addr, error)
                 continue
             else:
                 break
@@ -171,11 +147,11 @@ class IO(threading.Thread, state.StatefulBase):
             self._events.set(rabbitpy.events.EXCEPTION_RAISED)
             return
 
+        self._closed.clear()
         self._socket = sock
         self._socket.setblocking(False)
         self._socket.settimeout(self._timeout)
         self._events.set(rabbitpy.events.SOCKET_OPENED)
-        self._set_state(self.OPEN)
 
     def _create_socket(self,
                        address_family: int,
@@ -193,10 +169,6 @@ class IO(threading.Thread, state.StatefulBase):
         if context:
             return context.wrap_socket(sock=sock)
         return sock
-
-    def _disconnect_socket(self) -> None:
-        """Close the existing socket connection"""
-        self._socket.close()
 
     def _get_addr_info(self) -> AddrInfo:
         family = socket.AF_UNSPEC
@@ -231,14 +203,6 @@ class IO(threading.Thread, state.StatefulBase):
                     ssl_context.check_hostname = False
             return ssl_context
         return None
-
-    def _on_connection_lost(self, error: typing.Optional[Exception]) -> None:
-        LOGGER.exception('Connection lost: %r', error)
-        with self._lock:
-            if error:
-                self._exceptions.put(error)
-                self._events.set(rabbitpy.events.EXCEPTION_RAISED)
-            self._events.set(rabbitpy.events.SOCKET_CLOSED)
 
     @staticmethod
     def _on_data_received(value: bytes) \
@@ -288,7 +252,7 @@ class IO(threading.Thread, state.StatefulBase):
             except IndexError:
                 return
             try:
-                bytes_written =  self._socket.send(payload)
+                self._socket.sendall(payload)
             except socket.timeout:
                 LOGGER.warning('Timed out writing %i bytes to socket',
                                len(payload))
@@ -300,7 +264,7 @@ class IO(threading.Thread, state.StatefulBase):
                 else:
                     self._on_error(error)
             else:
-                self._bytes_written += bytes_written
+                self._bytes_written += len(payload)
 
     def _on_error(self, exception: OSError) -> None:
         """Common functions when a socket error occurs. Make sure to set closed
@@ -320,3 +284,22 @@ class IO(threading.Thread, state.StatefulBase):
         """
         self._exceptions.put(rabbitpy.exceptions.ConnectionException(*args))
         self._events.set(rabbitpy.events.EXCEPTION_RAISED)
+
+    async def _run(self):
+        """Core logic that connects and blocks until the socket is closed"""
+        self._ioloop = asyncio.get_running_loop()
+
+        await self._connect()
+
+        if not self._socket:
+            return
+
+        self._ioloop.add_reader(self._socket, self._on_read_ready)
+        self._ioloop.add_writer(self._socket, self._on_write_ready)
+
+        local_sock = self._socket.getsockname()
+        peer_sock = self._socket.getpeername()
+        self._remote_name = \
+            f'{local_sock[0]}:{local_sock[1]} -> {peer_sock[0]}:{peer_sock[1]}'
+
+        await self._closed.wait()

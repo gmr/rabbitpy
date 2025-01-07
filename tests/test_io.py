@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import queue
+import random
 import struct
 import typing
 import unittest
@@ -51,7 +52,7 @@ class TestIO(TestCase):
         self.assertIsInstance(self.io._channels, dict)
         self.assertIsInstance(self.io._events, events.Events)
         self.assertIsInstance(self.io._exceptions, queue.Queue)
-        self.assertFalse(self.io._running.is_set())
+        self.assertFalse(self.io.is_connected)
 
     def test_on_data_received(self):
         data_in = (
@@ -103,6 +104,16 @@ class TestIO(TestCase):
         with self.assertRaises(queue.Empty):
             self.exceptions.get(False)
 
+    def test_connect_failure(self):
+        instance = io.IO(
+            'localhost', random.randint(1024, 32768),  # noqa: S311
+            False, {}, self.events, self.exceptions)
+        instance.start()
+        self.assertIsInstance(
+            self.exceptions.get(True, 3),
+            rabbitpy.exceptions.ConnectionException)
+        self.assertFalse(self.io.is_connected)
+
 
 class MockServer(asyncio.Protocol):
 
@@ -124,10 +135,16 @@ class MockServer(asyncio.Protocol):
                      transport.get_extra_info('peername'))
 
     def data_received(self, data):
+        LOGGER.debug('Received %r', data)
         if self._expectation and data != self._expectation:
             return self._transport.write(b'Bad data: ' + data)
         if self._response:
             self._transport.write(self._response)
+
+        # Connection.CloseOk
+        if data == '\x01\x00\x00\x00\x00\x00\x04\x00\n\x003\xce':
+            LOGGER.debug('Closing connection')
+            self._transport.close()
 
     def set_expectation(self, expectation: bytes):
         self._expectation = expectation
@@ -136,9 +153,9 @@ class MockServer(asyncio.Protocol):
         self._response = response
 
 
-class SocketCommunicationTestCase(mixins.EnvironmentVariableMixin,
-                                  TestCase,
-                                  unittest.IsolatedAsyncioTestCase):
+class MockServerTestCase(mixins.EnvironmentVariableMixin,
+                         TestCase,
+                         unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         loop = asyncio.get_running_loop()
@@ -153,6 +170,7 @@ class SocketCommunicationTestCase(mixins.EnvironmentVariableMixin,
         self.io.start()
         connected = self.events.wait(rabbitpy.events.SOCKET_OPENED, 3)
         self.assertTrue(connected, 'Timeout waiting for SOCKET_OPENED event')
+        self.assertTrue(self.io.is_connected)
 
     async def asyncTearDown(self):
         self.server.close()
@@ -174,7 +192,11 @@ class SocketCommunicationTestCase(mixins.EnvironmentVariableMixin,
         raise AssertionError('No MockServer found')
 
     async def write_protocol_header(self):
-        self.io.write_frame(0, header.ProtocolHeader())
+        await self.write_frame(0, header.ProtocolHeader())
+        self.assertEqual(self.io.bytes_written, 8)
+
+    async def write_frame(self, channel: int, frame):
+        self.io.write_frame(channel, frame)
         await asyncio.sleep(0.1)
 
     async def test_on_read_ready(self):
@@ -244,3 +266,17 @@ class SocketCommunicationTestCase(mixins.EnvironmentVariableMixin,
         self.assertEqual(self.io.bytes_received, 12)
         frame = self.read_queue.get(True, 3)
         self.assertIsInstance(frame, commands.Tx.RollbackOk)
+
+    async def test_remote_name(self):
+        mock_server = await self.get_mock_server()
+        remote = mock_server._transport.get_extra_info('sockname')
+        local = self.io._socket.getsockname()
+        self.assertEqual(
+            self.io.remote_name,
+            f'{local[0]}:{local[1]} -> {remote[0]}:{remote[1]}')
+
+    async def test_close(self):
+        _mock_server = await self.get_mock_server()
+        self.io.close()
+        self.assertTrue(self.events.is_set(events.SOCKET_CLOSED))
+        self.assertFalse(self.io.is_connected)
