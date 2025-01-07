@@ -12,7 +12,6 @@ from pamqp import base, frame
 
 import rabbitpy.events
 import rabbitpy.exceptions
-from rabbitpy import state
 
 LOGGER = logging.getLogger(__name__)
 MAX_BUFFER_PROCESSING_RETRIES = 5
@@ -63,7 +62,14 @@ class IO(threading.Thread):
         self._write_queue: queue.Queue = queue.Queue()
 
     def run(self):
-        asyncio.run(self._run())
+        try:
+            asyncio.run(self._run())
+        except asyncio.CancelledError:
+            LOGGER.debug('IO thread cancelled')
+            self.close()
+        except OSError as error:
+            LOGGER.exception('Socket error in the connection: %s', error)
+            self.close()
 
     def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
         """Add a channel to the channel queue dict for dispatching frames
@@ -109,16 +115,30 @@ class IO(threading.Thread):
             return self._remote_name
 
     def write_frame(self, channel: int, frame_value: base.Frame) -> None:
+        """Write an AMQP frame to the socket.
+
+        :raises: rabbitpy.exceptions.ConnectionException
+
+        """
+        if not self.is_connected:
+            raise rabbitpy.exceptions.ConnectionException(
+                self._host, self._port, 'Not connected')
         with self._lock:
             payload = frame.marshal(frame_value, channel)
             self._write_buffer.append(payload)
 
     def _close_socket(self) -> None:
         """Close the socket, removing the FDs from the IOLoop"""
-        self._ioloop.remove_reader(self._socket)
-        self._ioloop.remove_writer(self._socket)
-        self._socket.shutdown(socket.SHUT_RDWR)
-        self._socket.close()
+        try:
+            self._ioloop.remove_reader(self._socket)
+            self._ioloop.remove_writer(self._socket)
+        except (AttributeError, IndexError):
+            pass
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+            self._socket.close()
+        except (AttributeError, OSError):
+            pass
 
     async def _connect(self) -> None:
         """Connect to the RabbitMQ Server
@@ -173,6 +193,7 @@ class IO(threading.Thread):
     def _get_addr_info(self) -> AddrInfo:
         family = socket.AF_UNSPEC
         if not socket.has_ipv6:
+            LOGGER.info('IPv6 is not available, falling back to IPv4')
             family = socket.AF_INET
         try:
             res = socket.getaddrinfo(
@@ -186,6 +207,9 @@ class IO(threading.Thread):
         """Return the configured SSLContext to use if needed"""
         if self._use_ssl:
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            if self._ssl_options.get('check_hostname') is not None:
+                ssl_context.check_hostname = \
+                    self._ssl_options['check_hostname']
             if self._ssl_options.get('cafile') \
                     or self._ssl_options.get('capath'):
                 ssl_context.load_verify_locations(
@@ -199,8 +223,6 @@ class IO(threading.Thread):
                     self._ssl_options.get('keyfile'))
             if self._ssl_options.get('verify') is not None:
                 ssl_context.verify_mode = self._ssl_options['verify']
-                if self._ssl_options.get('verify') == ssl.CERT_NONE:
-                    ssl_context.check_hostname = False
             return ssl_context
         return None
 
@@ -238,10 +260,6 @@ class IO(threading.Thread):
                     break
                 self._buffer = remaining
                 self._bytes_read += bytes_read
-                if channel_id not in self._channels:
-                    self._exceptions.put(
-                        rabbitpy.exceptions.ReceivedOnClosedChannelException(
-                            channel_id))
                 self._channels[channel_id].put(frame_value)
 
     def _on_write_ready(self) -> None:
@@ -289,14 +307,14 @@ class IO(threading.Thread):
         """Core logic that connects and blocks until the socket is closed"""
         self._ioloop = asyncio.get_running_loop()
 
-        await self._connect()
+        with self._lock:
+            await self._connect()
 
         if not self._socket:
             return
 
         self._ioloop.add_reader(self._socket, self._on_read_ready)
         self._ioloop.add_writer(self._socket, self._on_write_ready)
-
         local_sock = self._socket.getsockname()
         peer_sock = self._socket.getpeername()
         self._remote_name = \

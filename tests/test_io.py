@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import pathlib
 import queue
 import random
+import ssl
 import struct
 import typing
 import unittest
@@ -113,6 +115,36 @@ class TestIO(TestCase):
             self.exceptions.get(True, 3),
             rabbitpy.exceptions.ConnectionException)
         self.assertFalse(self.io.is_connected)
+
+    def test_disconnected_close(self):
+        self.io.close()
+
+    def test_write_frame_when_closed(self):
+        with self.assertRaises(exceptions.ConnectionException):
+            self.io.write_frame(0, commands.Connection.Start())
+
+    def test_get_ssl_context(self):
+        self.io._use_ssl = True
+        self.io._ssl_options = {
+            'check_hostname': False,
+            'verify': ssl.CERT_NONE
+        }
+        context = self.io._get_ssl_context()
+        self.assertIsInstance(context, ssl.SSLContext)
+        self.assertFalse(context.check_hostname)
+
+    def test_get_ssl_context_certs(self):
+        data_path = pathlib.Path(__file__).parent.resolve() / 'data'
+        self.io._use_ssl = True
+        self.io._ssl_options = {
+            'ca_certs': data_path / 'ca.crt',
+            'certfile': data_path / 'client.crt',
+            'keyfile': data_path / 'client.key',
+            'verify': ssl.CERT_REQUIRED
+        }
+        context = self.io._get_ssl_context()
+        self.assertIsInstance(context, ssl.SSLContext)
+        self.assertTrue(context.check_hostname)
 
 
 class MockServer(asyncio.Protocol):
