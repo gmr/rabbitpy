@@ -51,6 +51,7 @@ def parse(url: str = DEFAULT_URL) -> dict:
         - frame_max
         - locale
         - cacertfile - Path to CA certificate file
+        - capath - Path to directory containing CA certificates
         - certfile - Path to client certificate file
         - keyfile - Path to client certificate key
         - verify - Server certificate validation requirements (1)
