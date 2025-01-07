@@ -61,16 +61,6 @@ class IO(threading.Thread):
         self._write_buffer = collections.deque()
         self._write_queue: queue.Queue = queue.Queue()
 
-    def run(self):
-        try:
-            asyncio.run(self._run())
-        except asyncio.CancelledError:
-            LOGGER.debug('IO thread cancelled')
-            self.close()
-        except OSError as error:
-            LOGGER.exception('Socket error in the connection: %s', error)
-            self.close()
-
     def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
         """Add a channel to the channel queue dict for dispatching frames
         to the channel.
@@ -89,6 +79,27 @@ class IO(threading.Thread):
             self._close_socket()
             self._closed.set()
             self._events.set(rabbitpy.events.SOCKET_CLOSED)
+
+    def run(self) -> None:
+        """Run the IO thread, invoked by calling IO.start()"""
+        try:
+            asyncio.run(self._run())
+        except asyncio.CancelledError:
+            LOGGER.debug('IO thread cancelled')
+            self.close()
+        except OSError as error:
+            self._on_error(error)
+            self.close()
+
+    def write_frame(self, channel: int, frame_value: base.Frame) -> None:
+        """Write an AMQP frame to the socket."""
+        if not self.is_connected:
+            return self._add_exception(
+                rabbitpy.exceptions.ConnectionException(
+                    self._host, self._port, 'Not connected'))
+        with self._lock:
+            payload = frame.marshal(frame_value, channel)
+            self._write_buffer.append(payload)
 
     @property
     def bytes_received(self) -> int:
@@ -114,18 +125,13 @@ class IO(threading.Thread):
         with self._lock:
             return self._remote_name
 
-    def write_frame(self, channel: int, frame_value: base.Frame) -> None:
-        """Write an AMQP frame to the socket.
+    # Internal Methods
 
-        :raises: rabbitpy.exceptions.ConnectionException
-
-        """
-        if not self.is_connected:
-            raise rabbitpy.exceptions.ConnectionException(
-                self._host, self._port, 'Not connected')
-        with self._lock:
-            payload = frame.marshal(frame_value, channel)
-            self._write_buffer.append(payload)
+    def _add_exception(self, exc: Exception) -> None:
+        """Add an exception to the exception queue"""
+        LOGGER.debug('Adding exception %r', exc)
+        self._exceptions.put(exc)
+        self._events.set(rabbitpy.events.EXCEPTION_RAISED)
 
     def _close_socket(self) -> None:
         """Close the socket, removing the FDs from the IOLoop"""
@@ -149,6 +155,7 @@ class IO(threading.Thread):
         sock = None
         for (addr_family, sock_type, protocol, _cname, sock_addr) \
                 in self._get_addr_info():
+            LOGGER.debug('Attempting to connect to %r', sock_addr)
             try:
                 sock = self._create_socket(addr_family, sock_type, protocol)
                 sock.connect(sock_addr)
@@ -161,11 +168,9 @@ class IO(threading.Thread):
                 break
 
         if not sock:
-            self._exceptions.put(
+            return self._add_exception(
                 rabbitpy.exceptions.ConnectionException(
                     self._host, self._port, 'Could not connect'))
-            self._events.set(rabbitpy.events.EXCEPTION_RAISED)
-            return
 
         self._closed.clear()
         self._socket = sock
@@ -191,15 +196,12 @@ class IO(threading.Thread):
         return sock
 
     def _get_addr_info(self) -> AddrInfo:
-        family = socket.AF_UNSPEC
-        if not socket.has_ipv6:
-            LOGGER.info('IPv6 is not available, falling back to IPv4')
-            family = socket.AF_INET
+        family = socket.AF_UNSPEC if socket.has_ipv6 else socket.AF_INET
         try:
             res = socket.getaddrinfo(
                 self._host, self._port, family, socket.SOCK_STREAM, 0)
         except OSError as error:
-            LOGGER.exception('Could not resolve %s: %s', self._host, error)
+            LOGGER.debug('Could not resolve %s: %s', self._host, error)
             return []
         return res
 
@@ -246,6 +248,24 @@ class IO(threading.Thread):
             return value, None, None, 0
         return value[byte_count:], channel_id, frame_in, byte_count
 
+    def _on_error(self, exception: OSError) -> None:
+        """Common functions when a socket error occurs. Make sure to set closed
+        and add the exception, and note an exception event.
+
+        :param exception: The socket error
+
+        """
+        if self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
+            return
+        args = [self._host, self._port, str(exception)]
+        """
+        if self._channels[0][0].open:
+            self._exceptions.put(
+                rabbitpy_exceptions.ConnectionResetException(*args))
+        else:
+        """
+        self._add_exception(rabbitpy.exceptions.ConnectionException(*args))
+
     def _on_read_ready(self) -> None:
         """Append the data that is read to the buffer and try and parse
         frames out of it.
@@ -276,32 +296,13 @@ class IO(threading.Thread):
                                len(payload))
                 self._write_buffer.appendleft(payload)
             except OSError as error:
+                self._write_buffer.appendleft(payload)
                 if error.errno == 35:
                     LOGGER.debug('socket resource temp unavailable')
-                    self._write_buffer.appendleft(payload)
                 else:
                     self._on_error(error)
             else:
                 self._bytes_written += len(payload)
-
-    def _on_error(self, exception: OSError) -> None:
-        """Common functions when a socket error occurs. Make sure to set closed
-        and add the exception, and note an exception event.
-
-        :param exception: The socket error
-
-        """
-        if self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
-            return
-        args = [self._host, self._port, str(exception)]
-        """
-        if self._channels[0][0].open:
-            self._exceptions.put(
-                rabbitpy_exceptions.ConnectionResetException(*args))
-        else:
-        """
-        self._exceptions.put(rabbitpy.exceptions.ConnectionException(*args))
-        self._events.set(rabbitpy.events.EXCEPTION_RAISED)
 
     async def _run(self):
         """Core logic that connects and blocks until the socket is closed"""

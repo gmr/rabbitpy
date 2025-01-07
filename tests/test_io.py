@@ -3,11 +3,14 @@ import logging
 import pathlib
 import queue
 import random
+import socket
 import ssl
 import struct
 import typing
 import unittest
+from unittest import mock
 
+import pamqp.frame
 from pamqp import commands, constants, header
 
 import rabbitpy.events
@@ -15,6 +18,8 @@ from rabbitpy import events, exceptions, io, url_parser
 from tests import mixins
 
 LOGGER = logging.getLogger(__name__)
+
+DATA_PATH = pathlib.Path(__file__).parent.resolve() / 'data'
 
 
 class TestCase(unittest.TestCase):
@@ -25,6 +30,11 @@ class TestCase(unittest.TestCase):
         self.exceptions = queue.Queue()
         self.read_queue = queue.Queue()
         self.write_queue = queue.Queue()
+
+    def assertExceptionAdded(self, expectation):
+        error = self.exceptions.get(False)
+        self.assertIsInstance(error, expectation)
+        self.assertTrue(self.events.is_set(events.EXCEPTION_RAISED))
 
     def tearDown(self):
         try:
@@ -96,9 +106,7 @@ class TestIO(TestCase):
 
     def test_on_error(self):
         self.io._on_error(OSError('Foo'))
-        error = self.exceptions.get(True, 3)
-        self.assertIsInstance(error, exceptions.ConnectionException)
-        self.assertTrue(self.events.is_set(events.EXCEPTION_RAISED))
+        self.assertExceptionAdded(exceptions.ConnectionException)
 
     def test_on_error_already_closed(self):
         self.events.set(events.SOCKET_CLOSED)
@@ -111,19 +119,26 @@ class TestIO(TestCase):
             'localhost', random.randint(1024, 32768),  # noqa: S311
             False, {}, self.events, self.exceptions)
         instance.start()
-        self.assertIsInstance(
-            self.exceptions.get(True, 3),
-            rabbitpy.exceptions.ConnectionException)
+        connected = self.events.wait(rabbitpy.events.SOCKET_OPENED, 1)
+        self.assertFalse(connected, 'Should not have connected')
+        self.assertExceptionAdded(exceptions.ConnectionException)
         self.assertFalse(self.io.is_connected)
 
     def test_disconnected_close(self):
         self.io.close()
 
     def test_write_frame_when_closed(self):
-        with self.assertRaises(exceptions.ConnectionException):
-            self.io.write_frame(0, commands.Connection.Start())
+        self.io.write_frame(0, commands.Connection.Start())
+        self.assertExceptionAdded(exceptions.ConnectionException)
 
     def test_get_ssl_context(self):
+        self.io._use_ssl = True
+        self.io._ssl_options = {}
+        context = self.io._get_ssl_context()
+        self.assertIsInstance(context, ssl.SSLContext)
+        self.assertTrue(context.check_hostname)
+
+    def test_get_ssl_context_verify_none(self):
         self.io._use_ssl = True
         self.io._ssl_options = {
             'check_hostname': False,
@@ -134,17 +149,17 @@ class TestIO(TestCase):
         self.assertFalse(context.check_hostname)
 
     def test_get_ssl_context_certs(self):
-        data_path = pathlib.Path(__file__).parent.resolve() / 'data'
         self.io._use_ssl = True
         self.io._ssl_options = {
-            'ca_certs': data_path / 'ca.crt',
-            'certfile': data_path / 'client.crt',
-            'keyfile': data_path / 'client.key',
+            'cafile': DATA_PATH / 'ca.crt',
+            'certfile': DATA_PATH / 'client.crt',
+            'keyfile': DATA_PATH / 'client.key',
             'verify': ssl.CERT_REQUIRED
         }
         context = self.io._get_ssl_context()
         self.assertIsInstance(context, ssl.SSLContext)
         self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
 
 
 class MockServer(asyncio.Protocol):
@@ -188,21 +203,17 @@ class MockServer(asyncio.Protocol):
 class MockServerTestCase(mixins.EnvironmentVariableMixin,
                          TestCase,
                          unittest.IsolatedAsyncioTestCase):
+
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        loop = asyncio.get_running_loop()
-        self.server = await loop.create_server(MockServer, '127.0.0.1')
-        args = url_parser.parse(
-            f'amqp://127.0.0.1:{self.server.sockets[0].getsockname()[1]}')
-        self.io = io.IO(
+        self.server = await self._create_server()
+        args = self._get_io_args()
+        LOGGER.debug('Connection args: %r', args)
+        self.io =  io.IO(
             args['host'], args['port'], args['ssl'], args['ssl_options'],
             self.events, self.exceptions)
         self.io.add_channel(0, self.read_queue)
         self.io.add_channel(1, self.read_queue)
-        self.io.start()
-        connected = self.events.wait(rabbitpy.events.SOCKET_OPENED, 3)
-        self.assertTrue(connected, 'Timeout waiting for SOCKET_OPENED event')
-        self.assertTrue(self.io.is_connected)
 
     async def asyncTearDown(self):
         self.server.close()
@@ -223,13 +234,35 @@ class MockServerTestCase(mixins.EnvironmentVariableMixin,
             await asyncio.sleep(delay)
         raise AssertionError('No MockServer found')
 
+    async def write_frame(self, channel: int, frame):
+        self.io.write_frame(channel, frame)
+        await asyncio.sleep(0.1)
+
     async def write_protocol_header(self):
         await self.write_frame(0, header.ProtocolHeader())
         self.assertEqual(self.io.bytes_written, 8)
 
-    async def write_frame(self, channel: int, frame):
-        self.io.write_frame(channel, frame)
-        await asyncio.sleep(0.1)
+    def _get_io_args(self):
+        return url_parser.parse(f'amqp://127.0.0.1:{self._server_port}')
+
+    @staticmethod
+    async def _create_server():
+        loop = asyncio.get_running_loop()
+        return await loop.create_server(MockServer, '127.0.0.1')
+
+    @property
+    def _server_port(self):
+        return self.server.sockets[0].getsockname()[1]
+
+
+class MockServerConnectedTestCase(MockServerTestCase):
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.io.start()
+        connected = self.events.wait(rabbitpy.events.SOCKET_OPENED, 3)
+        self.assertTrue(connected, 'Timeout waiting for SOCKET_OPENED event')
+        self.assertTrue(self.io.is_connected)
 
     async def test_on_read_ready(self):
         mock_server = await self.get_mock_server()
@@ -312,3 +345,126 @@ class MockServerTestCase(mixins.EnvironmentVariableMixin,
         self.io.close()
         self.assertTrue(self.events.is_set(events.SOCKET_CLOSED))
         self.assertFalse(self.io.is_connected)
+
+
+class EdgeCaseMockServerTestCase(MockServerTestCase):
+
+    @mock.patch('socket.getaddrinfo')
+    async def test_error_on_getaddrinfo(self, mock_getaddrinfo):
+        mock_getaddrinfo.side_effect = OSError('Foo')
+        self.io.start()
+        await asyncio.sleep(0.1)
+        self.assertFalse(self.io.is_connected)
+        self.assertExceptionAdded(exceptions.ConnectionException)
+
+    async def test_write_ready_socket_timeout(self):
+        with mock.patch('socket.socket.sendall') as mock_sendall:
+            mock_sendall.side_effect = socket.timeout
+            self.io.start()
+            await asyncio.sleep(0.1)
+            self.assertEqual(self.io.bytes_written, 0)
+
+            self.io.write_frame(1, commands.Tx.RollbackOk())
+            self.io._on_write_ready()
+            self.assertEqual(self.io.bytes_written, 0)
+
+            # a timeout should have the frame placed back on the top of stack
+            value = self.io._write_buffer.popleft()
+            expectation = pamqp.frame.marshal(commands.Tx.RollbackOk(), 1)
+            self.assertEqual(value, expectation)
+
+    async def test_write_ready_socket_oserror(self):
+        with mock.patch('socket.socket.sendall') as mock_sendall:
+            self.io.start()
+            await asyncio.sleep(0.1)
+            mock_sendall.side_effect = OSError('Foo')
+            self.io.write_frame(1, commands.Tx.RollbackOk())
+            self.io._on_write_ready()
+
+            self.assertEqual(self.io.bytes_written, 0)
+
+            # a timeout should have the frame placed back on the top of stack
+            value = self.io._write_buffer.popleft()
+            expectation = pamqp.frame.marshal(commands.Tx.RollbackOk(), 1)
+            self.assertEqual(value, expectation)
+
+            self.assertExceptionAdded(exceptions.ConnectionException)
+
+    async def test_write_ready_socket_errno_35(self):
+        with mock.patch('socket.socket.sendall') as mock_sendall:
+            self.io.start()
+            await asyncio.sleep(0.1)
+            mock_sendall.side_effect = Error35(35, 'Mock Error 35')
+            self.io.write_frame(1, commands.Tx.RollbackOk())
+            self.io._on_write_ready()
+            self.assertEqual(self.io.bytes_written, 0)
+
+            # a timeout should have the frame placed back on the top of stack
+            value = self.io._write_buffer.popleft()
+            expectation = pamqp.frame.marshal(commands.Tx.RollbackOk(), 1)
+            self.assertEqual(value, expectation)
+
+            # No exception should have been added
+            with self.assertRaises(queue.Empty):
+                self.exceptions.get(False)
+
+    async def test_run_asyncio_cancelled(self):
+        with mock.patch.object(self.io, '_run') as mock_run:
+            mock_run.side_effect = asyncio.CancelledError()
+            self.io.start()
+            self.assertFalse(self.io.is_connected)
+
+    async def test_run_oserror(self):
+        with mock.patch.object(self.io, '_run') as mock_run:
+            mock_run.side_effect = OSError('Mock Error')
+            self.io.start()
+            self.assertFalse(self.io.is_connected)
+        await asyncio.sleep(0.1)
+        self.assertExceptionAdded(exceptions.ConnectionException)
+
+
+class SSLMockServerTestCase(MockServerTestCase):
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.io.start()
+        await asyncio.sleep(0.1)
+
+    @staticmethod
+    async def _create_server():
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_verify_locations(DATA_PATH / 'ca.crt')
+        context.load_cert_chain(
+            DATA_PATH / 'server.crt',
+            DATA_PATH / 'server.key')
+        loop = asyncio.get_running_loop()
+        server = await loop.create_server(MockServer, '127.0.0.1', ssl=context)
+        LOGGER.debug("Mock server running on: %s",
+                     server.sockets[0].getsockname())
+        return server
+
+    def _get_io_args(self):
+        return url_parser.parse(
+            f'amqps://127.0.0.1:{self._server_port}?'
+            f'ssl_check_hostname=false&ssl_verify=ignore&'
+            f'cafile=tests%2Fdata%2Fca.crt')
+
+    async def test_on_data_received(self):
+        mock_server = await self.get_mock_server()
+        mock_server.set_expectation(b'AMQP\x00\x00\t\x01')
+        mock_server.set_response(
+            b'\x01\x00\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce\x01\x00\x00')
+
+        await self.write_protocol_header()
+
+        self.assertEqual(self.io._buffer, b'\x01\x00\x00')
+        self.assertEqual(self.io.bytes_received, 12)
+        frame = self.read_queue.get(True, 3)
+        self.assertIsInstance(frame, commands.Tx.RollbackOk)
+
+
+class Error35(OSError):
+    """Mock Exception for socket.error errno=35"""
+    def __init__(self, errno, *args):
+        super().__init__(*args)
+        self.errno = errno

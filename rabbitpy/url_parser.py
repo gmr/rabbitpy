@@ -112,7 +112,8 @@ def parse(url: str = DEFAULT_URL) -> dict:
         'locale': _query_args_value('locale', query_args),
         'ssl': use_ssl,
         'ssl_options': {
-            'check_hostname': query_args.get('ssl_check_hostname', '').lower()
+            'check_hostname': _query_args_value(
+                'ssl_check_hostname', query_args, '').lower()
                               not in ('0', 'false', 'no'),
             'cafile': _query_args_mk_value(
                 ['cacertfile', 'ssl_cacert', 'cafile'], query_args),
