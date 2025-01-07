@@ -54,12 +54,19 @@ def parse(url: str = DEFAULT_URL) -> dict:
         - certfile - Path to client certificate file
         - keyfile - Path to client certificate key
         - verify - Server certificate validation requirements (1)
+        - ssl_check_hostname - Whether to validate the server hostname (2)
 
         (1) Should be one of three values:
 
            - ignore - Ignore the cert if provided (default)
            - optional - Cert is validated if provided
            - required - Cert is required and validated
+
+        (2) Should be one of the following values:
+
+            - 0, false, no - Do not validate the server hostname
+            - 1, true, yes - Validate the server hostname
+
 
     :param url: The AMQP url passed in
     :raises: ValueError
@@ -104,8 +111,11 @@ def parse(url: str = DEFAULT_URL) -> dict:
         'locale': _query_args_value('locale', query_args),
         'ssl': use_ssl,
         'ssl_options': {
-            'cacertfile': _query_args_mk_value(
-                ['cacertfile', 'ssl_cacert'], query_args),
+            'check_hostname': query_args.get('ssl_check_hostname', '').lower()
+                              not in ('0', 'false', 'no'),
+            'cafile': _query_args_mk_value(
+                ['cacertfile', 'ssl_cacert', 'cafile'], query_args),
+            'capath': _query_args_value('capath', query_args),
             'certfile': _query_args_mk_value(
                 ['certfile', 'ssl_cert'], query_args),
             'keyfile': _query_args_mk_value(
@@ -179,7 +189,7 @@ def _query_args_ssl_validation(values: dict) -> typing.Union[int, None]:
     """
     validation = _query_args_mk_value(['verify', 'ssl_validation'], values)
     if not validation:
-        return
+        return None
     elif validation not in SSL_CERT_MAP:
         raise ValueError(
             f'Unsupported server cert validation option: {validation}')
