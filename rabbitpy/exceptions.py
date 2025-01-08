@@ -7,11 +7,13 @@ Exceptions that may be raised by rabbitpy during use
 
 class RabbitpyException(Exception):
     """Base exception for all rabbitpy exceptions."""
+
     pass
 
 
 class AMQPException(RabbitpyException):
     """Base exception for all AMQP exceptions."""
+
     pass
 
 
@@ -31,8 +33,10 @@ class ChannelClosedException(RabbitpyException):
     """Raised when an action is attempted on a channel that is closed."""
 
     def __str__(self):
-        return 'Can not perform RPC requests on a closed channel, you must ' \
-               'create a new channel'
+        return (
+            'Can not perform RPC requests on a closed channel, you must '
+            'create a new channel'
+        )
 
 
 class ConnectionException(RabbitpyException):
@@ -81,8 +85,8 @@ class RemoteClosedChannelException(RabbitpyException):
     """
 
     def __str__(self):
-        return 'Channel {0} was closed by the remote server ' \
-               '({1}): {2}'.format(*self.args)
+        return f'Channel {self.args[0]} was closed by the remote server ' \
+               f'({self.args[1]}): {self.args[2]}'
 
 
 class RemoteClosedException(RabbitpyException):
@@ -92,8 +96,8 @@ class RemoteClosedException(RabbitpyException):
     """
 
     def __str__(self):
-        return 'Connection was closed by the remote server ' \
-               '({0}): {1}'.format(*self.args)
+        return f'Connection was closed by the remote server ' \
+               f'({self.args[0]}): {self.args[1]}'
 
 
 class MessageReturnedException(RabbitpyException):
@@ -103,8 +107,8 @@ class MessageReturnedException(RabbitpyException):
     """
 
     def __str__(self):
-        return 'Message was returned by RabbitMQ: ({0}) ' \
-               'for exchange {1}'.format(*self.args)
+        return f'Message was returned by RabbitMQ: ({self.args[0]}) ' \
+               f'for exchange {self.args[1]}'
 
 
 class NoActiveTransactionError(RabbitpyException):
@@ -134,7 +138,14 @@ class NotSupportedError(RabbitpyException):
     """
 
     def __str__(self):
-        return 'The selected feature "{0}" is not supported'.format(self.args)
+        return f'The selected feature "{self.args}" is not supported'
+
+
+class ReceivedOnClosedChannelException(RabbitpyException):
+    """Raised when RabbitMQ sends an RPC on a channel that is closed."""
+
+    def __str__(self):
+        return f'RabbitMQ sent a frame on a closed channel ({self.args[0]})'
 
 
 class TooManyChannelsError(RabbitpyException):
@@ -157,8 +168,8 @@ class UnexpectedResponseError(RabbitpyException):
     """
 
     def __str__(self):
-        return 'Received an expected response, expected {0}, ' \
-               'received {1}'.format(*self.args)
+        return f'Received an expected response, expected {self.args[0]}, ' \
+               f'received {self.args[1]}'
 
 
 # AMQP Exceptions
@@ -170,6 +181,7 @@ class AMQPContentTooLarge(AMQPException):
     accept at the present time. The client may retry at a later time.
 
     """
+
     pass
 
 
@@ -178,6 +190,7 @@ class AMQPNoRoute(AMQPException):
     Undocumented AMQP Soft Error
 
     """
+
     pass
 
 
@@ -188,6 +201,7 @@ class AMQPNoConsumers(AMQPException):
     consumers of the queue.
 
     """
+
     pass
 
 
@@ -197,6 +211,7 @@ class AMQPAccessRefused(AMQPException):
     due to security settings.
 
     """
+
     pass
 
 
@@ -205,6 +220,7 @@ class AMQPNotFound(AMQPException):
     The client attempted to work with a server entity that does not exist.
 
     """
+
     pass
 
 
@@ -214,6 +230,7 @@ class AMQPResourceLocked(AMQPException):
     because another client is working with it.
 
     """
+
     pass
 
 
@@ -223,6 +240,7 @@ class AMQPPreconditionFailed(AMQPException):
     precondition failed.
 
     """
+
     pass
 
 
@@ -232,6 +250,7 @@ class AMQPConnectionForced(AMQPException):
     may retry at some later date.
 
     """
+
     pass
 
 
@@ -240,6 +259,7 @@ class AMQPInvalidPath(AMQPException):
     The client tried to work with an unknown virtual host.
 
     """
+
     pass
 
 
@@ -249,6 +269,7 @@ class AMQPFrameError(AMQPException):
     strongly implies a programming error in the sending peer.
 
     """
+
     pass
 
 
@@ -258,6 +279,7 @@ class AMQPSyntaxError(AMQPException):
     fields. This strongly implies a programming error in the sending peer.
 
     """
+
     pass
 
 
@@ -268,6 +290,7 @@ class AMQPCommandInvalid(AMQPException):
     programming error in the client.
 
     """
+
     pass
 
 
@@ -277,6 +300,7 @@ class AMQPChannelError(AMQPException):
     opened. This most likely indicates a fault in the client layer.
 
     """
+
     pass
 
 
@@ -287,6 +311,7 @@ class AMQPUnexpectedFrame(AMQPException):
     content processing.
 
     """
+
     pass
 
 
@@ -297,6 +322,7 @@ class AMQPResourceError(AMQPException):
     entity.
 
     """
+
     pass
 
 
@@ -306,6 +332,7 @@ class AMQPNotAllowed(AMQPException):
     the server, due to security settings or by some other criteria.
 
     """
+
     pass
 
 
@@ -315,6 +342,7 @@ class AMQPNotImplemented(AMQPException):
     server.
 
     """
+
     pass
 
 
@@ -325,6 +353,7 @@ class AMQPInternalError(AMQPException):
     operations.
 
     """
+
     pass
 
 
@@ -346,5 +375,5 @@ AMQP = {
     506: AMQPResourceError,
     530: AMQPNotAllowed,
     540: AMQPNotImplemented,
-    541: AMQPInternalError
+    541: AMQPInternalError,
 }
