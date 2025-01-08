@@ -7,8 +7,7 @@ class EnvironmentVariableMixin:
     @classmethod
     def setUpClass(cls):
         cls.os_environ = {}
-        path = pathlib.Path(__file__).parent.parent \
-               / 'build' / 'test.env'
+        path = pathlib.Path(__file__).parent.parent / 'build' / 'test.env'
         if not path.exists():
             sys.stderr.write('Failed to find test.env.file\n')
             return
