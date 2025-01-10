@@ -7,23 +7,35 @@ import ssl
 import threading
 import typing
 
+import pamqp.base
+import pamqp.body
 import pamqp.exceptions
-from pamqp import base, frame
+import pamqp.frame
+import pamqp.header
+import pamqp.heartbeat
 
 import rabbitpy.events
 import rabbitpy.exceptions
 
 LOGGER = logging.getLogger(__name__)
-MAX_BUFFER_PROCESSING_RETRIES = 5
 
 AddrInfo = typing.Union[
-    list[typing.Any],
-    list[tuple[socket.AddressFamily, socket.SocketKind, int, str,
-         tuple[str, int], tuple[str, int, int, int]]]
+    list[typing.Any],  # Fallback for unknown/variable types from getaddrinfo
+    list[
+        tuple[
+            socket.AddressFamily,
+            socket.SocketKind,
+            int,
+            str,
+            tuple[str, int],
+            typing.Optional[tuple[str, int, int, int]]  # IPv6 sockaddr
+        ]
+    ]
 ]
 
 
 class IO(threading.Thread):
+    """Handles asynchronous I/O for RabbitMQ connections."""
 
     def __init__(self,
                  host: str,
@@ -33,12 +45,8 @@ class IO(threading.Thread):
                  events: rabbitpy.events.Events,
                  exceptions: queue.Queue,
                  timeout: float = 0.01):
-        super().__init__(group=None,
-                         target=None,
-                         name='IO',
-                         args=(),
-                         kwargs={},
-                         daemon=True)
+        """Initialize the IO thread."""
+        super().__init__(daemon=True, name='IO')
         self._events = events
         self._exceptions = exceptions
         self._host = host
@@ -59,21 +67,14 @@ class IO(threading.Thread):
         self._remote_name: typing.Optional[str] = None
         self._socket: typing.Optional[socket.socket] = None
         self._write_buffer = collections.deque()
-        self._write_queue: queue.Queue = queue.Queue()
 
     def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
-        """Add a channel to the channel queue dict for dispatching frames
-        to the channel.
-
-        :param channel: The channel to add
-        :param read_queue: Queue for sending frames to the channel
-
-        """
+        """Associate a channel with a queue for frame dispatching."""
         with self._lock:
             self._channels[int(channel)] = read_queue
 
     def close(self) -> None:
-        """Close the socket and set the proper event states"""
+        """Close the socket and update event states."""
         with self._lock:
             self._events.clear(rabbitpy.events.SOCKET_OPENED)
             self._close_socket()
@@ -81,88 +82,88 @@ class IO(threading.Thread):
             self._events.set(rabbitpy.events.SOCKET_CLOSED)
 
     def run(self) -> None:
-        """Run the IO thread, invoked by calling IO.start()"""
+        """Run the I/O loop."""
         try:
             asyncio.run(self._run())
         except asyncio.CancelledError:
             LOGGER.debug('IO thread cancelled')
-            self.close()
         except OSError as error:
             self._on_error(error)
+        finally:
             self.close()
 
-    def write_frame(self, channel: int, frame_value: base.Frame) -> None:
+    def write_frame(self,
+                    channel: int,
+                    frame_value: pamqp.base.Frame) -> None:
         """Write an AMQP frame to the socket."""
         if not self.is_connected:
-            return self._add_exception(
+            self._add_exception(
                 rabbitpy.exceptions.ConnectionException(
                     self._host, self._port, 'Not connected'))
+            return
         with self._lock:
-            payload = frame.marshal(frame_value, channel)
+            payload = pamqp.frame.marshal(frame_value, channel)
             self._write_buffer.append(payload)
 
     @property
     def bytes_received(self) -> int:
-        """Return the number of bytes read/received from RabbitMQ"""
+        """Return the number of bytes received."""
         with self._lock:
             return self._bytes_read
 
     @property
     def bytes_written(self) -> int:
-        """Return the number of bytes written to RabbitMQ"""
+        """Return the number of bytes written."""
         with self._lock:
             return self._bytes_written
 
     @property
-    def is_connected(self):
-        """Returns True if the socket is connected"""
+    def is_connected(self) -> bool:
+        """Indicate socket connection status."""
         with self._lock:
             return not self._closed.is_set()
 
     @property
-    def remote_name(self) -> str:
-        """Return the remote name of the socket"""
+    def remote_name(self) -> typing.Optional[str]:
+        """Return the remote socket name."""
         with self._lock:
             return self._remote_name
 
     # Internal Methods
 
     def _add_exception(self, exc: Exception) -> None:
-        """Add an exception to the exception queue"""
+        """Add an exception to the exception queue and signal the event."""
         LOGGER.debug('Adding exception %r', exc)
         self._exceptions.put(exc)
         self._events.set(rabbitpy.events.EXCEPTION_RAISED)
 
     def _close_socket(self) -> None:
-        """Close the socket, removing the FDs from the IOLoop"""
-        try:
-            self._ioloop.remove_reader(self._socket)
-            self._ioloop.remove_writer(self._socket)
-        except (AttributeError, IndexError):
-            pass
-        try:
-            self._socket.shutdown(socket.SHUT_RDWR)
-            self._socket.close()
-        except (AttributeError, OSError):
-            pass
+        """Close the socket and remove it from the I/O loop."""
+        if self._socket is not None and self._ioloop is not None:
+            try:
+                self._ioloop.remove_reader(self._socket.fileno())
+                self._ioloop.remove_writer(self._socket.fileno())
+            except (AttributeError, IndexError, OSError):
+                pass
+            try:
+                self._socket.shutdown(socket.SHUT_RDWR)
+                self._socket.close()
+            except (AttributeError, OSError):
+                pass
+            self._socket = None
 
     async def _connect(self) -> None:
-        """Connect to the RabbitMQ Server
-
-        :raises: ConnectionException
-
-        """
+        """Establish a connection to the RabbitMQ server."""
         sock = None
-        for (addr_family, sock_type, protocol, _cname, sock_addr) \
-                in self._get_addr_info():
-            LOGGER.debug('Attempting to connect to %r', sock_addr)
+        for addr_info in self._get_addr_info():
+            LOGGER.debug('Attempting to connect to %r', addr_info[4])
             try:
-                sock = self._create_socket(addr_family, sock_type, protocol)
-                sock.connect(sock_addr)
+                sock = self._create_socket(*addr_info[0:3])
+                sock.connect(addr_info[4])
             except OSError as error:
                 sock.close()
                 sock = None
-                LOGGER.debug('Error connecting to %r: %s', sock_addr, error)
+                LOGGER.debug('Error connecting to %r: %s', addr_info[4], error)
                 continue
             else:
                 break
@@ -183,12 +184,7 @@ class IO(threading.Thread):
                        sock_type: int,
                        protocol: int) \
             -> typing.Union[socket.socket, ssl.SSLSocket]:
-        """Create the new socket, optionally with SSL support.
-
-        :param address_family: The address family to use when creating
-        :param sock_type: The type of socket to create
-
-        """
+        """Create a new socket, optionally wrapped with SSL."""
         sock = socket.socket(address_family, sock_type, protocol)
         context = self._get_ssl_context()
         if context:
@@ -196,6 +192,7 @@ class IO(threading.Thread):
         return sock
 
     def _get_addr_info(self) -> AddrInfo:
+        """Resolve hostname and port to address information."""
         family = socket.AF_UNSPEC if socket.has_ipv6 else socket.AF_INET
         try:
             res = socket.getaddrinfo(
@@ -206,7 +203,7 @@ class IO(threading.Thread):
         return res
 
     def _get_ssl_context(self) -> typing.Optional[ssl.SSLContext]:
-        """Return the configured SSLContext to use if needed"""
+        """Create and configure an SSL context if SSL is enabled."""
         if self._use_ssl:
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             if self._ssl_options.get('check_hostname') is not None:
@@ -221,7 +218,7 @@ class IO(threading.Thread):
                 ssl_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
             if self._ssl_options.get('certfile'):
                 ssl_context.load_cert_chain(
-                    self._ssl_options.get('certfile'),
+                    self._ssl_options.get('certfile', ''),
                     self._ssl_options.get('keyfile'))
             if self._ssl_options.get('verify') is not None:
                 ssl_context.verify_mode = self._ssl_options['verify']
@@ -232,50 +229,46 @@ class IO(threading.Thread):
     def _on_data_received(value: bytes) \
             -> tuple[bytes,
                      typing.Optional[int],
-                     typing.Optional[base.Frame],
+                     typing.Optional[
+                         typing.Union[
+                             pamqp.base.Frame,
+                             pamqp.body.ContentBody,
+                             pamqp.header.ContentHeader,
+                             pamqp.header.ProtocolHeader,
+                             pamqp.heartbeat.Heartbeat]],
                      int]:
-        """Get the pamqp frame from the value read from the socket.
+        """Unmarshal a pamqp frame from received socket data.
 
-        :param value: The value to parse for a pamqp frame
-        :return: Remainder of value, channel id, frame value, and bytes read
+
+        :param value: The bytes received from the socket.
+        :return: Tuple containing remaining bytes, channel ID,
+                frame, and bytes consumed.
 
         """
         if not value:
             return value, None, None, 0
         try:
-            byte_count, channel_id, frame_in = frame.unmarshal(value)
+            byte_count, channel_id, frame_in = pamqp.frame.unmarshal(value)
         except (pamqp.exceptions.UnmarshalingException, ValueError):
             return value, None, None, 0
         return value[byte_count:], channel_id, frame_in, byte_count
 
     def _on_error(self, exception: OSError) -> None:
-        """Common functions when a socket error occurs. Make sure to set closed
-        and add the exception, and note an exception event.
-
-        :param exception: The socket error
-
-        """
+        """Handle socket errors, add exceptions, and signal events."""
         if self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
             return
-        args = [self._host, self._port, str(exception)]
-        """
-        if self._channels[0][0].open:
-            self._exceptions.put(
-                rabbitpy_exceptions.ConnectionResetException(*args))
-        else:
-        """
-        self._add_exception(rabbitpy.exceptions.ConnectionException(*args))
+        self._add_exception(rabbitpy.exceptions.ConnectionException(
+            self._host, self._port, str(exception)))
 
     def _on_read_ready(self) -> None:
-        """Append the data that is read to the buffer and try and parse
-        frames out of it.
-
-        """
+        """Read data from the socket and process any complete frames."""
         with self._lock:
             self._buffer += self._socket.recv(32768)
             while self._buffer:
                 remaining, channel_id, frame_value, bytes_read =\
                     self._on_data_received(self._buffer)
+                if channel_id is None:
+                    raise RuntimeError('Invalid channel ID received')
                 if remaining == self._buffer:
                     break
                 self._buffer = remaining
@@ -283,36 +276,38 @@ class IO(threading.Thread):
                 self._channels[channel_id].put(frame_value)
 
     def _on_write_ready(self) -> None:
-        """Write the next frame to the socket"""
-        with self._lock:
-            try:
+        """Write pending data from the write buffer to the socket."""
+        try:
+            with self._lock:
                 payload = self._write_buffer.popleft()
-            except IndexError:
-                return
-            try:
-                self._socket.sendall(payload)
-            except socket.timeout:
-                LOGGER.warning('Timed out writing %i bytes to socket',
-                               len(payload))
+        except IndexError:
+            return
+        try:
+            self._socket.sendall(payload)
+        except socket.timeout:
+            LOGGER.warning('Timed out writing %i bytes to socket',
+                            len(payload))
+            with self._lock:
                 self._write_buffer.appendleft(payload)
-            except OSError as error:
+        except OSError as error:
+            with self._lock:
                 self._write_buffer.appendleft(payload)
-                if error.errno == 35:
-                    LOGGER.debug('socket resource temp unavailable')
-                else:
-                    self._on_error(error)
+            if error.errno == 35:
+                LOGGER.debug('socket resource temp unavailable')
             else:
+                self._on_error(error)
+        else:
+            with self._lock:
                 self._bytes_written += len(payload)
 
     async def _run(self):
-        """Core logic that connects and blocks until the socket is closed"""
+        """Manage the I/O loop: connect, read, write, and handle closure."""
         self._ioloop = asyncio.get_running_loop()
-
         with self._lock:
             await self._connect()
 
         if not self._socket:
-            return
+            return  # Could not establish connection
 
         self._ioloop.add_reader(self._socket, self._on_read_ready)
         self._ioloop.add_writer(self._socket, self._on_write_ready)

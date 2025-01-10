@@ -34,7 +34,7 @@ DESCRIPTIONS = {
 
 def description(event_id: int) -> str:
     """Return the text description for an event"""
-    return DESCRIPTIONS.get(event_id, event_id)
+    return DESCRIPTIONS.get(event_id, str(event_id))
 
 
 class Events:

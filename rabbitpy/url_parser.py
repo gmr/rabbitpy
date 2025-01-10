@@ -25,7 +25,7 @@ SSL_CERT_MAP = {
 }
 
 
-def parse(url: str = DEFAULT_URL) -> dict:
+def parse(url: typing.Optional[str] = DEFAULT_URL) -> dict:
     """Parse the AMQP URL passed in and return the configuration
     information in a dictionary of values.
 
@@ -93,7 +93,9 @@ def parse(url: str = DEFAULT_URL) -> dict:
         vhost = parsed.path[1:] or DEFAULT_VHOST
 
     # Parse the query string
-    query_args = urllib.parse.parse_qs(parsed.query)
+    query_args = urllib.parse.parse_qs(
+        parsed.query.decode('utf-8') if isinstance(parsed.query, bytes)
+        else parsed.query)
 
     # Return the configuration dictionary to use when connecting
     return {
@@ -109,18 +111,18 @@ def parse(url: str = DEFAULT_URL) -> dict:
             'frame_max', query_args, constants.FRAME_MAX_SIZE),
         'channel_max': _query_args_int(
             'channel_max', query_args, DEFAULT_CHANNEL_MAX),
-        'locale': _query_args_value('locale', query_args),
+        'locale': _query_args_str('locale', query_args),
         'ssl': use_ssl,
         'ssl_options': {
-            'check_hostname': _query_args_value(
+            'check_hostname': _query_args_str(
                 'ssl_check_hostname', query_args, '').lower()
                               not in ('0', 'false', 'no'),
-            'cafile': _query_args_mk_value(
+            'cafile': _query_args_multi_key_value(
                 ['cacertfile', 'ssl_cacert', 'cafile'], query_args),
-            'capath': _query_args_value('capath', query_args),
-            'certfile': _query_args_mk_value(
+            'capath': _query_args_str('capath', query_args),
+            'certfile': _query_args_multi_key_value(
                 ['certfile', 'ssl_cert'], query_args),
-            'keyfile': _query_args_mk_value(
+            'keyfile': _query_args_multi_key_value(
                 ['keyfile', 'ssl_key'], query_args),
             'verify': _query_args_ssl_validation(query_args)
         }
@@ -139,22 +141,9 @@ def _query_args_int(key: str, values: dict, default: int) -> int:
     return int(values.get(key, [default])[0])
 
 
-def _query_args_float(key: str, values: dict, default: float) -> float:
-    """Return the query arg value as a float for the specified key or
-    return the specified default value.
-
-    :param key: The key to return the value for
-    :param values: The query value dict returned by urlparse
-    :param default: The default return value
-
-    """
-    return float(values.get(key, [default])[0])
-
-
-def _query_args_value(
+def _query_args_str(
         key: str, values: dict,
-        default: typing.Union[int, float, str, None] = None) \
-        -> typing.Union[int, float, str, None]:
+        default: typing.Optional[str] = None) -> typing.Optional[str]:
     """Return the value from the query arguments for the specified key
     or the default value.
 
@@ -165,7 +154,7 @@ def _query_args_value(
     return values.get(key, [default])[0]
 
 
-def _query_args_mk_value(keys: list[str], values: dict) \
+def _query_args_multi_key_value(keys: list[str], values: dict) \
         -> typing.Union[int, float, str, None]:
     """Try and find the query string value where the value can be specified
     with different keys.
@@ -175,7 +164,7 @@ def _query_args_mk_value(keys: list[str], values: dict) \
 
     """
     for key in keys:
-        value = _query_args_value(key, values)
+        value = _query_args_str(key, values)
         if value is not None:
             return value
     return None
@@ -189,7 +178,8 @@ def _query_args_ssl_validation(values: dict) -> typing.Union[int, None]:
     :param values: The dict of query values from the AMQP URI
 
     """
-    validation = _query_args_mk_value(['verify', 'ssl_validation'], values)
+    validation = _query_args_multi_key_value(
+        ['verify', 'ssl_validation'], values)
     if not validation:
         return None
     elif validation not in SSL_CERT_MAP:
@@ -198,7 +188,7 @@ def _query_args_ssl_validation(values: dict) -> typing.Union[int, None]:
     return SSL_CERT_MAP[validation]
 
 
-def _validate_uri_scheme(scheme: str) -> None:
+def _validate_uri_scheme(scheme: typing.Union[bytes, str]) -> None:
     """Ensure that the specified URI scheme is supported by rabbitpy
 
     :param scheme: The value to validate
