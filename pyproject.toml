@@ -5,7 +5,7 @@ description = "A pure python, thread-safe, minimalistic and pythonic RabbitMQ cl
 readme = "README.rst"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
-authors = [ { name = "Gavin M. Roy", email = "gavinmroy@gmail.com" } ]
+authors = [{ name = "Gavin M. Roy", email = "gavinmroy@gmail.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -21,20 +21,12 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Communications",
     "Topic :: Internet",
-    "Topic :: Software Development :: Libraries"
+    "Topic :: Software Development :: Libraries",
 ]
-dependencies = [
-  "pamqp>=3.0,<4.0",
-]
+dependencies = ["pamqp>=3.0,<4.0"]
 
 [project.optional-dependencies]
-dev = [
-    "codeclimate-test-reporter",
-    "codecov",
-    "coverage[toml]",
-    "mock",
-    "ruff"
-]
+dev = ["codeclimate-test-reporter", "codecov", "coverage[toml]", "mock", "ruff"]
 
 [project.urls]
 Documentation = "https://rabbitpy.readthedocs.io"
@@ -47,22 +39,21 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = [
-    "ASYNC",    # flake8-async
-    "B",        # flake8-bugbear
-    "BLE",      # flake8-blind-except
-    "C4",       # flake8-comprehensions
-    "DTZ",      # flake8-datetimez
-    "E", "W",   # pycodestyle
-    "F",        # pyflakes
-    "G",        # flake8-logging-format
-    "I",        # isort
-    "S",        # flake8-bandit
-    "T20",      # flake8-print
-    "UP",       # pyupgrade
+    "ASYNC", # flake8-async
+    "B",     # flake8-bugbear
+    "BLE",   # flake8-blind-except
+    "C4",    # flake8-comprehensions
+    "DTZ",   # flake8-datetimez
+    "E",
+    "W",     # pycodestyle
+    "F",     # pyflakes
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "S",     # flake8-bandit
+    "T20",   # flake8-print
+    "UP",    # pyupgrade
 ]
-exclude = [
-    "examples/*.py"
-]
+exclude = ["examples/*.py"]
 
 [tool.coverage.xml]
 output = "build/coverage.xml"
@@ -71,3 +62,8 @@ output = "build/coverage.xml"
 branch = true
 source = ["rabbitpy"]
 command_line = "-m unittest discover tests --buffer --verbose"
+
+[tool.pyright]
+reportOptionalMemberAccess = false
+reportUnknownMemberType = false
+ignore = ["**/tests/**", "**/examples/**"]
