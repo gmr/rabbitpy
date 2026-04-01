@@ -3,6 +3,8 @@ Base classes for various parts of rabbitpy
 
 """
 
+from __future__ import annotations
+
 import logging
 import queue
 import socket
