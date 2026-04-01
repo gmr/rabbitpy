@@ -448,6 +448,15 @@ class EdgeCaseMockServerTestCase(MockServerTestCase):
 
             self.assertExceptionAdded(exceptions.ConnectionException)
 
+        # The mock context has exited; sendall no longer raises.  Yield to let
+        # the IO thread's writer callback (which fires continuously on Python
+        # 3.11) settle, then drain any duplicate ConnectionExceptions that may
+        # have been added before the write buffer was emptied above.
+        await asyncio.sleep(0.1)
+        while not self.exceptions.empty():
+            dup = self.exceptions.get_nowait()
+            self.assertIsInstance(dup, exceptions.ConnectionException)
+
     async def test_write_ready_socket_errno_35(self):
         with mock.patch('socket.socket.sendall') as mock_sendall:
             self.io.start()
