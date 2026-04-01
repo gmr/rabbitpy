@@ -149,9 +149,23 @@ class Connection(state.StatefulBase):
         self._set_state(self.CLOSED)
 
     def _stop_io(self) -> None:
-        """Signal the IO thread to stop if it is running."""
-        if self._io is not None:
-            self._io.stop()
+        """Signal the IO thread to stop and wait for it to finish.
+
+        Blocks until the IO thread has exited (or until the connection timeout
+        elapses) so that callers can rely on the socket being fully torn down
+        before they transition to CLOSED.  The join is skipped when called from
+        inside the IO thread itself to prevent a deadlock.
+
+        """
+        io_thread = self._io
+        if io_thread is None:
+            return
+        io_thread.stop()
+        if (
+            io_thread.is_alive()
+            and io_thread is not threading.current_thread()
+        ):
+            io_thread.join(self._args['timeout'])
 
     def connect(self) -> None:
         """Connect to the RabbitMQ Server"""

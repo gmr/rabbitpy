@@ -69,6 +69,7 @@ class IO(threading.Thread):
         self._buffer = b''
         self._closed = asyncio.Event()
         self._closed.set()
+        self._stop_requested = threading.Event()
         self._lock = threading.Lock()
         self._bytes_read = 0
         self._bytes_written = 0
@@ -102,9 +103,13 @@ class IO(threading.Thread):
         """Signal the I/O loop to stop from outside the IO thread.
 
         Thread-safe: schedules the close event via the running event loop, or
-        sets it directly if the loop is not yet running.
+        sets it directly if the loop is not yet running.  Also sets
+        _stop_requested so that a stop() call received during startup (before
+        _connect() runs) is not silently discarded when _connect() clears
+        _closed.
 
         """
+        self._stop_requested.set()
         loop = self._ioloop
         if loop is not None and loop.is_running():
             loop.call_soon_threadsafe(self._closed.set)
@@ -205,6 +210,9 @@ class IO(threading.Thread):
                 )
             )
 
+        if self._stop_requested.is_set():
+            sock.close()
+            return  # A stop() arrived during startup; honour it
         self._closed.clear()
         self._socket = sock
         self._socket.setblocking(False)
