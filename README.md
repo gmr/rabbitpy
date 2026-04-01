@@ -134,7 +134,7 @@ Example: `amqp://guest:guest@localhost:5672/%2f?heartbeat=30&timeout=5`
 
 ## Documentation
 
-Full API documentation is available at [rabbitpy.readthedocs.io](https://rabbitpy.readthedocs.io).
+Full API documentation is available at [https://gmr.github.io/rabbitpy/](https://gmr.github.io/rabbitpy/).
 
 ## License
 
