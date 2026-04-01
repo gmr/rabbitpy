@@ -442,7 +442,17 @@ class SSLMockServerTestCase(MockServerTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.io.start()
-        await asyncio.sleep(0.1)
+        # Yield to the event loop so the in-process SSL mock server can
+        # complete its handshake (blocking wait() would deadlock the loop).
+        for _ in range(50):
+            if self.events.is_set(rabbitpy.events.SOCKET_OPENED):
+                break
+            await asyncio.sleep(0.1)
+        self.assertTrue(
+            self.events.is_set(rabbitpy.events.SOCKET_OPENED),
+            'Timeout waiting for SOCKET_OPENED event',
+        )
+        self.assertTrue(self.io.is_connected)
 
     @staticmethod
     async def _create_server():
@@ -474,10 +484,12 @@ class SSLMockServerTestCase(MockServerTestCase):
 
         await self.write_protocol_header()
 
-        self.assertEqual(self.io._buffer, b'\x01\x00\x00')
-        self.assertEqual(self.io.bytes_received, 12)
+        # Get the frame first — blocks until the IO thread has processed the
+        # full response, avoiding a race on _buffer and bytes_received.
         frame = self.read_queue.get(True, 3)
         self.assertIsInstance(frame, commands.Tx.RollbackOk)
+        self.assertEqual(self.io._buffer, b'\x01\x00\x00')
+        self.assertEqual(self.io.bytes_received, 12)
 
 
 class Error35(OSError):
