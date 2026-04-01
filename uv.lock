@@ -580,11 +580,11 @@ wheels = [
 
 [[package]]
 name = "pamqp"
-version = "3.3.0"
+version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fb/62/35bbd3d3021e008606cd0a9532db7850c65741bbf69ac8a3a0d8cfeb7934/pamqp-3.3.0.tar.gz", hash = "sha256:40b8795bd4efcf2b0f8821c1de83d12ca16d5760f4507836267fd7a02b06763b", size = 30993 }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/92/3db569ab046955553d6041ea5ad1fa78aaa01fc70bc4e6e7e15c072f050e/pamqp-4.0.0.tar.gz", hash = "sha256:0acc96ae642a534c61f12942ee23167ed52624209baa92c9848d0970f4604682", size = 130078 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/8d/c1e93296e109a320e508e38118cf7d1fc2a4d1c2ec64de78565b3c445eb5/pamqp-3.3.0-py2.py3-none-any.whl", hash = "sha256:c901a684794157ae39b52cbf700db8c9aae7a470f13528b9d7b4e5f7202f8eb0", size = 33848 },
+    { url = "https://files.pythonhosted.org/packages/8a/23/64f267632476a5c512df38e6f0d6eb215ebc4ff59edd17d152b7e3bee1ee/pamqp-4.0.0-py3-none-any.whl", hash = "sha256:ec5757355b4a54f4cf9c172e8dde89ed14f420970bc64a0c9019920c4945c71b", size = 32443 },
 ]
 
 [[package]]
@@ -776,7 +776,7 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pamqp", specifier = ">=3.0,<4.0" }]
+requires-dist = [{ name = "pamqp", specifier = ">=4.0,<5.0" }]
 
 [package.metadata.requires-dev]
 dev = [
