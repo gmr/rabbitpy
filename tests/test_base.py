@@ -3,6 +3,8 @@ Test the rabbitpy.base classes
 
 """
 
+import unittest
+
 from rabbitpy import base, utils
 from tests import helpers
 
@@ -23,7 +25,7 @@ class AMQPClassTests(helpers.TestCase):
         obj = base.AMQPClass(self.channel, 'Foo')
         self.assertIsInstance(obj.name, str)
 
-    @helpers.unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
+    @unittest.skipIf(utils.PYTHON3, 'No unicode in Python 3')
     def test_name_py2_unicode(self):
         obj = base.AMQPClass(self.channel, 'Foo')
         self.assertIsInstance(obj.name, str)

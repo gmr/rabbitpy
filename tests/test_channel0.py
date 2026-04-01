@@ -1,4 +1,5 @@
 """Unit tests for rabbitpy.channel0 AMQP connection-negotiation thread."""
+
 import queue
 import unittest
 from unittest import mock
@@ -7,14 +8,24 @@ import pamqp.heartbeat
 from pamqp import commands, header
 
 from rabbitpy import channel0, events, exceptions
-
+from rabbitpy.url_parser import ConnectionArgs, SslOptions
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_args(**overrides):
-    base = {
+_DEFAULT_SSL_OPTIONS: SslOptions = {
+    'check_hostname': False,
+    'cafile': None,
+    'capath': None,
+    'certfile': None,
+    'keyfile': None,
+    'verify': None,
+}
+
+
+def _make_args(**overrides: object) -> ConnectionArgs:
+    base: ConnectionArgs = {
         'username': 'guest',
         'password': 'guest',
         'virtual_host': '/',
@@ -26,9 +37,9 @@ def _make_args(**overrides):
         'host': 'localhost',
         'port': 5672,
         'ssl': False,
-        'ssl_options': {},
+        'ssl_options': _DEFAULT_SSL_OPTIONS,
     }
-    base.update(overrides)
+    base.update(overrides)  # type: ignore[typeddict-item]
     return base
 
 
@@ -36,7 +47,7 @@ def _make(**arg_overrides):
     """Return (Channel0, Events, exc_queue)."""
     args = _make_args(**arg_overrides)
     ev = events.Events()
-    exc = queue.Queue()
+    exc: queue.Queue[Exception] = queue.Queue()
     ch0 = channel0.Channel0(args=args, events=ev, exceptions_queue=exc)
     return ch0, ev, exc
 
@@ -73,6 +84,7 @@ def _run(ch0_obj, mock_io=None, timeout=5):
 # Properties
 # ---------------------------------------------------------------------------
 
+
 class TestChannel0Properties(unittest.TestCase):
     def setUp(self):
         self.ch0, self.ev, self.exc = _make()
@@ -99,6 +111,7 @@ class TestChannel0Properties(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Static helpers
 # ---------------------------------------------------------------------------
+
 
 class TestNegotiateValue(unittest.TestCase):
     def _n(self, s, c):
@@ -144,6 +157,7 @@ class TestBuildClientProperties(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Happy-path negotiation
 # ---------------------------------------------------------------------------
+
 
 class TestHappyPathNegotiation(unittest.TestCase):
     def setUp(self):
@@ -211,6 +225,7 @@ class TestHappyPathNegotiation(unittest.TestCase):
 # Heartbeat negotiation edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestHeartbeatNegotiation(unittest.TestCase):
     def _negotiate(self, server_hb, client_hb, **extra_tune):
         ch0, _, _ = _make(heartbeat=client_hb)
@@ -254,12 +269,13 @@ class TestHeartbeatNegotiation(unittest.TestCase):
 # Negotiation error paths
 # ---------------------------------------------------------------------------
 
+
 class TestNegotiationErrors(unittest.TestCase):
     def _run_and_join(self, ch0_obj):
         _run(ch0_obj)
 
     def test_wrong_first_frame_raises_connection_exception(self):
-        ch0, ev, exc = _make()
+        ch0, _ev, exc = _make()
         ch0.pending_frames.put(commands.Connection.Tune(0, 131072, 60))
         self._run_and_join(ch0)
         self.assertFalse(ch0.open)
@@ -267,7 +283,7 @@ class TestNegotiationErrors(unittest.TestCase):
         self.assertIsInstance(exc.get_nowait(), exceptions.ConnectionException)
 
     def test_wrong_tune_frame_raises_connection_exception(self):
-        ch0, ev, exc = _make()
+        ch0, _ev, exc = _make()
         ch0.pending_frames.put(_START)
         ch0.pending_frames.put(commands.Connection.OpenOk())
         self._run_and_join(ch0)
@@ -276,7 +292,7 @@ class TestNegotiationErrors(unittest.TestCase):
         self.assertIsInstance(exc.get_nowait(), exceptions.ConnectionException)
 
     def test_wrong_open_ok_frame_raises_connection_exception(self):
-        ch0, ev, exc = _make()
+        ch0, _ev, exc = _make()
         ch0.pending_frames.put(_START)
         ch0.pending_frames.put(_TUNE)
         ch0.pending_frames.put(_TUNE)  # wrong type
@@ -285,20 +301,20 @@ class TestNegotiationErrors(unittest.TestCase):
         self.assertFalse(exc.empty())
 
     def test_pre_injected_exception_propagates(self):
-        ch0, ev, exc = _make()
+        ch0, _ev, exc = _make()
         exc.put(exceptions.ConnectionException('pre-injected'))
         self._run_and_join(ch0)
         self.assertFalse(ch0.open)
         self.assertFalse(exc.empty())
 
     def test_exception_raised_event_set_on_error(self):
-        ch0, ev, exc = _make()
+        ch0, ev, _exc = _make()
         ch0.pending_frames.put(commands.Connection.Tune(0, 0, 0))
         self._run_and_join(ch0)
         self.assertTrue(ev.is_set(events.EXCEPTION_RAISED))
 
     def test_channel0_opened_not_set_on_error(self):
-        ch0, ev, exc = _make()
+        ch0, ev, _exc = _make()
         ch0.pending_frames.put(commands.Connection.Tune(0, 0, 0))
         self._run_and_join(ch0)
         self.assertFalse(ev.is_set(events.CHANNEL0_OPENED))
@@ -307,6 +323,7 @@ class TestNegotiationErrors(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Runtime frames (post-negotiation)
 # ---------------------------------------------------------------------------
+
 
 class TestRuntimeFrames(unittest.TestCase):
     def _open(self, extra_frames):
@@ -323,33 +340,39 @@ class TestRuntimeFrames(unittest.TestCase):
         self.assertTrue(ev.is_set(events.CONNECTION_BLOCKED))
 
     def test_connection_unblocked_clears_event(self):
-        _, ev, _ = self._open([
-            commands.Connection.Blocked(reason='memory alarm'),
-            commands.Connection.Unblocked(),
-        ])
+        _, ev, _ = self._open(
+            [
+                commands.Connection.Blocked(reason='memory alarm'),
+                commands.Connection.Unblocked(),
+            ]
+        )
         self.assertFalse(ev.is_set(events.CONNECTION_BLOCKED))
 
     def test_server_close_queues_exception(self):
-        ch0, _, exc = self._open([
-            commands.Connection.Close(
-                reply_code=320,
-                reply_text='CONNECTION_FORCED',
-                class_id=0,
-                method_id=0,
-            )
-        ])
+        ch0, _, exc = self._open(
+            [
+                commands.Connection.Close(
+                    reply_code=320,
+                    reply_text='CONNECTION_FORCED',
+                    class_id=0,
+                    method_id=0,
+                )
+            ]
+        )
         self.assertFalse(ch0.open)
         self.assertFalse(exc.empty())
 
     def test_server_close_maps_known_reply_code(self):
-        ch0, _, exc = self._open([
-            commands.Connection.Close(
-                reply_code=403,
-                reply_text='ACCESS_REFUSED',
-                class_id=0,
-                method_id=0,
-            )
-        ])
+        _ch0, _, exc = self._open(
+            [
+                commands.Connection.Close(
+                    reply_code=403,
+                    reply_text='ACCESS_REFUSED',
+                    class_id=0,
+                    method_id=0,
+                )
+            ]
+        )
         err = exc.get_nowait()
         self.assertIsInstance(err, exceptions.AMQPAccessRefused)
 
@@ -357,6 +380,7 @@ class TestRuntimeFrames(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Heartbeat and close
 # ---------------------------------------------------------------------------
+
 
 class TestSendHeartbeat(unittest.TestCase):
     def test_sends_heartbeat_frame(self):

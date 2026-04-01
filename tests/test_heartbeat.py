@@ -1,4 +1,5 @@
 """Unit tests for rabbitpy.heartbeat.Heartbeat."""
+
 import unittest
 from unittest import mock
 

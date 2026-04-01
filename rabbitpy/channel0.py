@@ -211,9 +211,7 @@ class Channel0(threading.Thread):
             self._exceptions.put(exc_cls(frame.reply_code, frame.reply_text))
             self._events.set(ev_module.EXCEPTION_RAISED)
 
-    def _raise_if_server_close(
-        self, frame: pamqp.frame.FrameTypes
-    ) -> None:
+    def _raise_if_server_close(self, frame: pamqp.frame.FrameTypes) -> None:
         """Raise the appropriate exception if the server sent Connection.Close.
 
         Called after each ``_wait_for_frame`` during negotiation so that an

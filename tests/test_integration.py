@@ -9,6 +9,7 @@ import uuid
 from urllib import parse
 
 import dotenv
+
 import rabbitpy
 from rabbitpy import exceptions, utils
 
@@ -560,6 +561,7 @@ class AccessDeniedDuringConnectionTests(unittest.TestCase):
 # Multiple channels on one connection
 # ---------------------------------------------------------------------------
 
+
 class MultipleChannelsTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
@@ -606,6 +608,7 @@ class MultipleChannelsTest(unittest.TestCase):
 # Nack and requeue=False
 # ---------------------------------------------------------------------------
 
+
 class NackWithoutRequeueTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
@@ -634,6 +637,7 @@ class NackWithoutRequeueTest(unittest.TestCase):
 # Queue purge
 # ---------------------------------------------------------------------------
 
+
 class QueuePurgeTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
@@ -661,6 +665,7 @@ class QueuePurgeTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Large message (forces multi-frame body)
 # ---------------------------------------------------------------------------
+
 
 class LargeMessageTest(unittest.TestCase):
     # Default frame_max is 131072 bytes; send something bigger
@@ -695,6 +700,7 @@ class LargeMessageTest(unittest.TestCase):
 # Channel context manager
 # ---------------------------------------------------------------------------
 
+
 class ChannelContextManagerTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
@@ -719,6 +725,7 @@ class ChannelContextManagerTest(unittest.TestCase):
 # Transaction (Tx) commit and rollback
 # ---------------------------------------------------------------------------
 
+
 class TransactionTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
@@ -735,6 +742,7 @@ class TransactionTest(unittest.TestCase):
 
     def test_committed_message_is_visible(self):
         from rabbitpy import Tx
+
         with Tx(self.channel):
             rabbitpy.Message(self.channel, b'committed').publish(
                 '', routing_key='tx-test-queue'
@@ -746,6 +754,7 @@ class TransactionTest(unittest.TestCase):
 
     def test_rolled_back_message_not_visible(self):
         from rabbitpy import Tx
+
         tx = Tx(self.channel)
         tx.select()
         rabbitpy.Message(self.channel, b'rolled-back').publish(

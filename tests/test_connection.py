@@ -1,10 +1,10 @@
 """Unit tests for rabbitpy.connection.Connection."""
+
 import queue
 import unittest
 from unittest import mock
 
 from rabbitpy import connection, events, exceptions
-
 
 _DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
 
@@ -12,6 +12,7 @@ _DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_conn(url=_DEFAULT_URL, **kwargs):
     with mock.patch('rabbitpy.connection.Connection.connect'):
@@ -23,14 +24,17 @@ def _make_mock_io(events_obj, *, signal_opened=True):
     m.write_trigger = mock.MagicMock()
     m.write_queue = queue.Queue()
     if signal_opened:
+
         def _start():
             events_obj.set(events.SOCKET_OPENED)
+
         m.start.side_effect = _start
     return m
 
 
-def _make_mock_ch0(events_obj, *, signal_opened=True, exc_queue=None,
-                   exception=None):
+def _make_mock_ch0(
+    events_obj, *, signal_opened=True, exc_queue=None, exception=None
+):
     m = mock.MagicMock(name='channel0.Channel0')
     m.pending_frames = queue.Queue()
     m.open = True
@@ -39,12 +43,16 @@ def _make_mock_ch0(events_obj, *, signal_opened=True, exc_queue=None,
     m.maximum_channels = 65535
     m.properties = {}
     if signal_opened and exception is None:
+
         def _start(io):
             events_obj.set(events.CHANNEL0_OPENED)
+
         m.start.side_effect = _start
     elif exception is not None and exc_queue is not None:
+
         def _start_exc(io):
             exc_queue.put(exception)
+
         m.start.side_effect = _start_exc
     return m
 
@@ -52,6 +60,7 @@ def _make_mock_ch0(events_obj, *, signal_opened=True, exc_queue=None,
 # ---------------------------------------------------------------------------
 # Construction
 # ---------------------------------------------------------------------------
+
 
 class TestConnectionInit(unittest.TestCase):
     def test_default_url_host(self):
@@ -89,6 +98,7 @@ class TestConnectionInit(unittest.TestCase):
 # connect() lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestConnectionConnect(unittest.TestCase):
     def setUp(self):
         self.conn = _make_conn()
@@ -113,8 +123,9 @@ class TestConnectionConnect(unittest.TestCase):
 
     @mock.patch('rabbitpy.connection.io.IO')
     @mock.patch('rabbitpy.connection.channel0.Channel0')
-    def test_socket_timeout_raises_runtime_error(self, mock_ch0_cls,
-                                                 mock_io_cls):
+    def test_socket_timeout_raises_runtime_error(
+        self, mock_ch0_cls, mock_io_cls
+    ):
         mock_io_cls.return_value = _make_mock_io(
             self.conn._events, signal_opened=False
         )
@@ -203,6 +214,7 @@ class TestConnectionConnect(unittest.TestCase):
 # channel() method
 # ---------------------------------------------------------------------------
 
+
 class TestConnectionChannelMethod(unittest.TestCase):
     """Tests for Connection.channel() using a pre-opened mock connection.
 
@@ -212,6 +224,7 @@ class TestConnectionChannelMethod(unittest.TestCase):
 
     def setUp(self):
         from rabbitpy import channel as channel_mod
+
         self.conn = _make_conn()
         self.conn._set_state(self.conn.OPEN)
         mock_io = mock.MagicMock()
@@ -224,15 +237,19 @@ class TestConnectionChannelMethod(unittest.TestCase):
         mock_ch0.properties = {}
         self.conn._channel0 = mock_ch0
         # Override open() so channels reach OPEN state without real I/O
-        self._orig_open = channel_mod.Channel.open
-        channel_mod.Channel.open = lambda self: self._set_state(self.OPEN)
+        self._open_patcher = mock.patch.object(
+            channel_mod.Channel,
+            'open',
+            lambda self: self._set_state(self.OPEN),
+        )
+        self._open_patcher.start()
 
     def tearDown(self):
-        from rabbitpy import channel as channel_mod
-        channel_mod.Channel.open = self._orig_open
+        self._open_patcher.stop()
 
     def test_channel_returns_channel_instance(self):
         from rabbitpy import channel as channel_mod
+
         ch = self.conn.channel()
         self.assertIsInstance(ch, channel_mod.Channel)
 
@@ -251,7 +268,7 @@ class TestConnectionChannelMethod(unittest.TestCase):
 
     def test_channel_registered_in_io(self):
         self.conn.channel()
-        self.conn._io.add_channel.assert_called()
+        self.conn._io.add_channel.assert_called()  # pyright: ignore[reportOptionalMemberAccess,reportAttributeAccessIssue]
 
     def test_channel_raises_when_connection_closed(self):
         self.conn._set_state(self.conn.CLOSED)
@@ -263,6 +280,7 @@ class TestConnectionChannelMethod(unittest.TestCase):
 # Channel ID reuse (#121) — tested via _get_next_channel_id directly so that
 # we can inject mock channels with controlled closed/open states.
 # ---------------------------------------------------------------------------
+
 
 class TestChannelIdReuse(unittest.TestCase):
     def setUp(self):
@@ -306,7 +324,7 @@ class TestChannelIdReuse(unittest.TestCase):
         self.assertNotIn(1, self.conn._channels)
 
     def test_too_many_channels_raises(self):
-        self.conn._channel0.maximum_channels = 2
+        self.conn._channel0.maximum_channels = 2  # pyright: ignore[reportOptionalMemberAccess,reportAttributeAccessIssue]
         self.conn._channels[1] = self._mock_chan(closed=False)
         self.conn._channels[2] = self._mock_chan(closed=False)
         with self.assertRaises(exceptions.TooManyChannelsError):
@@ -316,6 +334,7 @@ class TestChannelIdReuse(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Properties
 # ---------------------------------------------------------------------------
+
 
 class TestConnectionProperties(unittest.TestCase):
     def test_capabilities_empty_without_channel0(self):
