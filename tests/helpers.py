@@ -2,11 +2,10 @@ import queue
 import unittest
 from unittest import mock
 
-from rabbitpy import channel, connection, events
+from rabbitpy import channel, events
 
 
 class TestCase(unittest.TestCase):
-
     def setUp(self):
         self.connection = mock.MagicMock('rabbitpy.connection.Connection')
         self.connection._io = mock.Mock()
@@ -18,11 +17,15 @@ class TestCase(unittest.TestCase):
         self.connection._exceptions = queue.Queue()
         self.connection.open = True
         self.connection.closed = False
-        self.channel = channel.Channel(1, {},
-                                       self.connection._events,
-                                       self.connection._exceptions,
-                                       queue.Queue(),
-                                       queue.Queue(), 32768,
-                                       self.connection._io.write_trigger,
-                                       connection=self.connection)
+        self.channel = channel.Channel(
+            1,
+            {},
+            self.connection._events,
+            self.connection._exceptions,
+            queue.Queue(),
+            queue.Queue(),
+            32768,
+            self.connection._io.write_trigger,
+            connection=self.connection,
+        )
         self.channel._set_state(self.channel.OPEN)

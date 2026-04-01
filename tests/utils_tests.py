@@ -2,8 +2,9 @@
 Test the rabbitpy utils module
 
 """
-import unittest
+
 import sys
+import unittest
 
 from rabbitpy import utils
 
@@ -12,7 +13,6 @@ unicode = str
 
 
 class UtilsTestCase(unittest.TestCase):
-
     AMQP = 'amqp://guest:guest@localhost:5672/%2F?heartbeat_interval=1'
     AMQPS = 'amqps://guest:guest@localhost:5672/%2F?heartbeat_interval=1'
 
@@ -44,8 +44,9 @@ class UtilsTestCase(unittest.TestCase):
         self.assertEqual(utils.urlparse(self.AMQPS).fragment, self.FRAGMENT)
 
     def test_parse_qs(self):
-        self.assertDictEqual(utils.parse_qs(self.QUERY),
-                             {'heartbeat_interval': ['1']})
+        self.assertDictEqual(
+            utils.parse_qs(self.QUERY), {'heartbeat_interval': ['1']}
+        )
 
     def test_is_string_str(self):
         self.assertTrue(utils.is_string('Foo'))

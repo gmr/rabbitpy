@@ -3,10 +3,9 @@ import os
 import re
 import threading
 import time
-
 import unittest
-from urllib import parse
 import uuid
+from urllib import parse
 
 import rabbitpy
 from rabbitpy import exceptions, utils
@@ -18,7 +17,6 @@ logging.getLogger('rabbitpy').setLevel(logging.DEBUG)
 
 
 class ConfirmedPublishQueueLengthTest(unittest.TestCase):
-
     ITERATIONS = 5
 
     def setUp(self):
@@ -47,7 +45,6 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
 
 
 class PublishAndGetTest(unittest.TestCase):
-
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
@@ -61,12 +58,16 @@ class PublishAndGetTest(unittest.TestCase):
         self.message_body = b'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         self.message_type = 'test'
 
-        self.msg = rabbitpy.Message(self.channel,
-                                    self.message_body,
-                                    {'app_id': self.app_id,
-                                     'message_id': str(uuid.uuid4()),
-                                     'timestamp': int(time.time()),
-                                     'message_type': self.message_type})
+        self.msg = rabbitpy.Message(
+            self.channel,
+            self.message_body,
+            {
+                'app_id': self.app_id,
+                'message_id': str(uuid.uuid4()),
+                'timestamp': int(time.time()),
+                'message_type': self.message_type,
+            },
+        )
         self.msg.publish(self.exchange, 'test.publish.get')
 
     def tearDown(self):
@@ -79,15 +80,17 @@ class PublishAndGetTest(unittest.TestCase):
         msg = self.queue.get(True)
         self.assertEqual(msg.body, self.message_body)
         self.assertEqual(msg.properties['app_id'], self.app_id)
-        self.assertEqual(msg.properties['message_id'],
-                         self.msg.properties['message_id'].decode('utf-8'))
-        self.assertEqual(msg.properties['timestamp'],
-                         self.msg.properties['timestamp'])
+        self.assertEqual(
+            msg.properties['message_id'],
+            self.msg.properties['message_id'].decode('utf-8'),
+        )
+        self.assertEqual(
+            msg.properties['timestamp'], self.msg.properties['timestamp']
+        )
         self.assertEqual(msg.properties['message_type'], self.message_type)
 
 
 class PublishAndConsumeTest(unittest.TestCase):
-
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
@@ -101,12 +104,16 @@ class PublishAndConsumeTest(unittest.TestCase):
         self.message_body = b'ABC1234567890'
         self.message_type = 'test'
 
-        self.msg = rabbitpy.Message(self.channel,
-                                    self.message_body,
-                                    {'app_id': self.app_id,
-                                     'message_id': str(uuid.uuid4()),
-                                     'timestamp': int(time.time()),
-                                     'message_type': self.message_type})
+        self.msg = rabbitpy.Message(
+            self.channel,
+            self.message_body,
+            {
+                'app_id': self.app_id,
+                'message_id': str(uuid.uuid4()),
+                'timestamp': int(time.time()),
+                'message_type': self.message_type,
+            },
+        )
         self.msg.publish(self.exchange, 'test.publish.consume')
 
     def tearDown(self):
@@ -119,10 +126,13 @@ class PublishAndConsumeTest(unittest.TestCase):
         for msg in self.queue.consume(no_ack=True, prefetch=1):
             self.assertEqual(msg.body, self.message_body)
             self.assertEqual(msg.properties['app_id'], self.app_id)
-            self.assertEqual(msg.properties['message_id'],
-                             self.msg.properties['message_id'].decode('utf-8'))
-            self.assertEqual(msg.properties['timestamp'],
-                             self.msg.properties['timestamp'])
+            self.assertEqual(
+                msg.properties['message_id'],
+                self.msg.properties['message_id'].decode('utf-8'),
+            )
+            self.assertEqual(
+                msg.properties['timestamp'], self.msg.properties['timestamp']
+            )
             self.assertEqual(msg.properties['message_type'], self.message_type)
             break
         if utils.PYPY:
@@ -130,7 +140,6 @@ class PublishAndConsumeTest(unittest.TestCase):
 
 
 class PublishAndConsumeIteratorTest(unittest.TestCase):
-
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
@@ -144,12 +153,16 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
         self.message_body = b'ABC1234567890'
         self.message_type = 'test'
 
-        self.msg = rabbitpy.Message(self.channel,
-                                    self.message_body,
-                                    {'app_id': self.app_id,
-                                     'message_id': str(uuid.uuid4()),
-                                     'timestamp': int(time.time()),
-                                     'message_type': self.message_type})
+        self.msg = rabbitpy.Message(
+            self.channel,
+            self.message_body,
+            {
+                'app_id': self.app_id,
+                'message_id': str(uuid.uuid4()),
+                'timestamp': int(time.time()),
+                'message_type': self.message_type,
+            },
+        )
         self.msg.publish(self.exchange, 'test.publish.consume')
 
     def tearDown(self):
@@ -162,10 +175,13 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
         for msg in self.queue:
             self.assertEqual(msg.body, self.message_body)
             self.assertEqual(msg.properties['app_id'], self.app_id)
-            self.assertEqual(msg.properties['message_id'],
-                             self.msg.properties['message_id'].decode('utf-8'))
-            self.assertEqual(msg.properties['timestamp'],
-                             self.msg.properties['timestamp'])
+            self.assertEqual(
+                msg.properties['message_id'],
+                self.msg.properties['message_id'].decode('utf-8'),
+            )
+            self.assertEqual(
+                msg.properties['timestamp'], self.msg.properties['timestamp']
+            )
             self.assertEqual(msg.properties['message_type'], self.message_type)
             msg.ack()
             LOGGER.info('breaking out of iterator')
@@ -176,7 +192,6 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
 
 
 class PublishAndConsumeIteratorStopTest(unittest.TestCase):
-
     PUBLISH_COUNT = 10
 
     def setUp(self):
@@ -193,14 +208,19 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
         self.message_type = 'test'
 
         for iteration in range(0, self.PUBLISH_COUNT):
-            self.msg = rabbitpy.Message(self.channel,
-                                        self.message_body,
-                                        {'app_id': self.app_id,
-                                         'message_id': str(uuid.uuid4()),
-                                         'timestamp': int(time.time()),
-                                         'message_type': self.message_type})
-            self.msg.publish(self.exchange,
-                             f'test.publish.consume {iteration}')
+            self.msg = rabbitpy.Message(
+                self.channel,
+                self.message_body,
+                {
+                    'app_id': self.app_id,
+                    'message_id': str(uuid.uuid4()),
+                    'timestamp': int(time.time()),
+                    'message_type': self.message_type,
+                },
+            )
+            self.msg.publish(
+                self.exchange, f'test.publish.consume {iteration}'
+            )
 
     def stop_consumer(self):
         LOGGER.info('Stopping the consumer')
@@ -232,7 +252,6 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
 
 
 class ConsumerTagTest(unittest.TestCase):
-
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
@@ -246,12 +265,16 @@ class ConsumerTagTest(unittest.TestCase):
         self.message_body = b'ABC1234567890'
         self.message_type = 'test'
 
-        self.msg = rabbitpy.Message(self.channel,
-                                    self.message_body,
-                                    {'app_id': self.app_id,
-                                     'message_id': str(uuid.uuid4()),
-                                     'timestamp': int(time.time()),
-                                     'message_type': self.message_type})
+        self.msg = rabbitpy.Message(
+            self.channel,
+            self.message_body,
+            {
+                'app_id': self.app_id,
+                'message_id': str(uuid.uuid4()),
+                'timestamp': int(time.time()),
+                'message_type': self.message_type,
+            },
+        )
         self.msg.publish(self.exchange, 'test.publish.consume')
 
     def tearDown(self):
@@ -264,10 +287,13 @@ class ConsumerTagTest(unittest.TestCase):
         for msg in self.queue.consume(consumer_tag='test-tag'):
             self.assertEqual(msg.body, self.message_body)
             self.assertEqual(msg.properties['app_id'], self.app_id)
-            self.assertEqual(msg.properties['message_id'],
-                             self.msg.properties['message_id'].decode('utf-8'))
-            self.assertEqual(msg.properties['timestamp'],
-                             self.msg.properties['timestamp'])
+            self.assertEqual(
+                msg.properties['message_id'],
+                self.msg.properties['message_id'].decode('utf-8'),
+            )
+            self.assertEqual(
+                msg.properties['timestamp'], self.msg.properties['timestamp']
+            )
             self.assertEqual(msg.properties['message_type'], self.message_type)
             msg.ack()
             LOGGER.info('breaking out of iterator')
@@ -277,9 +303,7 @@ class ConsumerTagTest(unittest.TestCase):
         self.assertFalse(self.queue.consuming)
 
 
-
 class RedeliveredFlagTest(unittest.TestCase):
-
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
@@ -306,7 +330,6 @@ class RedeliveredFlagTest(unittest.TestCase):
 
 
 class UnnamedQueueDeclareTest(unittest.TestCase):
-
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
@@ -324,7 +347,6 @@ class UnnamedQueueDeclareTest(unittest.TestCase):
 
 
 class SimpleCreateQueueTests(unittest.TestCase):
-
     def test_create_queue(self):
         name = 'simple-create-queue'
         rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
@@ -337,11 +359,11 @@ class SimpleCreateQueueTests(unittest.TestCase):
 
 
 class SimpleCreateDirectExchangeTests(unittest.TestCase):
-
     def test_create(self):
         name = 'direct-exchange-name'
         rabbitpy.create_direct_exchange(
-            os.environ['RABBITMQ_URL'], exchange_name=name)
+            os.environ['RABBITMQ_URL'], exchange_name=name
+        )
         with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.DirectExchange(channel, name)
@@ -353,11 +375,11 @@ class SimpleCreateDirectExchangeTests(unittest.TestCase):
 
 
 class SimpleCreateFanoutExchangeTests(unittest.TestCase):
-
     def test_create(self):
         name = 'fanout-exchange-name'
         rabbitpy.create_fanout_exchange(
-            os.environ['RABBITMQ_URL'], exchange_name=name)
+            os.environ['RABBITMQ_URL'], exchange_name=name
+        )
         with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.FanoutExchange(channel, name)
@@ -369,11 +391,11 @@ class SimpleCreateFanoutExchangeTests(unittest.TestCase):
 
 
 class SimpleCreateHeadersExchangeTests(unittest.TestCase):
-
     def test_create(self):
         name = 'headers-exchange-name'
         rabbitpy.create_headers_exchange(
-            os.environ['RABBITMQ_URL'], exchange_name=name)
+            os.environ['RABBITMQ_URL'], exchange_name=name
+        )
         with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.HeadersExchange(channel, name)
@@ -385,11 +407,11 @@ class SimpleCreateHeadersExchangeTests(unittest.TestCase):
 
 
 class SimpleCreateTopicExchangeTests(unittest.TestCase):
-
     def test_create(self):
         name = 'topic-exchange-name'
         rabbitpy.create_topic_exchange(
-            os.environ['RABBITMQ_URL'], exchange_name=name)
+            os.environ['RABBITMQ_URL'], exchange_name=name
+        )
         with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.TopicExchange(channel, name)
@@ -401,25 +423,24 @@ class SimpleCreateTopicExchangeTests(unittest.TestCase):
 
 
 class SimpleDeleteExchangeTests(unittest.TestCase):
-
     def test_delete(self):
         name = 'delete-exchange-name'
         rabbitpy.create_topic_exchange(
-            os.environ['RABBITMQ_URL'], exchange_name=name)
+            os.environ['RABBITMQ_URL'], exchange_name=name
+        )
         rabbitpy.delete_exchange(
-            os.environ['RABBITMQ_URL'], exchange_name=name)
+            os.environ['RABBITMQ_URL'], exchange_name=name
+        )
         with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.TopicExchange(channel, name)
-                self.assertRaises(exceptions.AMQPNotFound,
-                                  obj.declare, True)
+                self.assertRaises(exceptions.AMQPNotFound, obj.declare, True)
 
     def test_raises_on_empty_name(self):
         self.assertRaises(ValueError, rabbitpy.delete_exchange)
 
 
 class SimpleDeleteQueueTests(unittest.TestCase):
-
     def test_delete(self):
         name = 'delete-queue-name'
         rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
@@ -427,27 +448,28 @@ class SimpleDeleteQueueTests(unittest.TestCase):
         with rabbitpy.Connection(os.environ['RABBITMQ_URL']) as conn:
             with conn.channel() as channel:
                 obj = rabbitpy.Queue(channel, name)
-                self.assertRaises(exceptions.AMQPNotFound,
-                                  obj.declare, True)
+                self.assertRaises(exceptions.AMQPNotFound, obj.declare, True)
 
     def test_raises_on_empty_name(self):
         self.assertRaises(ValueError, rabbitpy.delete_queue)
 
 
 class SimpleGetTests(unittest.TestCase):
-
     def test_get_empty(self):
         name = 'queue-name-get'
         rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertIsNone(
-            rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name))
+            rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name)
+        )
         rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
 
     def test_get_msg(self):
         body = b'test-body'
         name = 'queue-name-get'
         rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
-        rabbitpy.publish(os.environ['RABBITMQ_URL'], routing_key=name, body=body)
+        rabbitpy.publish(
+            os.environ['RABBITMQ_URL'], routing_key=name, body=body
+        )
         result = rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertEqual(result.body, body)
         rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
@@ -457,30 +479,39 @@ class SimpleGetTests(unittest.TestCase):
 
 
 class SimplePublishTests(unittest.TestCase):
-
     def test_publish_with_confirm(self):
         body = b'test-body'
         name = 'simple-publish'
         rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertTrue(
-            rabbitpy.publish(os.environ['RABBITMQ_URL'], routing_key=name,
-                             body=body, confirm=True))
+            rabbitpy.publish(
+                os.environ['RABBITMQ_URL'],
+                routing_key=name,
+                body=body,
+                confirm=True,
+            )
+        )
         result = rabbitpy.get(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertEqual(result.body, body)
         rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
 
 
 class SimpleConsumeTests(unittest.TestCase):
-
     def test_publish_with_confirm(self):
         body = b'test-body'
         name = 'simple-consume-tests'
         rabbitpy.create_queue(os.environ['RABBITMQ_URL'], queue_name=name)
         self.assertTrue(
-            rabbitpy.publish(os.environ['RABBITMQ_URL'], routing_key=name,
-                             body=body, confirm=True))
+            rabbitpy.publish(
+                os.environ['RABBITMQ_URL'],
+                routing_key=name,
+                body=body,
+                confirm=True,
+            )
+        )
         for message in rabbitpy.consume(
-                os.environ['RABBITMQ_URL'], queue_name=name, no_ack=True):
+            os.environ['RABBITMQ_URL'], queue_name=name, no_ack=True
+        ):
             self.assertEqual(message.body, body)
             break
         rabbitpy.delete_queue(os.environ['RABBITMQ_URL'], queue_name=name)
@@ -495,7 +526,6 @@ class SimpleConsumeTests(unittest.TestCase):
 
 
 class Issue119TestCase(unittest.TestCase):
-
     def test_exception_is_raised(self):
         conn = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         channel = conn.channel()
@@ -505,18 +535,18 @@ class Issue119TestCase(unittest.TestCase):
             msg.publish(exchange='invalid', mandatory=True)
 
 
-
 class AccessDeniedDuringConnectionTests(unittest.TestCase):
-
     def test_exception_is_raised(self):
         url_parts = parse.urlsplit(os.environ['RABBITMQ_URL'])
         netloc = f'{uuid.uuid4().hex}:{uuid.uuid4().hex}@{url_parts.hostname}:{url_parts.port or 5672}'
-        url = parse.urlunsplit((
-            url_parts.scheme,
-            netloc,
-            url_parts.path,
-            url_parts.query,
-            url_parts.fragment,
-        ))
+        url = parse.urlunsplit(
+            (
+                url_parts.scheme,
+                netloc,
+                url_parts.path,
+                url_parts.query,
+                url_parts.fragment,
+            )
+        )
         with self.assertRaises(exceptions.AMQPAccessRefused):
             rabbitpy.Connection(url)

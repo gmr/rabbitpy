@@ -5,6 +5,7 @@ delivered by RabbitMQ, acknowledging it, rejecting it or negatively
 acknowledging it.
 
 """
+
 import datetime
 import json
 import logging
@@ -24,6 +25,7 @@ LOGGER = logging.getLogger(__name__)
 
 class Properties(commands.Basic.Properties):
     """Proxy class for :py:class:`pamqp.specification.Basic.Properties`"""
+
     pass
 
 
@@ -77,14 +79,17 @@ class Message(base.AMQPClass):
     :raises KeyError: Raised when an invalid property is passed in
 
     """
+
     method = None
     name = 'Message'
 
-    def __init__(self,
-                 channel: chan.Channel,
-                 body_value: str | bytes | memoryview | dict | list,
-                 properties: dict | None = None,
-                 opinionated: bool = False):
+    def __init__(
+        self,
+        channel: chan.Channel,
+        body_value: str | bytes | memoryview | dict | list,
+        properties: dict | None = None,
+        opinionated: bool = False,
+    ):
         """Create a new instance of the Message object."""
         super().__init__(channel, 'Message')
 
@@ -107,8 +112,9 @@ class Message(base.AMQPClass):
 
         # Enforce datetime timestamps
         if 'timestamp' in self.properties:
-            self.properties['timestamp'] = \
-                self._as_datetime(self.properties['timestamp'])
+            self.properties['timestamp'] = self._as_datetime(
+                self.properties['timestamp']
+            )
 
         # Don't let invalid property keys in
         if self._invalid_properties:
@@ -155,9 +161,11 @@ class Message(base.AMQPClass):
         """
         if not self.method:
             raise exceptions.ActionException(
-                'Can not ack non-received message')
-        basic_ack = commands.Basic.Ack(self.method.delivery_tag,
-                                       multiple=all_previous)
+                'Can not ack non-received message'
+            )
+        basic_ack = commands.Basic.Ack(
+            self.method.delivery_tag, multiple=all_previous
+        )
         self.channel.write_frame(basic_ack)
 
     def json(self) -> bytes:
@@ -179,10 +187,11 @@ class Message(base.AMQPClass):
         """
         if not self.method:
             raise exceptions.ActionException(
-                'Can not nack non-received message')
-        basic_nack = commands.Basic.Nack(self.method.delivery_tag,
-                                         requeue=requeue,
-                                         multiple=all_previous)
+                'Can not nack non-received message'
+            )
+        basic_nack = commands.Basic.Nack(
+            self.method.delivery_tag, requeue=requeue, multiple=all_previous
+        )
         self.channel.write_frame(basic_nack)
 
     def pprint(self, properties: bool = False) -> None:  # pragma: no cover
@@ -194,11 +203,13 @@ class Message(base.AMQPClass):
         if properties:
             pass
 
-    def publish(self,
-                exchange: exc.ExchangeTypes,
-                routing_key: str = '',
-                mandatory: bool = False,
-                immediate: bool = False) -> bool | None:
+    def publish(
+        self,
+        exchange: exc.ExchangeTypes,
+        routing_key: str = '',
+        mandatory: bool = False,
+        immediate: bool = False,
+    ) -> bool | None:
         """Publish the message to the exchange with the specified routing
         key.
 
@@ -221,16 +232,21 @@ class Message(base.AMQPClass):
         payload = utils.maybe_utf8_encode(self.body)
 
         frames = [
-            commands.Basic.Publish(exchange=exchange,
-                                   routing_key=routing_key or '',
-                                   mandatory=mandatory,
-                                   immediate=immediate),
-            header.ContentHeader(body_size=len(payload),
-                                 properties=self._properties)
+            commands.Basic.Publish(
+                exchange=exchange,
+                routing_key=routing_key or '',
+                mandatory=mandatory,
+                immediate=immediate,
+            ),
+            header.ContentHeader(
+                body_size=len(payload), properties=self._properties
+            ),
         ]
 
         # Calculate how many body frames are needed
-        pieces = math.ceil(len(payload) / float(self.channel.maximum_frame_size))
+        pieces = math.ceil(
+            len(payload) / float(self.channel.maximum_frame_size)
+        )
 
         # Send the message
         for offset in range(0, pieces):
@@ -263,9 +279,11 @@ class Message(base.AMQPClass):
         """
         if not self.method:
             raise exceptions.ActionException(
-                'Can not reject non-received message')
-        basic_reject = commands.Basic.Reject(self.method.delivery_tag,
-                                             requeue=requeue)
+                'Can not reject non-received message'
+            )
+        basic_reject = commands.Basic.Reject(
+            self.method.delivery_tag, requeue=requeue
+        )
         self.channel.write_frame(basic_reject)
 
     def _add_auto_message_id(self) -> None:
@@ -277,8 +295,14 @@ class Message(base.AMQPClass):
         self.properties['timestamp'] = datetime.datetime.now(tz=datetime.UTC)
 
     @staticmethod
-    def _as_datetime(value: datetime.datetime | time.struct_time | int | float | str | bytes) \
-            -> datetime.datetime | None:
+    def _as_datetime(
+        value: datetime.datetime
+        | time.struct_time
+        | int
+        | float
+        | str
+        | bytes,
+    ) -> datetime.datetime | None:
         """Return the passed in value as a ``datetime.datetime`` value.
 
         :param value: The value to convert or pass through
@@ -301,10 +325,12 @@ class Message(base.AMQPClass):
             return datetime.datetime.fromtimestamp(value, tz=datetime.UTC)
 
         raise TypeError(
-            f'Could not cast a {value} value to a datetime.datetime')
+            f'Could not cast a {value} value to a datetime.datetime'
+        )
 
-    def _auto_serialize(self, value: str | bytes | memoryview | dict | list) \
-            -> str | bytes:
+    def _auto_serialize(
+        self, value: str | bytes | memoryview | dict | list
+    ) -> str | bytes:
         """Automatically serialize the body as JSON if it is a dict or list.
 
         :param value: The message body passed into the constructor
@@ -357,7 +383,8 @@ class Message(base.AMQPClass):
 
         """
         return [
-            key for key in self.properties
+            key
+            for key in self.properties
             if key not in commands.Basic.Properties.attributes()
         ]
 

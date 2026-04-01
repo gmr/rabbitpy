@@ -8,6 +8,7 @@ RabbitMQ and provides four classes as wrappers:
 * :py:class:`TopicExchange`
 
 """
+
 import logging
 import typing
 
@@ -18,9 +19,15 @@ from rabbitpy import channel as chan
 
 LOGGER = logging.getLogger(__name__)
 
-ExchangeTypes = typing.Union[str, '_Exchange', 'Exchange', 'DirectExchange',
-                             'FanoutExchange', 'HeadersExchange',
-                             'TopicExchange']
+ExchangeTypes = typing.Union[
+    str,
+    '_Exchange',
+    'Exchange',
+    'DirectExchange',
+    'FanoutExchange',
+    'HeadersExchange',
+    'TopicExchange',
+]
 
 
 class _Exchange(base.AMQPClass):
@@ -34,26 +41,29 @@ class _Exchange(base.AMQPClass):
     :param arguments: Optional key/value arguments
 
     """
+
     durable = False
     arguments = {}
     auto_delete = False
     type = 'direct'
 
-    def __init__(self,
-                 channel: chan.Channel,
-                 name: str,
-                 durable: bool = False,
-                 auto_delete: bool = False,
-                 arguments: dict | None = None):
+    def __init__(
+        self,
+        channel: chan.Channel,
+        name: str,
+        durable: bool = False,
+        auto_delete: bool = False,
+        arguments: dict | None = None,
+    ):
         """Create a new instance of the exchange object."""
         super().__init__(channel, name)
         self.durable = durable
         self.auto_delete = auto_delete
         self.arguments = arguments or {}
 
-    def bind(self,
-             source: ExchangeTypes,
-             routing_key: str | None = None) -> None:
+    def bind(
+        self, source: ExchangeTypes, routing_key: str | None = None
+    ) -> None:
         """Bind to another exchange with the routing key.
 
         :param source: The exchange to bind to
@@ -64,7 +74,9 @@ class _Exchange(base.AMQPClass):
             source = source.name
         self._rpc(
             commands.Exchange.Bind(
-                destination=self.name, source=source, routing_key=routing_key))
+                destination=self.name, source=source, routing_key=routing_key
+            )
+        )
 
     def declare(self, passive: bool = False) -> None:
         """Declare the exchange with RabbitMQ. If passive is True and the
@@ -75,9 +87,14 @@ class _Exchange(base.AMQPClass):
         """
         self._rpc(
             commands.Exchange.Declare(
-                exchange=self.name, exchange_type=self.type,
-                durable=self.durable, passive=passive,
-                auto_delete=self.auto_delete, arguments=self.arguments))
+                exchange=self.name,
+                exchange_type=self.type,
+                durable=self.durable,
+                passive=passive,
+                auto_delete=self.auto_delete,
+                arguments=self.arguments,
+            )
+        )
 
     def delete(self, if_unused: bool = False) -> None:
         """Delete the exchange from RabbitMQ.
@@ -86,12 +103,12 @@ class _Exchange(base.AMQPClass):
 
         """
         self._rpc(
-            commands.Exchange.Delete(
-                exchange=self.name, if_unused=if_unused))
+            commands.Exchange.Delete(exchange=self.name, if_unused=if_unused)
+        )
 
-    def unbind(self,
-               source: ExchangeTypes,
-               routing_key: str | None = None) -> None:
+    def unbind(
+        self, source: ExchangeTypes, routing_key: str | None = None
+    ) -> None:
         """Unbind the exchange from the source exchange with the
         routing key. If routing key is None, use the queue or exchange name.
 
@@ -103,7 +120,9 @@ class _Exchange(base.AMQPClass):
             source = source.name
         self._rpc(
             commands.Exchange.Unbind(
-                destination=self.name, source=source, routing_key=routing_key))
+                destination=self.name, source=source, routing_key=routing_key
+            )
+        )
 
 
 class Exchange(_Exchange):
@@ -119,17 +138,18 @@ class Exchange(_Exchange):
 
     """
 
-    def __init__(self,
-                 channel: chan.Channel,
-                 name: str,
-                 exchange_type: str = 'direct',
-                 durable: bool = False,
-                 auto_delete: bool = False,
-                 arguments: bool | None = None):
+    def __init__(
+        self,
+        channel: chan.Channel,
+        name: str,
+        exchange_type: str = 'direct',
+        durable: bool = False,
+        auto_delete: bool = False,
+        arguments: bool | None = None,
+    ):
         """Create a new instance of the exchange object."""
         self.type = exchange_type
-        super().__init__(
-            channel, name, durable, auto_delete, arguments)
+        super().__init__(channel, name, durable, auto_delete, arguments)
 
 
 class DirectExchange(_Exchange):
@@ -143,6 +163,7 @@ class DirectExchange(_Exchange):
     :param arguments: Optional key/value arguments
 
     """
+
     type = 'direct'
 
 
@@ -157,6 +178,7 @@ class FanoutExchange(_Exchange):
     :param arguments: Optional key/value arguments
 
     """
+
     type = 'fanout'
 
 
@@ -171,6 +193,7 @@ class HeadersExchange(_Exchange):
     :param arguments: Optional key/value arguments
 
     """
+
     type = 'headers'
 
 
@@ -185,4 +208,5 @@ class TopicExchange(_Exchange):
     :param arguments: Optional key/value arguments
 
     """
+
     type = 'topic'

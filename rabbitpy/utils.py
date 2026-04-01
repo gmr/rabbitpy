@@ -3,6 +3,7 @@ Utilities
 =========
 
 """
+
 import collections
 import logging
 import platform
@@ -15,7 +16,8 @@ PYTHON3 = True  # Always True — rabbitpy 3.x requires Python 3
 
 Parsed = collections.namedtuple(
     'Parsed',
-    'scheme,netloc,path,params,query,fragment,username,password,hostname,port')
+    'scheme,netloc,path,params,query,fragment,username,password,hostname,port',
+)
 
 
 def maybe_utf8_encode(value: str | bytes) -> bytes:
@@ -38,10 +40,18 @@ def urlparse(url: str) -> Parsed:
     """
     value = f'http{url[4:]}' if url[:4] == 'amqp' else url
     parsed = parse.urlparse(value)
-    return Parsed(parsed.scheme.replace('http', 'amqp'), parsed.netloc,
-                  parsed.path, parsed.params, parsed.query, parsed.fragment,
-                  parsed.username, parsed.password, parsed.hostname,
-                  parsed.port)
+    return Parsed(
+        parsed.scheme.replace('http', 'amqp'),
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment,
+        parsed.username,
+        parsed.password,
+        parsed.hostname,
+        parsed.port,
+    )
 
 
 def is_string(value: object) -> bool:

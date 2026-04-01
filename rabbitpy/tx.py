@@ -3,6 +3,7 @@ The TX or transaction class implements transactional functionality in RabbitMQ
 and allows for any AMQP command to be issued, then committed or rolled back.
 
 """
+
 import logging
 import types
 
@@ -43,10 +44,12 @@ class Tx(base.AMQPClass):
         self.select()
         return self
 
-    def __exit__(self,
-                 exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 unused_exc_tb: types.TracebackType | None):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        unused_exc_tb: types.TracebackType | None,
+    ) -> bool | None:
         """When leaving the context, examine why the context is leaving, if
         it's an exception or what.
 
@@ -54,12 +57,15 @@ class Tx(base.AMQPClass):
         if exc_type:
             LOGGER.warning('Exiting Transaction on exception: %r', exc_val)
             if self._selected:
-                self.rollback()
-            raise exc_val
-        else:
-            LOGGER.debug('Committing transaction on exit of context block')
-            if self._selected:
-                self.commit()
+                try:
+                    self.rollback()
+                except exceptions.NoActiveTransactionError:
+                    LOGGER.warning('Skipping rollback on a closed channel')
+            return False
+        LOGGER.debug('Committing transaction on exit of context block')
+        if self._selected:
+            self.commit()
+        return None
 
     def select(self) -> bool:
         """Select standard transaction mode
@@ -88,8 +94,8 @@ class Tx(base.AMQPClass):
         except exceptions.ChannelClosedException as error:
             LOGGER.warning('Error committing transaction: %s', error)
             raise exceptions.NoActiveTransactionError() from error
-        self._selected = False
-        return isinstance(response, commands.Tx.CommitOk)
+        self._selected = isinstance(response, commands.Tx.CommitOk)
+        return self._selected
 
     def rollback(self) -> bool:
         """Abandon the current transaction
@@ -108,5 +114,5 @@ class Tx(base.AMQPClass):
         except exceptions.ChannelClosedException as error:
             LOGGER.warning('Error rolling back transaction: %s', error)
             raise exceptions.NoActiveTransactionError() from error
-        self._selected = False
-        return isinstance(response, commands.Tx.RollbackOk)
+        self._selected = isinstance(response, commands.Tx.RollbackOk)
+        return self._selected

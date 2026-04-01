@@ -3,6 +3,8 @@ AMQP Adapter
 
 """
 
+import typing
+
 from pamqp import commands
 
 from rabbitpy import base, channel, exceptions, message, utils
@@ -35,15 +37,16 @@ class AMQP(base.ChannelWriter):
         """
         self._write_frame(commands.Basic.Ack(delivery_tag, multiple))
 
-    def basic_consume(self,
-                      queue: str = '',
-                      consumer_tag: str = '',
-                      no_local: bool = False,
-                      no_ack: bool = False,
-                      exclusive: bool = False,
-                      nowait: bool = False,
-                      arguments: dict | None = None) \
-            -> None:
+    def basic_consume(
+        self,
+        queue: str = '',
+        consumer_tag: str = '',
+        no_local: bool = False,
+        no_ack: bool = False,
+        exclusive: bool = False,
+        nowait: bool = False,
+        arguments: dict | None = None,
+    ) -> typing.Generator[message.Message, None, None]:
         """Start a queue consumer
 
         This method asks the server to start a "consumer", which is a transient
@@ -74,8 +77,17 @@ class AMQP(base.ChannelWriter):
             consumer_tag = self.consumer_tag
         self.channel.consumers[consumer_tag] = (self, no_ack)
         self._rpc(
-            commands.Basic.Consume(0, queue, consumer_tag, no_local, no_ack,
-                                   exclusive, nowait, arguments))
+            commands.Basic.Consume(
+                0,
+                queue,
+                consumer_tag,
+                no_local,
+                no_ack,
+                exclusive,
+                nowait,
+                arguments,
+            )
+        )
         self._consuming = True
         try:
             while self._consuming:
@@ -90,9 +102,9 @@ class AMQP(base.ChannelWriter):
             if self._consuming:
                 self.basic_cancel(consumer_tag)
 
-    def basic_cancel(self,
-                     consumer_tag: str = '',
-                     nowait: bool = False) -> None:
+    def basic_cancel(
+        self, consumer_tag: str = '', nowait: bool = False
+    ) -> None:
         """End a queue consumer
 
         This method cancels a consumer. This does not affect already delivered
@@ -112,7 +124,9 @@ class AMQP(base.ChannelWriter):
         self.channel.cancel_consumer(self, consumer_tag, nowait)
         self._consuming = False
 
-    def basic_get(self, queue: str = '', no_ack: bool = False) -> None:
+    def basic_get(
+        self, queue: str = '', no_ack: bool = False
+    ) -> 'message.Message | None':
         """Direct access to a queue
 
         This method provides direct access to the messages in a queue using a
@@ -123,12 +137,14 @@ class AMQP(base.ChannelWriter):
         :param no_ack: No acknowledgement needed
 
         """
-        self._rpc(commands.Basic.Get(0, queue, no_ack))
+        return self._rpc(commands.Basic.Get(0, queue, no_ack))
 
-    def basic_nack(self,
-                   delivery_tag: int = 0,
-                   multiple: bool = False,
-                   requeue: bool = True) -> None:
+    def basic_nack(
+        self,
+        delivery_tag: int = 0,
+        multiple: bool = False,
+        requeue: bool = True,
+    ) -> None:
         """Reject one or more incoming messages.
 
         This method allows a client to reject one or more incoming messages. It
@@ -145,14 +161,15 @@ class AMQP(base.ChannelWriter):
         """
         self._write_frame(commands.Basic.Nack(delivery_tag, multiple, requeue))
 
-    def basic_publish(self,
-                      exchange: str = '',
-                      routing_key: str = '',
-                      body: str = '',
-                      properties: dict | bytes | None = None,
-                      mandatory: bool = False,
-                      immediate: bool = False) \
-            -> bool | None:
+    def basic_publish(
+        self,
+        exchange: str = '',
+        routing_key: str = '',
+        body: str = '',
+        properties: dict | bytes | None = None,
+        mandatory: bool = False,
+        immediate: bool = False,
+    ) -> bool | None:
         """Publish a message
 
         This method publishes a message to a specific exchange. The message
@@ -168,14 +185,15 @@ class AMQP(base.ChannelWriter):
         :param immediate: Request immediate delivery
 
         """
-        msg = message.Message(self.channel, body, properties or {}, False,
-                              False)
+        msg = message.Message(self.channel, body, properties or {}, False)
         return msg.publish(exchange, routing_key, mandatory, immediate)
 
-    def basic_qos(self,
-                  prefetch_size: int = 0,
-                  prefetch_count: int = 0,
-                  global_flag: bool = False) -> None:
+    def basic_qos(
+        self,
+        prefetch_size: int = 0,
+        prefetch_count: int = 0,
+        global_flag: bool = False,
+    ) -> None:
         """Specify quality of service
 
         This method requests a specific quality of service. The QoS can be
@@ -191,11 +209,12 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Basic.Qos(prefetch_size, prefetch_count, global_flag))
+            commands.Basic.Qos(prefetch_size, prefetch_count, global_flag)
+        )
 
-    def basic_reject(self,
-                     delivery_tag: int = 0,
-                     requeue: bool = True) -> None:
+    def basic_reject(
+        self, delivery_tag: int = 0, requeue: bool = True
+    ) -> None:
         """Reject an incoming message
 
         This method allows a client to reject a message. It can be used to
@@ -227,16 +246,17 @@ class AMQP(base.ChannelWriter):
         """
         self._rpc(commands.Confirm.Select())
 
-    def exchange_declare(self,
-                         exchange: str = '',
-                         exchange_type: str = 'direct',
-                         passive: bool = False,
-                         durable: bool = False,
-                         auto_delete: bool = False,
-                         internal: bool = False,
-                         nowait: bool = False,
-                         arguments: dict | None = None) \
-            -> None:
+    def exchange_declare(
+        self,
+        exchange: str = '',
+        exchange_type: str = 'direct',
+        passive: bool = False,
+        durable: bool = False,
+        auto_delete: bool = False,
+        internal: bool = False,
+        nowait: bool = False,
+        arguments: dict | None = None,
+    ) -> None:
         """Verify exchange exists, create if needed
 
         This method creates an exchange if it does not already exist, and if
@@ -254,14 +274,22 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Exchange.Declare(0, exchange, exchange_type, passive,
-                                      durable, auto_delete, internal, nowait,
-                                      arguments))
+            commands.Exchange.Declare(
+                0,
+                exchange,
+                exchange_type,
+                passive,
+                durable,
+                auto_delete,
+                internal,
+                nowait,
+                arguments,
+            )
+        )
 
-    def exchange_delete(self,
-                        exchange: str = '',
-                        if_unused: bool = False,
-                        nowait: bool = False) -> None:
+    def exchange_delete(
+        self, exchange: str = '', if_unused: bool = False, nowait: bool = False
+    ) -> None:
         """Delete an exchange
 
         This method deletes an exchange. When an exchange is deleted all queue
@@ -274,13 +302,14 @@ class AMQP(base.ChannelWriter):
         """
         self._rpc(commands.Exchange.Delete(0, exchange, if_unused, nowait))
 
-    def exchange_bind(self,
-                      destination: str = '',
-                      source: str = '',
-                      routing_key: str = '',
-                      nowait: bool = False,
-                      arguments: dict | None = None) \
-            -> None:
+    def exchange_bind(
+        self,
+        destination: str = '',
+        source: str = '',
+        routing_key: str = '',
+        nowait: bool = False,
+        arguments: dict | None = None,
+    ) -> None:
         """Bind exchange to an exchange.
 
         This method binds an exchange to an exchange.
@@ -293,16 +322,19 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Exchange.Bind(0, destination, source, routing_key, nowait,
-                                   arguments))
+            commands.Exchange.Bind(
+                0, destination, source, routing_key, nowait, arguments
+            )
+        )
 
-    def exchange_unbind(self,
-                        destination: str = '',
-                        source: str = '',
-                        routing_key: str = '',
-                        nowait: bool = False,
-                        arguments: dict | None = None) \
-            -> None:
+    def exchange_unbind(
+        self,
+        destination: str = '',
+        source: str = '',
+        routing_key: str = '',
+        nowait: bool = False,
+        arguments: dict | None = None,
+    ) -> None:
         """Unbind an exchange from an exchange.
 
         This method unbinds an exchange from an exchange.
@@ -315,16 +347,19 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Exchange.Unbind(0, destination, source, routing_key,
-                                     nowait, arguments))
+            commands.Exchange.Unbind(
+                0, destination, source, routing_key, nowait, arguments
+            )
+        )
 
-    def queue_bind(self,
-                   queue: str = '',
-                   exchange: str = '',
-                   routing_key: str = '',
-                   nowait: bool = False,
-                   arguments: dict | None = None) \
-            -> None:
+    def queue_bind(
+        self,
+        queue: str = '',
+        exchange: str = '',
+        routing_key: str = '',
+        nowait: bool = False,
+        arguments: dict | None = None,
+    ) -> None:
         """Bind queue to an exchange
 
         This method binds a queue to an exchange. Until a queue is bound it
@@ -340,18 +375,21 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Queue.Bind(0, queue, exchange, routing_key, nowait,
-                                arguments))
+            commands.Queue.Bind(
+                0, queue, exchange, routing_key, nowait, arguments
+            )
+        )
 
-    def queue_declare(self,
-                      queue: str = '',
-                      passive: bool = False,
-                      durable: bool = False,
-                      exclusive: bool = False,
-                      auto_delete: bool = False,
-                      nowait: bool = False,
-                      arguments: dict | None = None) \
-            -> None:
+    def queue_declare(
+        self,
+        queue: str = '',
+        passive: bool = False,
+        durable: bool = False,
+        exclusive: bool = False,
+        auto_delete: bool = False,
+        nowait: bool = False,
+        arguments: dict | None = None,
+    ) -> None:
         """Declare queue, create if needed
 
         This method creates or checks a queue. When creating a new queue the
@@ -368,14 +406,25 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Queue.Declare(0, queue, passive, durable, exclusive,
-                                   auto_delete, nowait, arguments))
+            commands.Queue.Declare(
+                0,
+                queue,
+                passive,
+                durable,
+                exclusive,
+                auto_delete,
+                nowait,
+                arguments,
+            )
+        )
 
-    def queue_delete(self,
-                     queue: str = '',
-                     if_unused: bool = False,
-                     if_empty: bool = False,
-                     nowait: bool = False) -> None:
+    def queue_delete(
+        self,
+        queue: str = '',
+        if_unused: bool = False,
+        if_empty: bool = False,
+        nowait: bool = False,
+    ) -> None:
         """Delete a queue
 
         This method deletes a queue. When a queue is deleted any pending
@@ -402,12 +451,13 @@ class AMQP(base.ChannelWriter):
         """
         self._rpc(commands.Queue.Purge(0, queue, nowait))
 
-    def queue_unbind(self,
-                     queue: str = '',
-                     exchange: str = '',
-                     routing_key: str = '',
-                     arguments: dict | None = None) \
-            -> None:
+    def queue_unbind(
+        self,
+        queue: str = '',
+        exchange: str = '',
+        routing_key: str = '',
+        arguments: dict | None = None,
+    ) -> None:
         """Unbind a queue from an exchange
 
         This method unbinds a queue from an exchange.
@@ -419,7 +469,8 @@ class AMQP(base.ChannelWriter):
 
         """
         self._rpc(
-            commands.Queue.Unbind(0, queue, exchange, routing_key, arguments))
+            commands.Queue.Unbind(0, queue, exchange, routing_key, arguments)
+        )
 
     def tx_select(self) -> None:
         """Select standard transaction mode

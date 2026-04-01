@@ -2,12 +2,12 @@
 Test the rabbitpy.base classes
 
 """
+
 from rabbitpy import base, utils
 from tests import helpers
 
 
 class AMQPClassTests(helpers.TestCase):
-
     def test_channel_valid(self):
         obj = base.AMQPClass(self.channel, 'Foo')
         self.assertEqual(obj.channel, self.channel)
