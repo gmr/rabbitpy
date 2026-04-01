@@ -42,7 +42,7 @@ class Events:
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Create a new instance of Events"""
         self._events = self._create_event_objects()
 

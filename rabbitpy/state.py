@@ -21,7 +21,7 @@ class StatefulBase:
         3: 'Opening',
     }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         """Create a new instance of the object defaulting to a closed state."""
         self._state: int = self.CLOSED
         super().__init__(*args, **kwargs)

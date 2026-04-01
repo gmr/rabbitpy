@@ -16,8 +16,10 @@ class ClientProperties:
     product = 'rabbitpy'
     version = __version__
 
-    def __init__(self, additional_properties: dict | None = None):
-        self._properties: dict[str, str | dict[str, bool]] = {
+    def __init__(
+        self, additional_properties: dict[str, typing.Any] | None = None
+    ) -> None:
+        self._properties: dict[str, typing.Any] = {
             'information': self.information,
             'platform': self.platform,
             'product': self.product,
@@ -33,7 +35,7 @@ class ClientProperties:
             'publisher_confirms': True,
         }
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, typing.Any]:
         return self._properties
 
 
@@ -78,22 +80,22 @@ class Connection(state.StatefulBase):
         self,
         url: str | None = None,
         connection_name: str | None = None,
-        client_properties: dict | None = None,
-    ):
+        client_properties: dict[str, typing.Any] | None = None,
+    ) -> None:
         """Create a new instance of the Connection object"""
         super().__init__()
-        self._args = url_parser.parse(url)
+        self._args: url_parser.ConnectionArgs = url_parser.parse(url)
         self._channel_lock = threading.Lock()
         self._channel0 = channel0.Channel0()
         self._client_properties = ClientProperties(client_properties)
         self._events = events.Events()
-        self._exceptions = queue.Queue()
+        self._exceptions: queue.Queue[Exception] = queue.Queue()
         self._io: io.IO | None = None
         self._max_frame_size: int | None = None
         self._name = connection_name or '0x%x' % id(self)  # noqa: UP031
-        self._write_queue = queue.Queue()
+        self._write_queue: queue.Queue[typing.Any] = queue.Queue()
 
-    def __enter__(self) -> 'Connection':
+    def __enter__(self) -> typing.Self:
         """For use as a context manager, return a handle to this object
         instance.
 
@@ -106,7 +108,7 @@ class Connection(state.StatefulBase):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         unused_exc_tb: types.TracebackType | None,
-    ):
+    ) -> bool | None:
         """Close the connection when the context exits"""
         if exc_type and exc_val:
             self._stop_io()
@@ -121,11 +123,12 @@ class Connection(state.StatefulBase):
             self._set_state(self.CLOSED)
             raise exc
         self.close()
+        return None
 
     @property
-    def args(self) -> dict:
+    def args(self) -> url_parser.ConnectionArgs:
         """Return the connection arguments."""
-        return dict(self._args)
+        return typing.cast(url_parser.ConnectionArgs, dict(self._args))
 
     @property
     def blocked(self) -> bool:
@@ -136,7 +139,7 @@ class Connection(state.StatefulBase):
         that was added in RabbitMQ 3.2.
 
         """
-        return self._events.is_set(events.CONNECTION_BLOCKED) or False
+        return bool(self._events.is_set(events.CONNECTION_BLOCKED))
 
     def close(self) -> None:
         """Close the connection to RabbitMQ."""
