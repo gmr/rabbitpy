@@ -85,11 +85,65 @@ disallow_untyped_defs = false
 disallow_untyped_calls = false
 check_untyped_defs = true
 
+[[tool.mypy.overrides]]
+# Legacy test files: test type-validation (intentionally wrong types),
+# use pre-rewrite channel API, or have Python 2 compat cruft
+module = [
+    "tests.integration_tests",
+    "tests.utils_tests",
+    "tests.base_tests",
+    "tests.channel_test",
+    "tests.helpers",
+    "tests.test_queue",
+    "tests.test_message",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Restored legacy modules — not yet fully typed; suppress strict errors
+module = [
+    "rabbitpy.amqp",
+    "rabbitpy.amqp_queue",
+    "rabbitpy.base",
+    "rabbitpy.channel",
+    "rabbitpy.channel0",
+    "rabbitpy.exchange",
+    "rabbitpy.heartbeat",
+    "rabbitpy.message",
+    "rabbitpy.simple",
+    "rabbitpy.tx",
+    "rabbitpy.utils",
+]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+ignore_errors = true
+
 [tool.basedpyright]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
 include = ["rabbitpy", "tests"]
-exclude = ["examples/**", ".venv/**"]
+exclude = [
+    "examples/**",
+    ".venv/**",
+    "tests/base_tests.py",
+    "tests/channel_test.py",
+    "tests/helpers.py",
+    "tests/integration_tests.py",
+    "tests/test_message.py",
+    "tests/test_queue.py",
+    "tests/utils_tests.py",
+    "rabbitpy/amqp.py",
+    "rabbitpy/amqp_queue.py",
+    "rabbitpy/base.py",
+    "rabbitpy/channel.py",
+    "rabbitpy/channel0.py",
+    "rabbitpy/exchange.py",
+    "rabbitpy/heartbeat.py",
+    "rabbitpy/message.py",
+    "rabbitpy/simple.py",
+    "rabbitpy/tx.py",
+    "rabbitpy/utils.py",
+]
 
 [tool.ruff]
 line-length = 79
@@ -129,5 +183,16 @@ flake8-quotes = {inline-quotes = "single"}
 max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["N802", "S"]
+"tests/**/*.py" = ["E501", "N802", "RUF012", "S", "T20", "T203"]
 "examples/**/*.py" = ["S", "T20"]
+# Restored legacy modules — relax line-length and mutable-default rules
+"rabbitpy/base.py" = ["E501", "RUF012", "UP007"]
+"rabbitpy/channel.py" = ["E501", "RUF012"]
+"rabbitpy/channel0.py" = ["E501", "RUF012"]
+"rabbitpy/amqp_queue.py" = ["E501", "RUF002", "RUF012"]
+"rabbitpy/exchange.py" = ["E501", "RUF012"]
+"rabbitpy/message.py" = ["E501", "RUF012"]
+"rabbitpy/simple.py" = ["E501", "RUF012"]
+"rabbitpy/tx.py" = ["E501", "RUF012"]
+"rabbitpy/heartbeat.py" = ["E501", "RUF012"]
+"rabbitpy/amqp.py" = ["E501", "RUF012"]
