@@ -14,24 +14,12 @@ get_exposed_port() {
   docker compose port $1 $2 | cut -d: -f2
 }
 
-# Activate the virtual environment
-if test -e env/bin/activate
-then
-  . env/bin/activate
-fi
-
-mkdir -p build
-
 # Stop any running instances and clean up after them, then pull images
 docker compose down --volumes --remove-orphans
 docker compose pull -q
 docker compose up -d --wait
 
-wait_for rabbitmq
-
-docker compose exec -T rabbitmq rabbitmqctl await_startup
-
-cat > build/test.env <<EOF
-export MANAGEMENT_URL=http://${TEST_HOST}:$(get_exposed_port rabbitmq 15672)/%2f
-export RABBITMQ_URL=amqp://guest:guest@${TEST_HOST}:$(get_exposed_port rabbitmq 5672)/%2f
+cat > .env <<EOF
+MANAGEMENT_URL=http://${TEST_HOST}:$(get_exposed_port rabbitmq 15672)/%2f
+RABBITMQ_URL=amqp://guest:guest@${TEST_HOST}:$(get_exposed_port rabbitmq 5672)/%2f
 EOF

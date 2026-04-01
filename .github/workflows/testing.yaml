@@ -42,13 +42,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
-      - name: Create build directory and test env
+      - name: Write .env for integration tests
         run: |
-          mkdir -p build
-          cat > build/test.env <<EOF
-          export MANAGEMENT_URL=http://localhost:15672/%2f
-          export RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2f
-          EOF
+          echo "RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2f" >> .env
+          echo "MANAGEMENT_URL=http://localhost:15672/%2f" >> .env
 
       - name: Lint Check
         run: uv run pre-commit run --all-files
