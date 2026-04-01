@@ -158,22 +158,23 @@ class Connection(state.StatefulBase):
         return bool(self._events.is_set(events.CONNECTION_BLOCKED))
 
     @property
-    def capabilities(self) -> dict:
+    def capabilities(self) -> dict[str, typing.Any]:
         """Return the RabbitMQ server capabilities from negotiation."""
         if self._channel0 is None:
             return {}
-        return self._channel0.properties.get('capabilities', {})
+        result: dict[str, typing.Any] = self._channel0.properties.get(
+            'capabilities', {}
+        )
+        return result
 
     @property
-    def server_properties(self) -> dict:
+    def server_properties(self) -> dict[str, typing.Any]:
         """Return the RabbitMQ server properties from negotiation."""
         if self._channel0 is None:
             return {}
-        return self._channel0.properties
+        return typing.cast(dict[str, typing.Any], self._channel0.properties)
 
-    def channel(
-        self, blocking_read: bool = False
-    ) -> channel_mod.Channel:
+    def channel(self, blocking_read: bool = False) -> channel_mod.Channel:
         """Create and return a new AMQP channel.
 
         If ``blocking_read`` is ``True``, :py:meth:`Queue.get` calls within
@@ -190,7 +191,7 @@ class Connection(state.StatefulBase):
             raise exceptions.ConnectionClosed()
         with self._channel_lock:
             channel_id = self._get_next_channel_id()
-            channel_frames: queue.Queue = queue.Queue()
+            channel_frames: queue.Queue[typing.Any] = queue.Queue()
             assert self._io is not None  # noqa: S101
             assert self._channel0 is not None  # noqa: S101
             ch = channel_mod.Channel(

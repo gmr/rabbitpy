@@ -7,6 +7,7 @@ Once negotiation succeeds the CHANNEL0_OPENED event is set.  On failure an
 exception is placed in the shared exceptions queue.
 
 """
+
 import logging
 import queue
 import sys
@@ -204,9 +205,7 @@ class Channel0(threading.Thread):
             self._exceptions.put(exc_cls(frame.reply_code, frame.reply_text))
             self._events.set(ev_module.EXCEPTION_RAISED)
 
-    def _wait_for_frame(
-        self, timeout: float
-    ) -> pamqp.frame.FrameTypes:
+    def _wait_for_frame(self, timeout: float) -> pamqp.frame.FrameTypes:
         """Block until a frame arrives on pending_frames or timeout expires.
 
         :param timeout: Maximum seconds to wait
@@ -231,9 +230,7 @@ class Channel0(threading.Thread):
             'Timed out waiting for AMQP server response during negotiation'
         )
 
-    def _on_connection_start(
-        self, frame: commands.Connection.Start
-    ) -> None:
+    def _on_connection_start(self, frame: commands.Connection.Start) -> None:
         """Process Connection.Start and send Connection.StartOk."""
         self._properties = dict(frame.server_properties or {})
         LOGGER.debug('Server properties: %r', self._properties)
@@ -247,9 +244,7 @@ class Channel0(threading.Thread):
             ),
         )
 
-    def _on_connection_tune(
-        self, frame: commands.Connection.Tune
-    ) -> None:
+    def _on_connection_tune(self, frame: commands.Connection.Tune) -> None:
         """Process Connection.Tune, send TuneOk, then send Connection.Open."""
         self._max_channels = self._negotiate_value(
             frame.channel_max, self._args.get('channel_max', 0)

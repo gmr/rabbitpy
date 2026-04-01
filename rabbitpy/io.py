@@ -179,7 +179,9 @@ class IO(threading.Thread):
         return self._write_trigger_w
 
     @property
-    def write_queue(self) -> queue.Queue:
+    def write_queue(
+        self,
+    ) -> queue.Queue[tuple[int, pamqp.base.Frame | pamqp.heartbeat.Heartbeat]]:
         """Return the shared write queue used by AMQPChannel.write_frame()."""
         return self._write_queue
 
