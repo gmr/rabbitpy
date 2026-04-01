@@ -38,8 +38,10 @@ Documentation = "https://rabbitpy.readthedocs.io"
 
 [dependency-groups]
 dev = [
+    "basedpyright",
     "build",
     "coverage[toml]",
+    "mypy",
     "pre-commit",
     "python-dotenv",
     "ruff",
@@ -69,7 +71,25 @@ directory = "build/coverage"
 output = "build/coverage.xml"
 
 [tool.hatch.build.targets.wheel]
-include = ["rabbitpy"]
+include = ["rabbitpy", "rabbitpy/py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = true
+
+[tool.basedpyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+include = ["rabbitpy", "tests"]
+exclude = ["examples/**", ".venv/**"]
 
 [tool.ruff]
 line-length = 79

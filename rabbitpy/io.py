@@ -16,31 +16,17 @@ import pamqp.heartbeat
 
 import rabbitpy.events
 import rabbitpy.exceptions
+from rabbitpy.url_parser import SslOptions
 
 LOGGER = logging.getLogger(__name__)
 
-PamqpFrame = (
-    pamqp.base.Frame
-    | pamqp.body.ContentBody
-    | pamqp.header.ContentHeader
-    | pamqp.header.ProtocolHeader
-    | pamqp.heartbeat.Heartbeat
-    | None
-)
+# Convenience alias: pamqp 4 exposes FrameTypes as the canonical union.
+# We extend it with None to represent "no frame decoded yet".
+PamqpFrame = pamqp.frame.FrameTypes | None
 
-AddrInfo = (
-    list[typing.Any]
-    | list[
-        tuple[
-            socket.AddressFamily,
-            socket.SocketKind,
-            int,
-            str,
-            tuple[str, int],
-            tuple[str, int, int, int] | None,  # IPv6 sockaddr
-        ]
-    ]
-)
+AddrInfo = list[
+    tuple[socket.AddressFamily, socket.SocketKind, int, str, typing.Any]
+]
 
 
 class IO(threading.Thread):
@@ -51,11 +37,11 @@ class IO(threading.Thread):
         host: str,
         port: int,
         use_ssl: bool,
-        ssl_options: dict,
+        ssl_options: SslOptions,
         events: rabbitpy.events.Events,
-        exceptions: queue.Queue,
+        exceptions: queue.Queue[Exception],
         timeout: float = 0.01,
-    ):
+    ) -> None:
         """Initialize the IO thread."""
         super().__init__(daemon=True, name='IO')
         self._events = events
@@ -73,15 +59,17 @@ class IO(threading.Thread):
         self._lock = threading.Lock()
         self._bytes_read = 0
         self._bytes_written = 0
-        self._channels: collections.defaultdict[int, queue.Queue] = (
-            collections.defaultdict(queue.Queue)
-        )
+        self._channels: collections.defaultdict[
+            int, queue.Queue[PamqpFrame]
+        ] = collections.defaultdict(queue.Queue)
         self._ioloop: asyncio.AbstractEventLoop | None = None
         self._remote_name: str | None = None
         self._socket: socket.socket | None = None
-        self._write_buffer = collections.deque()
+        self._write_buffer: collections.deque[bytes] = collections.deque()
 
-    def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
+    def add_channel(
+        self, channel: int, read_queue: queue.Queue[PamqpFrame]
+    ) -> None:
         """Associate a channel with a queue for frame dispatching."""
         with self._lock:
             self._channels[int(channel)] = read_queue
@@ -127,7 +115,9 @@ class IO(threading.Thread):
         finally:
             self.close()
 
-    def write_frame(self, channel: int, frame_value: pamqp.base.Frame) -> None:
+    def write_frame(
+        self, channel: int, frame_value: pamqp.frame.FrameTypes
+    ) -> None:
         """Write an AMQP frame to the socket."""
         if not self.is_connected:
             self._add_exception(
@@ -189,26 +179,28 @@ class IO(threading.Thread):
 
     async def _connect(self) -> None:
         """Establish a connection to the RabbitMQ server."""
-        sock = None
+        sock: socket.socket | None = None
         for addr_info in self._get_addr_info():
             LOGGER.debug('Attempting to connect to %r', addr_info[4])
             try:
                 sock = self._create_socket(*addr_info[0:3])
                 sock.connect(addr_info[4])
             except OSError as error:
-                sock.close()
+                if sock is not None:
+                    sock.close()
                 sock = None
                 LOGGER.debug('Error connecting to %r: %s', addr_info[4], error)
                 continue
             else:
                 break
 
-        if not sock:
-            return self._add_exception(
+        if sock is None:
+            self._add_exception(
                 rabbitpy.exceptions.ConnectionException(
                     self._host, self._port, 'Could not connect'
                 )
             )
+            return
 
         if self._stop_requested.is_set():
             sock.close()
@@ -258,13 +250,14 @@ class IO(threading.Thread):
                 )
             else:
                 ssl_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
-            if self._ssl_options.get('certfile'):
+            certfile = self._ssl_options.get('certfile')
+            if certfile:
                 ssl_context.load_cert_chain(
-                    self._ssl_options.get('certfile', ''),
-                    self._ssl_options.get('keyfile'),
+                    certfile, self._ssl_options.get('keyfile')
                 )
-            if self._ssl_options.get('verify') is not None:
-                ssl_context.verify_mode = self._ssl_options['verify']
+            verify = self._ssl_options.get('verify')
+            if verify is not None:
+                ssl_context.verify_mode = verify
             return ssl_context
         return None
 
@@ -273,7 +266,6 @@ class IO(threading.Thread):
         value: bytes,
     ) -> tuple[bytes, int | None, PamqpFrame, int]:
         """Unmarshal a pamqp frame from received socket data.
-
 
         :param value: The bytes received from the socket.
         :return: Tuple containing remaining bytes, channel ID,
@@ -327,7 +319,8 @@ class IO(threading.Thread):
                     break  # Incomplete frame — wait for more data
                 self._buffer = remaining
                 self._bytes_read += bytes_read
-                self._channels[channel_id].put(frame_value)
+                if channel_id is not None:
+                    self._channels[channel_id].put(frame_value)
 
     def _on_write_ready(self) -> None:
         """Write pending data from the write buffer to the socket."""
@@ -335,6 +328,8 @@ class IO(threading.Thread):
             with self._lock:
                 payload = self._write_buffer.popleft()
         except IndexError:
+            return
+        if self._socket is None:
             return
         try:
             self._socket.sendall(payload)
@@ -355,17 +350,18 @@ class IO(threading.Thread):
             with self._lock:
                 self._bytes_written += len(payload)
 
-    async def _run(self):
+    async def _run(self) -> None:
         """Manage the I/O loop: connect, read, write, and handle closure."""
-        self._ioloop = asyncio.get_running_loop()
+        loop = asyncio.get_running_loop()
+        self._ioloop = loop
         with self._lock:
             await self._connect()
 
         if not self._socket:
             return  # Could not establish connection
 
-        self._ioloop.add_reader(self._socket, self._on_read_ready)
-        self._ioloop.add_writer(self._socket, self._on_write_ready)
+        loop.add_reader(self._socket, self._on_read_ready)
+        loop.add_writer(self._socket, self._on_write_ready)
         local_sock = self._socket.getsockname()
         peer_sock = self._socket.getpeername()
         self._remote_name = (
@@ -378,7 +374,7 @@ class IO(threading.Thread):
         with self._lock:
             if self._socket is not None:
                 try:
-                    self._ioloop.remove_reader(self._socket.fileno())
-                    self._ioloop.remove_writer(self._socket.fileno())
+                    loop.remove_reader(self._socket.fileno())
+                    loop.remove_writer(self._socket.fileno())
                 except (AttributeError, OSError):
                     pass

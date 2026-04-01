@@ -25,14 +25,14 @@ class ActionException(RabbitpyException):
 
     """
 
-    def __str__(self):
-        return self.args[0]
+    def __str__(self) -> str:
+        return str(self.args[0])
 
 
 class ChannelClosedException(RabbitpyException):
     """Raised when an action is attempted on a channel that is closed."""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             'Can not perform RPC requests on a closed channel, you must '
             'create a new channel'
@@ -46,7 +46,7 @@ class ConnectionException(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Unable to connect to the remote server {self.args}'
 
 
@@ -56,7 +56,7 @@ class ConnectionClosed(ConnectionException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'The connection is closed'
 
 
@@ -67,14 +67,14 @@ class ConnectionResetException(ConnectionException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'Connection was reset at socket level'
 
 
 class RemoteCancellationException(RabbitpyException):
     """Raised if RabbitMQ cancels an active consumer"""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'Remote server cancelled the active consumer'
 
 
@@ -84,7 +84,7 @@ class RemoteClosedChannelException(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f'Channel {self.args[0]} was closed by the remote server '
             f'({self.args[1]}): {self.args[2]}'
@@ -97,7 +97,7 @@ class RemoteClosedException(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f'Connection was closed by the remote server '
             f'({self.args[0]}): {self.args[1]}'
@@ -110,7 +110,7 @@ class MessageReturnedException(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f'Message was returned by RabbitMQ: ({self.args[0]}) '
             f'for exchange {self.args[1]}'
@@ -123,7 +123,7 @@ class NoActiveTransactionError(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'No active transaction for the request, channel closed'
 
 
@@ -133,7 +133,7 @@ class NotConsumingError(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'No active consumer to cancel'
 
 
@@ -143,14 +143,14 @@ class NotSupportedError(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'The selected feature "{self.args}" is not supported'
 
 
 class ReceivedOnClosedChannelException(RabbitpyException):
     """Raised when RabbitMQ sends an RPC on a channel that is closed."""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'RabbitMQ sent a frame on a closed channel ({self.args[0]})'
 
 
@@ -163,7 +163,7 @@ class TooManyChannelsError(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'The maximum amount of negotiated channels has been reached'
 
 
@@ -173,7 +173,7 @@ class UnexpectedResponseError(RabbitpyException):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f'Received an expected response, expected {self.args[0]}, '
             f'received {self.args[1]}'

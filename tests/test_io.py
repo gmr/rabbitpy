@@ -15,7 +15,17 @@ from pamqp import commands, constants, header
 
 import rabbitpy.events
 from rabbitpy import events, exceptions, io, url_parser
+from rabbitpy.url_parser import SslOptions
 from tests import mixins
+
+_DEFAULT_SSL_OPTIONS = SslOptions(
+    check_hostname=True,
+    cafile=None,
+    capath=None,
+    certfile=None,
+    keyfile=None,
+    verify=None,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,9 +36,9 @@ class TestCase(unittest.TestCase):
     def setUp(self):
         """Set up a common IO instance for tests."""
         self.events = events.Events()
-        self.exceptions = queue.Queue()
-        self.read_queue = queue.Queue()
-        self.write_queue = queue.Queue()
+        self.exceptions: queue.Queue[Exception] = queue.Queue()
+        self.read_queue: queue.Queue[io.PamqpFrame] = queue.Queue()
+        self.write_queue: queue.Queue[io.PamqpFrame] = queue.Queue()
 
     def assertExceptionAdded(self, expectation):
         error = self.exceptions.get(False)
@@ -50,7 +60,12 @@ class TestIO(TestCase):
         """Set up a common IO instance for tests."""
         super().setUp()
         self.io = io.IO(
-            'localhost', 5672, False, {}, self.events, self.exceptions
+            'localhost',
+            5672,
+            False,
+            _DEFAULT_SSL_OPTIONS,
+            self.events,
+            self.exceptions,
         )
         self.io.add_channel(0, self.read_queue)
 
@@ -83,6 +98,7 @@ class TestIO(TestCase):
         self.assertEqual(remaining, b'')
         self.assertEqual(channel, 0)
         self.assertIsInstance(frame, commands.Connection.Start)
+        assert isinstance(frame, commands.Connection.Start)
         self.assertEqual(frame.locales, 'en_US')
         self.assertEqual(count, 335)
 
@@ -123,7 +139,7 @@ class TestIO(TestCase):
             'localhost',
             random.randint(1024, 32768),
             False,
-            {},
+            _DEFAULT_SSL_OPTIONS,
             self.events,
             self.exceptions,
         )
@@ -142,31 +158,40 @@ class TestIO(TestCase):
 
     def test_get_ssl_context(self):
         self.io._use_ssl = True
-        self.io._ssl_options = {}
+        self.io._ssl_options = _DEFAULT_SSL_OPTIONS
         context = self.io._get_ssl_context()
         self.assertIsInstance(context, ssl.SSLContext)
+        assert isinstance(context, ssl.SSLContext)
         self.assertTrue(context.check_hostname)
 
     def test_get_ssl_context_verify_none(self):
         self.io._use_ssl = True
-        self.io._ssl_options = {
-            'check_hostname': False,
-            'verify': ssl.CERT_NONE,
-        }
+        self.io._ssl_options = SslOptions(
+            check_hostname=False,
+            cafile=None,
+            capath=None,
+            certfile=None,
+            keyfile=None,
+            verify=ssl.CERT_NONE,
+        )
         context = self.io._get_ssl_context()
         self.assertIsInstance(context, ssl.SSLContext)
+        assert isinstance(context, ssl.SSLContext)
         self.assertFalse(context.check_hostname)
 
     def test_get_ssl_context_certs(self):
         self.io._use_ssl = True
-        self.io._ssl_options = {
-            'cafile': DATA_PATH / 'ca.crt',
-            'certfile': DATA_PATH / 'client.crt',
-            'keyfile': DATA_PATH / 'client.key',
-            'verify': ssl.CERT_REQUIRED,
-        }
+        self.io._ssl_options = SslOptions(
+            check_hostname=True,
+            cafile=str(DATA_PATH / 'ca.crt'),
+            capath=None,
+            certfile=str(DATA_PATH / 'client.crt'),
+            keyfile=str(DATA_PATH / 'client.key'),
+            verify=ssl.CERT_REQUIRED,
+        )
         context = self.io._get_ssl_context()
         self.assertIsInstance(context, ssl.SSLContext)
+        assert isinstance(context, ssl.SSLContext)
         self.assertTrue(context.check_hostname)
         self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
 
@@ -178,34 +203,37 @@ class MockServer(asyncio.Protocol):
         super().__init__(*args, **kwargs)
         self._expectation: bytes | None = None
         self._response: bytes | None = None
-        self._transport: asyncio.Transport | None = None
+        self._transport: asyncio.BaseTransport | None = None
         MockServer.instances.append(self)
 
-    def connection_lost(self, exc):
+    def connection_lost(self, exc: Exception | None) -> None:
         MockServer.instances.remove(self)
 
-    def connection_made(self, transport):
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self._transport = transport
         LOGGER.debug(
             'Connection from %r', transport.get_extra_info('peername')
         )
 
-    def data_received(self, data):
+    def data_received(self, data: bytes) -> None:
         LOGGER.debug('Received %r', data)
+        if self._transport is None:
+            return
         if self._expectation and data != self._expectation:
-            return self._transport.write(b'Bad data: ' + data)
+            self._transport.write(b'Bad data: ' + data)  # type: ignore[attr-defined]
+            return
         if self._response:
-            self._transport.write(self._response)
+            self._transport.write(self._response)  # type: ignore[attr-defined]
 
         # Connection.CloseOk
-        if data == '\x01\x00\x00\x00\x00\x00\x04\x00\n\x003\xce':
+        if data == b'\x01\x00\x00\x00\x00\x00\x04\x00\n\x003\xce':
             LOGGER.debug('Closing connection')
             self._transport.close()
 
-    def set_expectation(self, expectation: bytes):
+    def set_expectation(self, expectation: bytes) -> None:
         self._expectation = expectation
 
-    def set_response(self, response: bytes):
+    def set_response(self, response: bytes) -> None:
         self._response = response
 
 
@@ -235,6 +263,7 @@ class MockServerTestCase(
     async def get_mock_server(self, retries=10, delay=0.1):
         connected = self.events.wait(rabbitpy.events.SOCKET_OPENED, 3)
         self.assertTrue(connected, 'Timeout waiting for SOCKET_OPENED event')
+        assert self.io._socket is not None
         socket_local = self.io._socket.getsockname()  # (address, port)
         socket_remote = self.io._socket.getpeername()  # (address, port)
         for _attempt in range(retries):
@@ -247,11 +276,13 @@ class MockServerTestCase(
             await asyncio.sleep(delay)
         raise AssertionError('No MockServer found')
 
-    async def write_frame(self, channel: int, frame):
+    async def write_frame(
+        self, channel: int, frame: pamqp.frame.FrameTypes
+    ) -> None:
         self.io.write_frame(channel, frame)
         await asyncio.sleep(0.1)
 
-    async def write_protocol_header(self):
+    async def write_protocol_header(self) -> None:
         await self.write_frame(0, header.ProtocolHeader())
         self.assertEqual(self.io.bytes_written, 8)
 
@@ -301,6 +332,7 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
         frame = self.io._channels[0].get(True, 3)
         self.assertIsInstance(frame, commands.Connection.Start)
+        assert isinstance(frame, commands.Connection.Start)
         self.assertEqual(frame.locales, 'en_US')
 
     async def test_on_data_received_multiple_frames(self):
@@ -328,6 +360,7 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
         frame = self.io._channels[0].get(True, 3)
         self.assertIsInstance(frame, commands.Connection.Start)
+        assert isinstance(frame, commands.Connection.Start)
         self.assertEqual(frame.locales, 'en_US')
 
         frame = self.io._channels[1].get(True, 3)
@@ -349,7 +382,9 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
     async def test_remote_name(self):
         mock_server = await self.get_mock_server()
+        assert mock_server._transport is not None
         remote = mock_server._transport.get_extra_info('sockname')
+        assert self.io._socket is not None
         local = self.io._socket.getsockname()
         self.assertEqual(
             self.io.remote_name,
