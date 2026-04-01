@@ -327,13 +327,16 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
         await self.write_protocol_header()
 
-        self.assertEqual(self.io._buffer, b'')
-        self.assertEqual(self.io.bytes_received, 335)
-
+        # Block until the IO thread has dispatched the frame; this guarantees
+        # that _buffer and bytes_received reflect the fully-processed state
+        # regardless of event-loop scheduling delays (notably slow on 3.12).
         frame = self.io._channels[0].get(True, 3)
         self.assertIsInstance(frame, commands.Connection.Start)
         assert isinstance(frame, commands.Connection.Start)
         self.assertEqual(frame.locales, 'en_US')
+
+        self.assertEqual(self.io._buffer, b'')
+        self.assertEqual(self.io.bytes_received, 335)
 
     async def test_on_data_received_multiple_frames(self):
         mock_server = await self.get_mock_server()
@@ -356,8 +359,8 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
         await self.write_protocol_header()
 
-        self.assertEqual(self.io.bytes_received, 347)
-
+        # Block on both frames before checking bytes_received so that the IO
+        # thread has fully processed the response before we inspect state.
         frame = self.io._channels[0].get(True, 3)
         self.assertIsInstance(frame, commands.Connection.Start)
         assert isinstance(frame, commands.Connection.Start)
@@ -365,6 +368,8 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
         frame = self.io._channels[1].get(True, 3)
         self.assertIsInstance(frame, commands.Tx.RollbackOk)
+
+        self.assertEqual(self.io.bytes_received, 347)
 
     async def test_on_data_received_remaining_buffer(self):
         mock_server = await self.get_mock_server()
@@ -375,10 +380,13 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
         await self.write_protocol_header()
 
-        self.assertEqual(self.io._buffer, b'\x01\x00\x00')
-        self.assertEqual(self.io.bytes_received, 12)
+        # Block until the IO thread has dispatched the frame before checking
+        # _buffer and bytes_received to avoid a race on slow event loops.
         frame = self.read_queue.get(True, 3)
         self.assertIsInstance(frame, commands.Tx.RollbackOk)
+
+        self.assertEqual(self.io._buffer, b'\x01\x00\x00')
+        self.assertEqual(self.io.bytes_received, 12)
 
     async def test_remote_name(self):
         mock_server = await self.get_mock_server()
