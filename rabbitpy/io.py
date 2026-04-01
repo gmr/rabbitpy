@@ -86,12 +86,30 @@ class IO(threading.Thread):
             self._channels[int(channel)] = read_queue
 
     def close(self) -> None:
-        """Close the socket and update event states."""
+        """Close the socket and update event states.
+
+        Called from within the IO thread's finally block after the event loop
+        exits. Do not call this from outside — use stop() instead.
+
+        """
         with self._lock:
             self._events.clear(rabbitpy.events.SOCKET_OPENED)
             self._close_socket()
             self._closed.set()
             self._events.set(rabbitpy.events.SOCKET_CLOSED)
+
+    def stop(self) -> None:
+        """Signal the I/O loop to stop from outside the IO thread.
+
+        Thread-safe: schedules the close event via the running event loop, or
+        sets it directly if the loop is not yet running.
+
+        """
+        loop = self._ioloop
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(self._closed.set)
+        else:
+            self._closed.set()
 
     def run(self) -> None:
         """Run the I/O loop."""
@@ -150,13 +168,13 @@ class IO(threading.Thread):
         self._events.set(rabbitpy.events.EXCEPTION_RAISED)
 
     def _close_socket(self) -> None:
-        """Close the socket and remove it from the I/O loop."""
-        if self._socket is not None and self._ioloop is not None:
-            try:
-                self._ioloop.remove_reader(self._socket.fileno())
-                self._ioloop.remove_writer(self._socket.fileno())
-            except (AttributeError, IndexError, OSError):
-                pass
+        """Close the underlying socket.
+
+        Must be called with self._lock held. Reader/writer removal from the
+        event loop is handled inside _run() while the loop is still active.
+
+        """
+        if self._socket is not None:
             try:
                 self._socket.shutdown(socket.SHUT_RDWR)
                 self._socket.close()
@@ -275,15 +293,30 @@ class IO(threading.Thread):
     def _on_read_ready(self) -> None:
         """Read data from the socket and process any complete frames."""
         with self._lock:
-            self._buffer += self._socket.recv(32768)
+            if self._socket is None:
+                return
+            try:
+                data = self._socket.recv(32768)
+            except TimeoutError:
+                return  # Transient; wait for the next readable event
+            except OSError as error:
+                self._on_error(error)
+                self._closed.set()
+                return
+            if not data:
+                # Remote end closed the connection cleanly
+                self._add_exception(
+                    rabbitpy.exceptions.ConnectionResetException()
+                )
+                self._closed.set()
+                return
+            self._buffer += data
             while self._buffer:
                 remaining, channel_id, frame_value, bytes_read = (
                     self._on_data_received(self._buffer)
                 )
-                if channel_id is None:
-                    raise RuntimeError('Invalid channel ID received')
                 if remaining == self._buffer:
-                    break
+                    break  # Incomplete frame — wait for more data
                 self._buffer = remaining
                 self._bytes_read += bytes_read
                 self._channels[channel_id].put(frame_value)
@@ -332,3 +365,12 @@ class IO(threading.Thread):
         )
 
         await self._closed.wait()
+
+        # Remove readers/writers from inside the event loop (thread-safe)
+        with self._lock:
+            if self._socket is not None:
+                try:
+                    self._ioloop.remove_reader(self._socket.fileno())
+                    self._ioloop.remove_writer(self._socket.fileno())
+                except (AttributeError, OSError):
+                    pass
