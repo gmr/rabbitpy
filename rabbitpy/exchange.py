@@ -47,7 +47,6 @@ class _Exchange(base.AMQPClass):
     """
 
     durable = False
-    arguments = {}
     auto_delete = False
     type = 'direct'
 
@@ -149,7 +148,7 @@ class Exchange(_Exchange):
         exchange_type: str = 'direct',
         durable: bool = False,
         auto_delete: bool = False,
-        arguments: bool | None = None,
+        arguments: dict | None = None,
     ):
         """Create a new instance of the exchange object."""
         self.type = exchange_type
@@ -187,7 +186,7 @@ class FanoutExchange(_Exchange):
 
 
 class HeadersExchange(_Exchange):
-    """The HeadersExchange class is used for interacting with direct exchanges
+    """The HeadersExchange class is used for interacting with headers exchanges
     only.
 
     :param channel: The channel object to communicate on

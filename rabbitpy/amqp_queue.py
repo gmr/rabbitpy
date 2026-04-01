@@ -311,7 +311,7 @@ class Queue(base.AMQPClass):
 
     def purge(self) -> None:
         """Purge the queue of all of its messages."""
-        self._rpc(commands.Queue.Purge())
+        self._rpc(commands.Queue.Purge(queue=self.name))
 
     def stop_consuming(self) -> None:
         """Stop consuming messages. This is usually invoked if you want to

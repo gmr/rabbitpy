@@ -193,6 +193,8 @@ class AMQPChannel(StatefulObject):
 
     def __int__(self) -> int:
         """Return the numeric channel ID"""
+        if self._channel_id is None:
+            raise ValueError('Channel ID is not yet assigned')
         return self._channel_id
 
     def close(self) -> None:
@@ -234,7 +236,7 @@ class AMQPChannel(StatefulObject):
 
     def rpc(
         self, frame_value: base.Frame
-    ) -> base.Frame | commands.Queue.DeclareOk:
+    ) -> base.Frame | commands.Queue.DeclareOk | None:
         """Send an RPC command to the remote server. This should not be
         directly invoked.
 
@@ -448,6 +450,7 @@ class AMQPChannel(StatefulObject):
         | commands.Queue.DeclareOk
         | header.ContentHeader
         | body.ContentBody
+        | None
     ):
         """Read from the queue, blocking until a result is returned. An
         individual frame type or a list of frame types can be passed in to wait

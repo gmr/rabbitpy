@@ -172,7 +172,7 @@ class Message(base.AMQPClass):
         )
         self.channel.write_frame(basic_ack)
 
-    def json(self) -> bytes:
+    def json(self) -> typing.Any:
         """Deserialize the message body if it is JSON, returning the value."""
         try:
             return json.loads(self.body)
@@ -248,14 +248,13 @@ class Message(base.AMQPClass):
         ]
 
         # Calculate how many body frames are needed
-        pieces = math.ceil(
-            len(payload) / float(self.channel.maximum_frame_size)
-        )
+        frame_size = self.channel.maximum_frame_size or len(payload) or 1
+        pieces = math.ceil(len(payload) / float(frame_size))
 
         # Send the message
         for offset in range(0, pieces):
-            start = self.channel.maximum_frame_size * offset
-            end = start + self.channel.maximum_frame_size
+            start = frame_size * offset
+            end = start + frame_size
             if end > len(payload):
                 end = len(payload)
             frames.append(body.ContentBody(payload[start:end]))
