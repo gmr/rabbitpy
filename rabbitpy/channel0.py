@@ -95,7 +95,10 @@ class Channel0(threading.Thread):
                 self._io.write_frame(
                     0,
                     commands.Connection.Close(
-                        reply_code=200, reply_text='Normal shutdown'
+                        reply_code=200,
+                        reply_text='Normal shutdown',
+                        class_id=0,
+                        method_id=0,
                     ),
                 )
             except OSError as exc:
