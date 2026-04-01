@@ -109,13 +109,16 @@ class Connection(state.StatefulBase):
     ):
         """Close the connection when the context exits"""
         if exc_type and exc_val:
+            self._stop_io()
             self._set_state(self.CLOSED)
-            raise exc_val
+            return False  # Re-raise the original exception
         try:
-            exc = self._exceptions.get()
+            exc = self._exceptions.get_nowait()
         except queue.Empty:
             pass
         else:
+            self._stop_io()
+            self._set_state(self.CLOSED)
             raise exc
         self.close()
 
@@ -142,7 +145,27 @@ class Connection(state.StatefulBase):
         self._events.clear(events.SOCKET_CLOSE)
         self._events.clear(events.SOCKET_CLOSED)
         self._events.clear(events.SOCKET_OPENED)
-        self._write_queue.put_nowait(None)
+        self._stop_io()
+        self._set_state(self.CLOSED)
+
+    def _stop_io(self) -> None:
+        """Signal the IO thread to stop and wait for it to finish.
+
+        Blocks until the IO thread has exited (or until the connection timeout
+        elapses) so that callers can rely on the socket being fully torn down
+        before they transition to CLOSED.  The join is skipped when called from
+        inside the IO thread itself to prevent a deadlock.
+
+        """
+        io_thread = self._io
+        if io_thread is None:
+            return
+        io_thread.stop()
+        if (
+            io_thread.is_alive()
+            and io_thread is not threading.current_thread()
+        ):
+            io_thread.join(self._args['timeout'])
 
     def connect(self) -> None:
         """Connect to the RabbitMQ Server"""

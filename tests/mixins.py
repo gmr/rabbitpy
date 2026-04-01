@@ -1,17 +1,11 @@
 import pathlib
-import sys
+
+import dotenv
+
+_ENV_FILE = pathlib.Path(__file__).parent.parent / '.env'
 
 
 class EnvironmentVariableMixin:
     @classmethod
     def setUpClass(cls):
-        cls.os_environ = {}
-        path = pathlib.Path(__file__).parent.parent / 'build' / 'test.env'
-        if not path.exists():
-            sys.stderr.write('Failed to find test.env.file\n')
-            return
-        with path.open('r') as f:
-            for line in f:
-                line = line.removeprefix('export ')
-                name, _, value = line.strip().partition('=')
-                cls.os_environ[name] = value
+        dotenv.load_dotenv(_ENV_FILE)

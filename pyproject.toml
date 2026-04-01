@@ -41,6 +41,7 @@ dev = [
     "build",
     "coverage[toml]",
     "pre-commit",
+    "python-dotenv",
     "ruff",
 ]
 docs = [
