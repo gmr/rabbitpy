@@ -292,7 +292,7 @@ class AMQPChannel(StatefulObject):
     def _build_close_frame(self) -> commands.Channel.Close:
         """Return the proper close frame for this object."""
         return self.CLOSE_REQUEST_FRAME(
-            self.DEFAULT_CLOSE_CODE, self.DEFAULT_CLOSE_REASON
+            self.DEFAULT_CLOSE_CODE, self.DEFAULT_CLOSE_REASON, 0, 0
         )
 
     def _can_write(self) -> bool:
@@ -441,7 +441,7 @@ class AMQPChannel(StatefulObject):
                 if result:
                     return True
             return False
-        elif isinstance(frame_value, commands.Frame):
+        elif isinstance(frame_value, base.Frame):
             return frame_value.name == frame_type.name
         return False
 

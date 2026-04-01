@@ -86,14 +86,11 @@ disallow_untyped_calls = false
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-# Legacy test files: test type-validation (intentionally wrong types),
-# use pre-rewrite channel API, or have Python 2 compat cruft
+# Legacy/integration test files: test type-validation (intentionally wrong
+# types), use pre-rewrite channel API, or have Python 2 compat cruft
 module = [
-    "tests.integration_tests",
-    "tests.utils_tests",
-    "tests.base_tests",
-    "tests.channel_test",
     "tests.helpers",
+    "tests.test_integration",
     "tests.test_queue",
     "tests.test_message",
 ]
@@ -129,6 +126,7 @@ exclude = [
     "tests/channel_test.py",
     "tests/helpers.py",
     "tests/integration_tests.py",
+    "tests/test_integration.py",
     "tests/test_message.py",
     "tests/test_queue.py",
     "tests/utils_tests.py",

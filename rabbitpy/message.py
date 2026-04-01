@@ -363,10 +363,13 @@ class Message(base.AMQPClass):
                 continue
             python_type = self._AMQP_TYPE_MAP.get(amqp_type)
             if python_type == 'str':
-                if not isinstance(value, (bytes, str)):
-                    LOGGER.warning('Coercing property %s to bytes', key)
-                    value = str(value)
-                self.properties[key] = utils.maybe_utf8_encode(value)
+                if isinstance(value, bytes):
+                    self.properties[key] = value.decode(
+                        'utf-8', errors='replace'
+                    )
+                elif not isinstance(value, str):
+                    LOGGER.warning('Coercing property %s to str', key)
+                    self.properties[key] = str(value)
             elif python_type == 'int':
                 LOGGER.warning('Coercing property %s to int', key)
                 try:

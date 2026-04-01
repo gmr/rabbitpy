@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 import re
 import threading
 import time
@@ -7,8 +8,12 @@ import unittest
 import uuid
 from urllib import parse
 
+import dotenv
+
 import rabbitpy
 from rabbitpy import exceptions, utils
+
+dotenv.load_dotenv(pathlib.Path(__file__).parent.parent / '.env')
 
 LOGGER = logging.getLogger(__name__)
 
@@ -82,7 +87,7 @@ class PublishAndGetTest(unittest.TestCase):
         self.assertEqual(msg.properties['app_id'], self.app_id)
         self.assertEqual(
             msg.properties['message_id'],
-            self.msg.properties['message_id'].decode('utf-8'),
+            self.msg.properties['message_id'],
         )
         self.assertEqual(
             msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -128,7 +133,7 @@ class PublishAndConsumeTest(unittest.TestCase):
             self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(
                 msg.properties['message_id'],
-                self.msg.properties['message_id'].decode('utf-8'),
+                self.msg.properties['message_id'],
             )
             self.assertEqual(
                 msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -177,7 +182,7 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
             self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(
                 msg.properties['message_id'],
-                self.msg.properties['message_id'].decode('utf-8'),
+                self.msg.properties['message_id'],
             )
             self.assertEqual(
                 msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -289,7 +294,7 @@ class ConsumerTagTest(unittest.TestCase):
             self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(
                 msg.properties['message_id'],
-                self.msg.properties['message_id'].decode('utf-8'),
+                self.msg.properties['message_id'],
             )
             self.assertEqual(
                 msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -550,3 +555,211 @@ class AccessDeniedDuringConnectionTests(unittest.TestCase):
         )
         with self.assertRaises(exceptions.AMQPAccessRefused):
             rabbitpy.Connection(url)
+
+
+# ---------------------------------------------------------------------------
+# Multiple channels on one connection
+# ---------------------------------------------------------------------------
+
+
+class MultipleChannelsTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+
+    def tearDown(self):
+        self.connection.close()
+
+    def test_two_channels_have_different_ids(self):
+        ch1 = self.connection.channel()
+        ch2 = self.connection.channel()
+        self.assertNotEqual(ch1.id, ch2.id)
+        ch1.close()
+        ch2.close()
+
+    def test_channel_id_reused_after_close(self):
+        ch1 = self.connection.channel()
+        first_id = ch1.id
+        ch1.close()
+        ch2 = self.connection.channel()
+        # The freed id should be reused
+        self.assertEqual(ch2.id, first_id)
+        ch2.close()
+
+    def test_independent_queues_on_separate_channels(self):
+        ch1 = self.connection.channel()
+        ch2 = self.connection.channel()
+        q1 = rabbitpy.Queue(ch1, 'multi-ch-q1', auto_delete=True)
+        q2 = rabbitpy.Queue(ch2, 'multi-ch-q2', auto_delete=True)
+        q1.declare()
+        q2.declare()
+        msg1 = rabbitpy.Message(ch1, b'from-ch1')
+        msg2 = rabbitpy.Message(ch2, b'from-ch2')
+        msg1.publish('', routing_key='multi-ch-q1')
+        msg2.publish('', routing_key='multi-ch-q2')
+        self.assertEqual(q1.get(True).body, b'from-ch1')
+        self.assertEqual(q2.get(True).body, b'from-ch2')
+        q1.delete()
+        q2.delete()
+        ch1.close()
+        ch2.close()
+
+
+# ---------------------------------------------------------------------------
+# Nack and requeue=False
+# ---------------------------------------------------------------------------
+
+
+class NackWithoutRequeueTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+        self.channel = self.connection.channel()
+        self.queue = rabbitpy.Queue(
+            self.channel, 'nack-no-requeue', auto_delete=True
+        )
+        self.queue.declare()
+        msg = rabbitpy.Message(self.channel, b'nack-me')
+        msg.publish('', routing_key='nack-no-requeue')
+
+    def tearDown(self):
+        self.queue.delete()
+        self.channel.close()
+        self.connection.close()
+
+    def test_nacked_message_not_requeued(self):
+        msg = self.queue.get(True)
+        self.assertIsNotNone(msg)
+        msg.nack(requeue=False)
+        # Queue should be empty — message discarded
+        self.assertIsNone(self.queue.get(True))
+
+
+# ---------------------------------------------------------------------------
+# Queue purge
+# ---------------------------------------------------------------------------
+
+
+class QueuePurgeTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+        self.channel = self.connection.channel()
+        self.channel.enable_publisher_confirms()
+        self.queue = rabbitpy.Queue(
+            self.channel, 'purge-test-queue', auto_delete=True
+        )
+        self.queue.declare()
+        for _ in range(5):
+            rabbitpy.Message(self.channel, b'x').publish(
+                '', routing_key='purge-test-queue'
+            )
+
+    def tearDown(self):
+        self.queue.delete()
+        self.channel.close()
+        self.connection.close()
+
+    def test_purge_empties_queue(self):
+        self.assertEqual(len(self.queue), 5)
+        self.queue.purge()
+        self.assertEqual(len(self.queue), 0)
+
+
+# ---------------------------------------------------------------------------
+# Large message (forces multi-frame body)
+# ---------------------------------------------------------------------------
+
+
+class LargeMessageTest(unittest.TestCase):
+    # Default frame_max is 131072 bytes; send something bigger
+    BODY_SIZE = 300_000
+
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+        self.channel = self.connection.channel()
+        self.queue = rabbitpy.Queue(
+            self.channel, 'large-msg-queue', auto_delete=True
+        )
+        self.queue.declare()
+        self.body = b'X' * self.BODY_SIZE
+        rabbitpy.Message(self.channel, self.body).publish(
+            '', routing_key='large-msg-queue'
+        )
+
+    def tearDown(self):
+        self.queue.delete()
+        self.channel.close()
+        self.connection.close()
+
+    def test_large_message_body_round_trips(self):
+        msg = self.queue.get(True)
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.body), self.BODY_SIZE)
+        self.assertEqual(msg.body, self.body)
+        msg.ack()
+
+
+# ---------------------------------------------------------------------------
+# Channel context manager
+# ---------------------------------------------------------------------------
+
+
+class ChannelContextManagerTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+
+    def tearDown(self):
+        self.connection.close()
+
+    def test_channel_closes_on_context_exit(self):
+        with self.connection.channel() as ch:
+            self.assertTrue(ch.open)
+        self.assertTrue(ch.closed)
+
+    def test_channel_after_close_can_open_new(self):
+        with self.connection.channel():
+            pass
+        ch2 = self.connection.channel()
+        self.assertTrue(ch2.open)
+        ch2.close()
+
+
+# ---------------------------------------------------------------------------
+# Transaction (Tx) commit and rollback
+# ---------------------------------------------------------------------------
+
+
+class TransactionTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
+        self.channel = self.connection.channel()
+        self.queue = rabbitpy.Queue(
+            self.channel, 'tx-test-queue', auto_delete=True
+        )
+        self.queue.declare()
+
+    def tearDown(self):
+        self.queue.delete()
+        self.channel.close()
+        self.connection.close()
+
+    def test_committed_message_is_visible(self):
+        from rabbitpy import Tx
+
+        with Tx(self.channel):
+            rabbitpy.Message(self.channel, b'committed').publish(
+                '', routing_key='tx-test-queue'
+            )
+        msg = self.queue.get(True)
+        self.assertIsNotNone(msg)
+        self.assertEqual(msg.body, b'committed')
+        msg.ack()
+
+    def test_rolled_back_message_not_visible(self):
+        from rabbitpy import Tx
+
+        tx = Tx(self.channel)
+        tx.select()
+        rabbitpy.Message(self.channel, b'rolled-back').publish(
+            '', routing_key='tx-test-queue'
+        )
+        tx.rollback()
+        self.assertIsNone(self.queue.get(True))
