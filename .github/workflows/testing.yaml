@@ -1,0 +1,69 @@
+name: Testing
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '*.rst'
+    tags-ignore: ["*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+
+    services:
+      rabbitmq:
+        image: rabbitmq:4-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_running"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Create build directory and test env
+        run: |
+          mkdir -p build
+          cat > build/test.env <<EOF
+          export MANAGEMENT_URL=http://localhost:15672/%2f
+          export RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2f
+          EOF
+
+      - name: Lint Check
+        run: uv run pre-commit run --all-files
+
+      - name: Run tests
+        run: uv run coverage run
+
+      - name: Coverage report
+        run: uv run coverage report
+
+      - name: Coverage XML
+        run: uv run coverage xml
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./build/coverage.xml
+          flags: unittests

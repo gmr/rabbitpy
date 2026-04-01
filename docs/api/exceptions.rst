@@ -36,4 +36,3 @@ In this example, the channel that was created on the second line was closed and 
    :members:
    :private-members:
    :undoc-members:
-

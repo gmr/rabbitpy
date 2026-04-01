@@ -2,6 +2,7 @@
 Test the rabbitpy events class
 
 """
+
 import threading
 import unittest
 from unittest import mock
@@ -10,7 +11,6 @@ from rabbitpy import events
 
 
 class BaseEventsTest(unittest.TestCase):
-
     def setUp(self):
         self._events = events.Events()
 
@@ -19,7 +19,6 @@ class BaseEventsTest(unittest.TestCase):
 
 
 class EventClearTests(BaseEventsTest):
-
     def test_invalid_event(self):
         self.assertIsNone(self._events.clear(0))
 
@@ -32,15 +31,16 @@ class EventClearTests(BaseEventsTest):
 
 
 class EventInitTests(BaseEventsTest):
-
     def test_all_events_created(self):
         for event in events.DESCRIPTIONS.keys():
-            self.assertIsInstance(self._events._events[event], threading.Event,
-                                  type(self._events._events[event]))
+            self.assertIsInstance(
+                self._events._events[event],
+                threading.Event,
+                type(self._events._events[event]),
+            )
 
 
 class EventIsSetTests(BaseEventsTest):
-
     def test_invalid_event(self):
         self.assertIsNone(self._events.is_set(0))
 
@@ -53,7 +53,6 @@ class EventIsSetTests(BaseEventsTest):
 
 
 class EventSetTests(BaseEventsTest):
-
     def test_invalid_event(self):
         self.assertIsNone(self._events.set(0))
 
@@ -66,7 +65,6 @@ class EventSetTests(BaseEventsTest):
 
 
 class EventWaitTests(BaseEventsTest):
-
     def test_invalid_event(self):
         self.assertIsNone(self._events.wait(0))
 

@@ -23,7 +23,6 @@ DATA_PATH = pathlib.Path(__file__).parent.resolve() / 'data'
 
 
 class TestCase(unittest.TestCase):
-
     def setUp(self):
         """Set up a common IO instance for tests."""
         self.events = events.Events()
@@ -47,13 +46,12 @@ class TestCase(unittest.TestCase):
 
 
 class TestIO(TestCase):
-
     def setUp(self):
         """Set up a common IO instance for tests."""
         super().setUp()
         self.io = io.IO(
-            'localhost', 5672, False, {}, self.events,
-            self.exceptions)
+            'localhost', 5672, False, {}, self.events, self.exceptions
+        )
         self.io.add_channel(0, self.read_queue)
 
     def test_initialization(self):
@@ -79,7 +77,8 @@ class TestIO(TestCase):
             b'/\x08platformS\x00\x00\x00\nErlang/OTP\x07'
             b'productS\x00\x00\x00\x08RabbitMQ\x07versio'
             b'nS\x00\x00\x00\x052.6.1\x00\x00\x00\x0ePLA'
-            b'IN AMQPLAIN\x00\x00\x00\x05en_US\xce')
+            b'IN AMQPLAIN\x00\x00\x00\x05en_US\xce'
+        )
         remaining, channel, frame, count = self.io._on_data_received(data_in)
         self.assertEqual(remaining, b'')
         self.assertEqual(channel, 0)
@@ -96,8 +95,13 @@ class TestIO(TestCase):
 
     def test_on_data_received_error(self):
         payload = struct.pack('>L', 42949)
-        data_in = b''.join([struct.pack('>BHI', 1, 0, len(payload)),
-                             payload, constants.FRAME_END_CHAR])
+        data_in = b''.join(
+            [
+                struct.pack('>BHI', 1, 0, len(payload)),
+                payload,
+                constants.FRAME_END_CHAR,
+            ]
+        )
         remaining, channel, frame, count = self.io._on_data_received(data_in)
         self.assertEqual(remaining, data_in)
         self.assertIsNone(channel)
@@ -116,8 +120,13 @@ class TestIO(TestCase):
 
     def test_connect_failure(self):
         instance = io.IO(
-            'localhost', random.randint(1024, 32768),  # noqa: S311
-            False, {}, self.events, self.exceptions)
+            'localhost',
+            random.randint(1024, 32768),
+            False,
+            {},
+            self.events,
+            self.exceptions,
+        )
         instance.start()
         connected = self.events.wait(rabbitpy.events.SOCKET_OPENED, 1)
         self.assertFalse(connected, 'Should not have connected')
@@ -142,7 +151,7 @@ class TestIO(TestCase):
         self.io._use_ssl = True
         self.io._ssl_options = {
             'check_hostname': False,
-            'verify': ssl.CERT_NONE
+            'verify': ssl.CERT_NONE,
         }
         context = self.io._get_ssl_context()
         self.assertIsInstance(context, ssl.SSLContext)
@@ -154,7 +163,7 @@ class TestIO(TestCase):
             'cafile': DATA_PATH / 'ca.crt',
             'certfile': DATA_PATH / 'client.crt',
             'keyfile': DATA_PATH / 'client.key',
-            'verify': ssl.CERT_REQUIRED
+            'verify': ssl.CERT_REQUIRED,
         }
         context = self.io._get_ssl_context()
         self.assertIsInstance(context, ssl.SSLContext)
@@ -163,14 +172,13 @@ class TestIO(TestCase):
 
 
 class MockServer(asyncio.Protocol):
-
-    instances = []
+    instances: typing.ClassVar[list['MockServer']] = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._expectation: typing.Optional[bytes] = None
-        self._response: typing.Optional[bytes] = None
-        self._transport: typing.Optional[asyncio.Transport] = None
+        self._expectation: bytes | None = None
+        self._response: bytes | None = None
+        self._transport: asyncio.Transport | None = None
         MockServer.instances.append(self)
 
     def connection_lost(self, exc):
@@ -178,8 +186,9 @@ class MockServer(asyncio.Protocol):
 
     def connection_made(self, transport):
         self._transport = transport
-        LOGGER.debug('Connection from %r',
-                     transport.get_extra_info('peername'))
+        LOGGER.debug(
+            'Connection from %r', transport.get_extra_info('peername')
+        )
 
     def data_received(self, data):
         LOGGER.debug('Received %r', data)
@@ -200,18 +209,22 @@ class MockServer(asyncio.Protocol):
         self._response = response
 
 
-class MockServerTestCase(mixins.EnvironmentVariableMixin,
-                         TestCase,
-                         unittest.IsolatedAsyncioTestCase):
-
+class MockServerTestCase(
+    mixins.EnvironmentVariableMixin, TestCase, unittest.IsolatedAsyncioTestCase
+):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.server = await self._create_server()
         args = self._get_io_args()
         LOGGER.debug('Connection args: %r', args)
-        self.io =  io.IO(
-            args['host'], args['port'], args['ssl'], args['ssl_options'],
-            self.events, self.exceptions)
+        self.io = io.IO(
+            args['host'],
+            args['port'],
+            args['ssl'],
+            args['ssl_options'],
+            self.events,
+            self.exceptions,
+        )
         self.io.add_channel(0, self.read_queue)
         self.io.add_channel(1, self.read_queue)
 
@@ -256,7 +269,6 @@ class MockServerTestCase(mixins.EnvironmentVariableMixin,
 
 
 class MockServerConnectedTestCase(MockServerTestCase):
-
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.io.start()
@@ -279,7 +291,8 @@ class MockServerConnectedTestCase(MockServerTestCase):
             b'/\x08platformS\x00\x00\x00\nErlang/OTP\x07'
             b'productS\x00\x00\x00\x08RabbitMQ\x07versio'
             b'nS\x00\x00\x00\x052.6.1\x00\x00\x00\x0ePLA'
-            b'IN AMQPLAIN\x00\x00\x00\x05en_US\xce')
+            b'IN AMQPLAIN\x00\x00\x00\x05en_US\xce'
+        )
 
         await self.write_protocol_header()
 
@@ -306,7 +319,8 @@ class MockServerConnectedTestCase(MockServerTestCase):
             b'productS\x00\x00\x00\x08RabbitMQ\x07versio'
             b'nS\x00\x00\x00\x052.6.1\x00\x00\x00\x0ePLA'
             b'IN AMQPLAIN\x00\x00\x00\x05en_US\xce\x01\x00'
-            b'\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce')
+            b'\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce'
+        )
 
         await self.write_protocol_header()
 
@@ -323,7 +337,8 @@ class MockServerConnectedTestCase(MockServerTestCase):
         mock_server = await self.get_mock_server()
         mock_server.set_expectation(b'AMQP\x00\x00\t\x01')
         mock_server.set_response(
-            b'\x01\x00\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce\x01\x00\x00')
+            b'\x01\x00\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce\x01\x00\x00'
+        )
 
         await self.write_protocol_header()
 
@@ -338,7 +353,8 @@ class MockServerConnectedTestCase(MockServerTestCase):
         local = self.io._socket.getsockname()
         self.assertEqual(
             self.io.remote_name,
-            f'{local[0]}:{local[1]} -> {remote[0]}:{remote[1]}')
+            f'{local[0]}:{local[1]} -> {remote[0]}:{remote[1]}',
+        )
 
     async def test_close(self):
         _mock_server = await self.get_mock_server()
@@ -348,7 +364,6 @@ class MockServerConnectedTestCase(MockServerTestCase):
 
 
 class EdgeCaseMockServerTestCase(MockServerTestCase):
-
     @mock.patch('socket.getaddrinfo')
     async def test_error_on_getaddrinfo(self, mock_getaddrinfo):
         mock_getaddrinfo.side_effect = OSError('Foo')
@@ -424,7 +439,6 @@ class EdgeCaseMockServerTestCase(MockServerTestCase):
 
 
 class SSLMockServerTestCase(MockServerTestCase):
-
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.io.start()
@@ -435,25 +449,28 @@ class SSLMockServerTestCase(MockServerTestCase):
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_verify_locations(DATA_PATH / 'ca.crt')
         context.load_cert_chain(
-            DATA_PATH / 'server.crt',
-            DATA_PATH / 'server.key')
+            DATA_PATH / 'server.crt', DATA_PATH / 'server.key'
+        )
         loop = asyncio.get_running_loop()
         server = await loop.create_server(MockServer, '127.0.0.1', ssl=context)
-        LOGGER.debug("Mock server running on: %s",
-                     server.sockets[0].getsockname())
+        LOGGER.debug(
+            'Mock server running on: %s', server.sockets[0].getsockname()
+        )
         return server
 
     def _get_io_args(self):
         return url_parser.parse(
             f'amqps://127.0.0.1:{self._server_port}?'
             f'ssl_check_hostname=false&ssl_verify=ignore&'
-            f'cafile=tests%2Fdata%2Fca.crt')
+            f'cafile=tests%2Fdata%2Fca.crt'
+        )
 
     async def test_on_data_received(self):
         mock_server = await self.get_mock_server()
         mock_server.set_expectation(b'AMQP\x00\x00\t\x01')
         mock_server.set_response(
-            b'\x01\x00\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce\x01\x00\x00')
+            b'\x01\x00\x01\x00\x00\x00\x04\x00Z\x00\x1f\xce\x01\x00\x00'
+        )
 
         await self.write_protocol_header()
 
@@ -465,6 +482,7 @@ class SSLMockServerTestCase(MockServerTestCase):
 
 class Error35(OSError):
     """Mock Exception for socket.error errno=35"""
+
     def __init__(self, errno, *args):
         super().__init__(*args)
         self.errno = errno

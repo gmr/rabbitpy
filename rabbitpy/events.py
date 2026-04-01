@@ -5,7 +5,6 @@ A high-level wrapper for using threading.Event objects to signal state changes
 
 import logging
 import threading
-import typing
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,19 +54,21 @@ class Events:
 
         """
         events = {}
-        for event in [CHANNEL0_CLOSE,
-                      CHANNEL0_CLOSED,
-                      CHANNEL0_OPENED,
-                      CONNECTION_BLOCKED,
-                      CONNECTION_EVENT,
-                      EXCEPTION_RAISED,
-                      SOCKET_CLOSE,
-                      SOCKET_CLOSED,
-                      SOCKET_OPENED]:
+        for event in [
+            CHANNEL0_CLOSE,
+            CHANNEL0_CLOSED,
+            CHANNEL0_OPENED,
+            CONNECTION_BLOCKED,
+            CONNECTION_EVENT,
+            EXCEPTION_RAISED,
+            SOCKET_CLOSE,
+            SOCKET_CLOSED,
+            SOCKET_OPENED,
+        ]:
             events[event] = threading.Event()
         return events
 
-    def clear(self, event_id: int) -> typing.Union[bool, None]:
+    def clear(self, event_id: int) -> bool | None:
         """Clear a set event, returning bool indicating success and None for
         an invalid event.
 
@@ -85,7 +86,7 @@ class Events:
         self._events[event_id].clear()
         return True
 
-    def is_set(self, event_id: int) -> typing.Union[bool, None]:
+    def is_set(self, event_id: int) -> bool | None:
         """Check if an event is triggered. Returns bool indicating state of the
         event being set. If the event is invalid, a None is returned instead.
 
@@ -97,7 +98,7 @@ class Events:
             return None
         return self._events[event_id].is_set()
 
-    def set(self, event_id: int) -> typing.Union[bool, None]:
+    def set(self, event_id: int) -> bool | None:
         """Trigger an event to fire. Returns bool indicating success in firing
         the event. If the event is not valid, return None.
 
@@ -115,9 +116,7 @@ class Events:
         self._events[event_id].set()
         return True
 
-    def wait(self,
-             event_id: int,
-             timeout: float = 1) -> typing.Union[bool, None]:
+    def wait(self, event_id: int, timeout: float = 1) -> bool | None:
         """Wait for an event to be set for up to `timeout` seconds. If
         `timeout` is None, block until the event is set. If the event is
         invalid, None will be returned, otherwise False is used to indicate
@@ -130,6 +129,9 @@ class Events:
         if event_id not in self._events:
             LOGGER.debug('Event does not exist: %s', description(event_id))
             return None
-        LOGGER.debug('Waiting for %i seconds on event: %s',
-                     timeout, description(event_id))
+        LOGGER.debug(
+            'Waiting for %i seconds on event: %s',
+            timeout,
+            description(event_id),
+        )
         return self._events[event_id].wait(timeout)

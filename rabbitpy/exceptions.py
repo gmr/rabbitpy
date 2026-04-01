@@ -85,8 +85,10 @@ class RemoteClosedChannelException(RabbitpyException):
     """
 
     def __str__(self):
-        return f'Channel {self.args[0]} was closed by the remote server ' \
-               f'({self.args[1]}): {self.args[2]}'
+        return (
+            f'Channel {self.args[0]} was closed by the remote server '
+            f'({self.args[1]}): {self.args[2]}'
+        )
 
 
 class RemoteClosedException(RabbitpyException):
@@ -96,8 +98,10 @@ class RemoteClosedException(RabbitpyException):
     """
 
     def __str__(self):
-        return f'Connection was closed by the remote server ' \
-               f'({self.args[0]}): {self.args[1]}'
+        return (
+            f'Connection was closed by the remote server '
+            f'({self.args[0]}): {self.args[1]}'
+        )
 
 
 class MessageReturnedException(RabbitpyException):
@@ -107,8 +111,10 @@ class MessageReturnedException(RabbitpyException):
     """
 
     def __str__(self):
-        return f'Message was returned by RabbitMQ: ({self.args[0]}) ' \
-               f'for exchange {self.args[1]}'
+        return (
+            f'Message was returned by RabbitMQ: ({self.args[0]}) '
+            f'for exchange {self.args[1]}'
+        )
 
 
 class NoActiveTransactionError(RabbitpyException):
@@ -168,8 +174,10 @@ class UnexpectedResponseError(RabbitpyException):
     """
 
     def __str__(self):
-        return f'Received an expected response, expected {self.args[0]}, ' \
-               f'received {self.args[1]}'
+        return (
+            f'Received an expected response, expected {self.args[0]}, '
+            f'received {self.args[1]}'
+        )
 
 
 # AMQP Exceptions

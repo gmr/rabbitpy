@@ -19,32 +19,43 @@ import rabbitpy.exceptions
 
 LOGGER = logging.getLogger(__name__)
 
-AddrInfo = typing.Union[
-    list[typing.Any],  # Fallback for unknown/variable types from getaddrinfo
-    list[
+PamqpFrame = (
+    pamqp.base.Frame
+    | pamqp.body.ContentBody
+    | pamqp.header.ContentHeader
+    | pamqp.header.ProtocolHeader
+    | pamqp.heartbeat.Heartbeat
+    | None
+)
+
+AddrInfo = (
+    list[typing.Any]
+    | list[
         tuple[
             socket.AddressFamily,
             socket.SocketKind,
             int,
             str,
             tuple[str, int],
-            typing.Optional[tuple[str, int, int, int]]  # IPv6 sockaddr
+            tuple[str, int, int, int] | None,  # IPv6 sockaddr
         ]
     ]
-]
+)
 
 
 class IO(threading.Thread):
     """Handles asynchronous I/O for RabbitMQ connections."""
 
-    def __init__(self,
-                 host: str,
-                 port: int,
-                 use_ssl: bool,
-                 ssl_options: dict,
-                 events: rabbitpy.events.Events,
-                 exceptions: queue.Queue,
-                 timeout: float = 0.01):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        use_ssl: bool,
+        ssl_options: dict,
+        events: rabbitpy.events.Events,
+        exceptions: queue.Queue,
+        timeout: float = 0.01,
+    ):
         """Initialize the IO thread."""
         super().__init__(daemon=True, name='IO')
         self._events = events
@@ -62,10 +73,11 @@ class IO(threading.Thread):
         self._bytes_read = 0
         self._bytes_written = 0
         self._channels: collections.defaultdict[int, queue.Queue] = (
-            collections.defaultdict(queue.Queue))
-        self._ioloop: typing.Optional[asyncio.AbstractEventLoop] = None
-        self._remote_name: typing.Optional[str] = None
-        self._socket: typing.Optional[socket.socket] = None
+            collections.defaultdict(queue.Queue)
+        )
+        self._ioloop: asyncio.AbstractEventLoop | None = None
+        self._remote_name: str | None = None
+        self._socket: socket.socket | None = None
         self._write_buffer = collections.deque()
 
     def add_channel(self, channel: int, read_queue: queue.Queue) -> None:
@@ -92,14 +104,14 @@ class IO(threading.Thread):
         finally:
             self.close()
 
-    def write_frame(self,
-                    channel: int,
-                    frame_value: pamqp.base.Frame) -> None:
+    def write_frame(self, channel: int, frame_value: pamqp.base.Frame) -> None:
         """Write an AMQP frame to the socket."""
         if not self.is_connected:
             self._add_exception(
                 rabbitpy.exceptions.ConnectionException(
-                    self._host, self._port, 'Not connected'))
+                    self._host, self._port, 'Not connected'
+                )
+            )
             return
         with self._lock:
             payload = pamqp.frame.marshal(frame_value, channel)
@@ -124,7 +136,7 @@ class IO(threading.Thread):
             return not self._closed.is_set()
 
     @property
-    def remote_name(self) -> typing.Optional[str]:
+    def remote_name(self) -> str | None:
         """Return the remote socket name."""
         with self._lock:
             return self._remote_name
@@ -171,7 +183,9 @@ class IO(threading.Thread):
         if not sock:
             return self._add_exception(
                 rabbitpy.exceptions.ConnectionException(
-                    self._host, self._port, 'Could not connect'))
+                    self._host, self._port, 'Could not connect'
+                )
+            )
 
         self._closed.clear()
         self._socket = sock
@@ -179,11 +193,9 @@ class IO(threading.Thread):
         self._socket.settimeout(self._timeout)
         self._events.set(rabbitpy.events.SOCKET_OPENED)
 
-    def _create_socket(self,
-                       address_family: int,
-                       sock_type: int,
-                       protocol: int) \
-            -> typing.Union[socket.socket, ssl.SSLSocket]:
+    def _create_socket(
+        self, address_family: int, sock_type: int, protocol: int
+    ) -> socket.socket | ssl.SSLSocket:
         """Create a new socket, optionally wrapped with SSL."""
         sock = socket.socket(address_family, sock_type, protocol)
         context = self._get_ssl_context()
@@ -196,47 +208,44 @@ class IO(threading.Thread):
         family = socket.AF_UNSPEC if socket.has_ipv6 else socket.AF_INET
         try:
             res = socket.getaddrinfo(
-                self._host, self._port, family, socket.SOCK_STREAM, 0)
+                self._host, self._port, family, socket.SOCK_STREAM, 0
+            )
         except OSError as error:
             LOGGER.debug('Could not resolve %s: %s', self._host, error)
             return []
         return res
 
-    def _get_ssl_context(self) -> typing.Optional[ssl.SSLContext]:
+    def _get_ssl_context(self) -> ssl.SSLContext | None:
         """Create and configure an SSL context if SSL is enabled."""
         if self._use_ssl:
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             if self._ssl_options.get('check_hostname') is not None:
-                ssl_context.check_hostname = \
-                    self._ssl_options['check_hostname']
-            if self._ssl_options.get('cafile') \
-                    or self._ssl_options.get('capath'):
+                ssl_context.check_hostname = self._ssl_options[
+                    'check_hostname'
+                ]
+            if self._ssl_options.get('cafile') or self._ssl_options.get(
+                'capath'
+            ):
                 ssl_context.load_verify_locations(
                     cafile=self._ssl_options.get('cafile'),
-                    capath=self._ssl_options.get('capath'))
+                    capath=self._ssl_options.get('capath'),
+                )
             else:
                 ssl_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
             if self._ssl_options.get('certfile'):
                 ssl_context.load_cert_chain(
                     self._ssl_options.get('certfile', ''),
-                    self._ssl_options.get('keyfile'))
+                    self._ssl_options.get('keyfile'),
+                )
             if self._ssl_options.get('verify') is not None:
                 ssl_context.verify_mode = self._ssl_options['verify']
             return ssl_context
         return None
 
     @staticmethod
-    def _on_data_received(value: bytes) \
-            -> tuple[bytes,
-                     typing.Optional[int],
-                     typing.Optional[
-                         typing.Union[
-                             pamqp.base.Frame,
-                             pamqp.body.ContentBody,
-                             pamqp.header.ContentHeader,
-                             pamqp.header.ProtocolHeader,
-                             pamqp.heartbeat.Heartbeat]],
-                     int]:
+    def _on_data_received(
+        value: bytes,
+    ) -> tuple[bytes, int | None, PamqpFrame, int]:
         """Unmarshal a pamqp frame from received socket data.
 
 
@@ -257,16 +266,20 @@ class IO(threading.Thread):
         """Handle socket errors, add exceptions, and signal events."""
         if self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
             return
-        self._add_exception(rabbitpy.exceptions.ConnectionException(
-            self._host, self._port, str(exception)))
+        self._add_exception(
+            rabbitpy.exceptions.ConnectionException(
+                self._host, self._port, str(exception)
+            )
+        )
 
     def _on_read_ready(self) -> None:
         """Read data from the socket and process any complete frames."""
         with self._lock:
             self._buffer += self._socket.recv(32768)
             while self._buffer:
-                remaining, channel_id, frame_value, bytes_read =\
+                remaining, channel_id, frame_value, bytes_read = (
                     self._on_data_received(self._buffer)
+                )
                 if channel_id is None:
                     raise RuntimeError('Invalid channel ID received')
                 if remaining == self._buffer:
@@ -284,9 +297,10 @@ class IO(threading.Thread):
             return
         try:
             self._socket.sendall(payload)
-        except socket.timeout:
-            LOGGER.warning('Timed out writing %i bytes to socket',
-                            len(payload))
+        except TimeoutError:
+            LOGGER.warning(
+                'Timed out writing %i bytes to socket', len(payload)
+            )
             with self._lock:
                 self._write_buffer.appendleft(payload)
         except OSError as error:
@@ -313,7 +327,8 @@ class IO(threading.Thread):
         self._ioloop.add_writer(self._socket, self._on_write_ready)
         local_sock = self._socket.getsockname()
         peer_sock = self._socket.getpeername()
-        self._remote_name = \
+        self._remote_name = (
             f'{local_sock[0]}:{local_sock[1]} -> {peer_sock[0]}:{peer_sock[1]}'
+        )
 
         await self._closed.wait()

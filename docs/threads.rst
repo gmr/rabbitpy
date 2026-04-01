@@ -92,4 +92,3 @@ then spawns a thread for publishing and a thread for consuming.
 
         # Join the consumer thread, waiting for it to consume all MESSAGE_COUNT messages
         consumer_thread.join()
-

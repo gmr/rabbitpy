@@ -5,7 +5,6 @@ from rabbitpy import url_parser
 
 
 class URLParsingTestCase(unittest.TestCase):
-
     def test_default_url(self):
         args = url_parser.parse()
         self.assertEqual(args['host'], 'localhost')

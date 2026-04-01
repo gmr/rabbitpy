@@ -1,7 +1,7 @@
 """Parse URLS"""
+
 import logging
 import ssl
-import typing
 import urllib.parse
 
 from pamqp import constants
@@ -21,11 +21,11 @@ PORTS = {'amqp': 5672, 'amqps': 5671}
 SSL_CERT_MAP = {
     'ignore': ssl.CERT_NONE,
     'optional': ssl.CERT_OPTIONAL,
-    'required': ssl.CERT_REQUIRED
+    'required': ssl.CERT_REQUIRED,
 }
 
 
-def parse(url: typing.Optional[str] = DEFAULT_URL) -> dict:
+def parse(url: str | None = DEFAULT_URL) -> dict:
     """Parse the AMQP URL passed in and return the configuration
     information in a dictionary of values.
 
@@ -94,8 +94,10 @@ def parse(url: typing.Optional[str] = DEFAULT_URL) -> dict:
 
     # Parse the query string
     query_args = urllib.parse.parse_qs(
-        parsed.query.decode('utf-8') if isinstance(parsed.query, bytes)
-        else parsed.query)
+        parsed.query.decode('utf-8')
+        if isinstance(parsed.query, bytes)
+        else parsed.query
+    )
 
     # Return the configuration dictionary to use when connecting
     return {
@@ -106,26 +108,33 @@ def parse(url: typing.Optional[str] = DEFAULT_URL) -> dict:
         'password': urllib.parse.unquote(parsed.password or GUEST),
         'timeout': _query_args_int('timeout', query_args, DEFAULT_TIMEOUT),
         'heartbeat': _query_args_int(
-            'heartbeat', query_args, DEFAULT_HEARTBEAT_INTERVAL),
+            'heartbeat', query_args, DEFAULT_HEARTBEAT_INTERVAL
+        ),
         'frame_max': _query_args_int(
-            'frame_max', query_args, constants.FRAME_MAX_SIZE),
+            'frame_max', query_args, constants.FRAME_MAX_SIZE
+        ),
         'channel_max': _query_args_int(
-            'channel_max', query_args, DEFAULT_CHANNEL_MAX),
+            'channel_max', query_args, DEFAULT_CHANNEL_MAX
+        ),
         'locale': _query_args_str('locale', query_args),
         'ssl': use_ssl,
         'ssl_options': {
             'check_hostname': _query_args_str(
-                'ssl_check_hostname', query_args, '').lower()
-                              not in ('0', 'false', 'no'),
+                'ssl_check_hostname', query_args, ''
+            ).lower()
+            not in ('0', 'false', 'no'),
             'cafile': _query_args_multi_key_value(
-                ['cacertfile', 'ssl_cacert', 'cafile'], query_args),
+                ['cacertfile', 'ssl_cacert', 'cafile'], query_args
+            ),
             'capath': _query_args_str('capath', query_args),
             'certfile': _query_args_multi_key_value(
-                ['certfile', 'ssl_cert'], query_args),
+                ['certfile', 'ssl_cert'], query_args
+            ),
             'keyfile': _query_args_multi_key_value(
-                ['keyfile', 'ssl_key'], query_args),
-            'verify': _query_args_ssl_validation(query_args)
-        }
+                ['keyfile', 'ssl_key'], query_args
+            ),
+            'verify': _query_args_ssl_validation(query_args),
+        },
     }
 
 
@@ -142,8 +151,8 @@ def _query_args_int(key: str, values: dict, default: int) -> int:
 
 
 def _query_args_str(
-        key: str, values: dict,
-        default: typing.Optional[str] = None) -> typing.Optional[str]:
+    key: str, values: dict, default: str | None = None
+) -> str | None:
     """Return the value from the query arguments for the specified key
     or the default value.
 
@@ -154,8 +163,9 @@ def _query_args_str(
     return values.get(key, [default])[0]
 
 
-def _query_args_multi_key_value(keys: list[str], values: dict) \
-        -> typing.Union[int, float, str, None]:
+def _query_args_multi_key_value(
+    keys: list[str], values: dict
+) -> int | float | str | None:
     """Try and find the query string value where the value can be specified
     with different keys.
 
@@ -170,7 +180,7 @@ def _query_args_multi_key_value(keys: list[str], values: dict) \
     return None
 
 
-def _query_args_ssl_validation(values: dict) -> typing.Union[int, None]:
+def _query_args_ssl_validation(values: dict) -> int | None:
     """Return the value mapped from the string value in the query string
     for the AMQP URL specifying which level of server certificate
     validation is required, if any.
@@ -179,16 +189,18 @@ def _query_args_ssl_validation(values: dict) -> typing.Union[int, None]:
 
     """
     validation = _query_args_multi_key_value(
-        ['verify', 'ssl_validation'], values)
+        ['verify', 'ssl_validation'], values
+    )
     if not validation:
         return None
     elif validation not in SSL_CERT_MAP:
         raise ValueError(
-            f'Unsupported server cert validation option: {validation}')
+            f'Unsupported server cert validation option: {validation}'
+        )
     return SSL_CERT_MAP[validation]
 
 
-def _validate_uri_scheme(scheme: typing.Union[bytes, str]) -> None:
+def _validate_uri_scheme(scheme: bytes | str) -> None:
     """Ensure that the specified URI scheme is supported by rabbitpy
 
     :param scheme: The value to validate
