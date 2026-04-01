@@ -6,17 +6,18 @@ the communication between the IO thread and the higher-level objects.
 
 """
 
+from __future__ import annotations
+
 import logging
 import queue
 import socket
 import types
+from typing import TYPE_CHECKING
 
 from pamqp import base as pamqp_base
 from pamqp import commands, header
 
 from rabbitpy import (
-    amqp,
-    amqp_queue,
     base,
     exceptions,
     message,
@@ -27,6 +28,9 @@ from rabbitpy import (
 from rabbitpy import (
     events as rabbitpy_events,
 )
+
+if TYPE_CHECKING:
+    from rabbitpy import amqp, amqp_queue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -99,7 +103,7 @@ class Channel(base.AMQPChannel):
         self._server_capabilities = server_capabilities
         self.consumers = {}
 
-    def __enter__(self) -> 'Channel':
+    def __enter__(self) -> Channel:
         """For use as a context manager, return a handle to this object
         instance.
 
