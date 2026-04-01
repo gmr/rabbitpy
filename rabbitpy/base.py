@@ -399,7 +399,10 @@ class AMQPChannel(StatefulObject):
             self._read_queue.task_done()
         else:
             try:
-                value = self._read_queue.get(True, 0.1)
+                # 10 ms timeout — short enough that publisher confirms
+                # and other synchronous RPCs do not busy-wait for long
+                # (#73: reduces per-message latency ~10x vs 100 ms).
+                value = self._read_queue.get(True, 0.01)
                 self._read_queue.task_done()
             except queue.Empty:
                 value = None

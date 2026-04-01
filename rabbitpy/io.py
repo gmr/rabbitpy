@@ -66,6 +66,15 @@ class IO(threading.Thread):
         self._remote_name: str | None = None
         self._socket: socket.socket | None = None
         self._write_buffer: collections.deque[bytes] = collections.deque()
+        # Write trigger: a socket pair used by AMQPChannel.write_frame() to
+        # wake the asyncio event loop when frames are queued for writing.
+        self._write_trigger_r, self._write_trigger_w = socket.socketpair()
+        self._write_trigger_r.setblocking(False)
+        self._write_trigger_w.setblocking(False)
+        # Shared write queue consumed by _on_write_trigger (channel_id, frame).
+        self._write_queue: queue.Queue[
+            tuple[int, pamqp.base.Frame | pamqp.heartbeat.Heartbeat]
+        ] = queue.Queue()
 
     def add_channel(
         self, channel: int, read_queue: queue.Queue[PamqpFrame]
@@ -84,6 +93,11 @@ class IO(threading.Thread):
         with self._lock:
             self._events.clear(rabbitpy.events.SOCKET_OPENED)
             self._close_socket()
+            for sock in (self._write_trigger_r, self._write_trigger_w):
+                try:
+                    sock.close()
+                except OSError:
+                    pass
             self._closed.set()
             self._events.set(rabbitpy.events.SOCKET_CLOSED)
 
@@ -153,6 +167,21 @@ class IO(threading.Thread):
         """Return the remote socket name."""
         with self._lock:
             return self._remote_name
+
+    @property
+    def write_trigger(self) -> socket.socket:
+        """Return the write end of the trigger socket pair.
+
+        AMQPChannel instances send a byte here to wake the event loop after
+        placing a frame in write_queue.
+
+        """
+        return self._write_trigger_w
+
+    @property
+    def write_queue(self) -> queue.Queue:
+        """Return the shared write queue used by AMQPChannel.write_frame()."""
+        return self._write_queue
 
     # Internal Methods
 
@@ -280,6 +309,29 @@ class IO(threading.Thread):
             return value, None, None, 0
         return value[byte_count:], channel_id, frame_in, byte_count
 
+    def _on_write_trigger(self) -> None:
+        """Drain the trigger socket and marshal all queued frames.
+
+        Called by the asyncio event loop when a byte arrives on the read end
+        of the write trigger socket pair, signalling that one or more
+        ``(channel_id, frame)`` tuples have been placed in ``_write_queue`` by
+        an AMQPChannel in another thread.
+
+        """
+        try:
+            self._write_trigger_r.recv(4096)
+        except (BlockingIOError, OSError):
+            pass
+        while True:
+            try:
+                channel_id, frame_value = self._write_queue.get_nowait()
+            except queue.Empty:
+                break
+            with self._lock:
+                self._write_buffer.append(
+                    pamqp.frame.marshal(frame_value, channel_id)
+                )
+
     def _on_error(self, exception: OSError) -> None:
         """Handle socket errors, add exceptions, and signal events."""
         if self._events.is_set(rabbitpy.events.SOCKET_CLOSED):
@@ -354,10 +406,16 @@ class IO(threading.Thread):
         """Manage the I/O loop: connect, read, write, and handle closure."""
         loop = asyncio.get_running_loop()
         self._ioloop = loop
+
+        # Register the write-trigger reader immediately so frames queued
+        # before the socket is fully open are not lost.
+        loop.add_reader(self._write_trigger_r, self._on_write_trigger)
+
         with self._lock:
             await self._connect()
 
         if not self._socket:
+            loop.remove_reader(self._write_trigger_r.fileno())
             return  # Could not establish connection
 
         loop.add_reader(self._socket, self._on_read_ready)
@@ -378,3 +436,7 @@ class IO(threading.Thread):
                     loop.remove_writer(self._socket.fileno())
                 except (AttributeError, OSError):
                     pass
+        try:
+            loop.remove_reader(self._write_trigger_r.fileno())
+        except (AttributeError, OSError):
+            pass

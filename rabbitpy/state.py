@@ -43,8 +43,18 @@ class StatefulBase:
         return self._state == self.CLOSED
 
     @property
+    def closed(self) -> bool:
+        """Alias for is_closed for backward compatibility."""
+        return self._state == self.CLOSED
+
+    @property
     def is_closing(self) -> bool:
         """Returns True if in the CLOSING runtime state"""
+        return self._state == self.CLOSING
+
+    @property
+    def closing(self) -> bool:
+        """Alias for is_closing for backward compatibility."""
         return self._state == self.CLOSING
 
     @property
@@ -53,8 +63,18 @@ class StatefulBase:
         return self._state == self.OPEN
 
     @property
+    def open(self) -> bool:
+        """Alias for is_open for backward compatibility."""
+        return self._state == self.OPEN
+
+    @property
     def is_opening(self) -> bool:
         """Returns True if in the OPENING runtime state"""
+        return self._state == self.OPENING
+
+    @property
+    def opening(self) -> bool:
+        """Alias for is_opening for backward compatibility."""
         return self._state == self.OPENING
 
     @property
