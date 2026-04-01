@@ -642,6 +642,7 @@ class QueuePurgeTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
+        self.channel.enable_publisher_confirms()
         self.queue = rabbitpy.Queue(
             self.channel, 'purge-test-queue', auto_delete=True
         )
