@@ -97,7 +97,7 @@ class Connection(state.StatefulBase):
         connection_name: str | None = None,
         client_properties: dict[str, typing.Any] | None = None,
     ) -> None:
-        """Create a new instance of the Connection object"""
+        """Create a new instance of the Connection object and connect."""
         super().__init__()
         self._args: url_parser.ConnectionArgs = url_parser.parse(url)
         self._channel_lock = threading.Lock()
@@ -110,13 +110,15 @@ class Connection(state.StatefulBase):
         self._heartbeat: heartbeat_mod.Heartbeat | None = None
         self._io: io.IO | None = None
         self._name = connection_name or '0x%x' % id(self)  # noqa: UP031
+        self.connect()
 
     def __enter__(self) -> typing.Self:
         """For use as a context manager, return a handle to this object
         instance.
 
         """
-        self.connect()
+        if not self.is_open:
+            self.connect()
         return self
 
     def __exit__(

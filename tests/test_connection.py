@@ -14,7 +14,8 @@ _DEFAULT_URL = 'amqp://guest:guest@localhost:5672/%2F'
 # ---------------------------------------------------------------------------
 
 def _make_conn(url=_DEFAULT_URL, **kwargs):
-    return connection.Connection(url, **kwargs)
+    with mock.patch('rabbitpy.connection.Connection.connect'):
+        return connection.Connection(url, **kwargs)
 
 
 def _make_mock_io(events_obj, *, signal_opened=True):

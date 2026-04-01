@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 import re
 import threading
 import time
@@ -7,8 +8,11 @@ import unittest
 import uuid
 from urllib import parse
 
+import dotenv
 import rabbitpy
 from rabbitpy import exceptions, utils
+
+dotenv.load_dotenv(pathlib.Path(__file__).parent.parent / '.env')
 
 LOGGER = logging.getLogger(__name__)
 
@@ -82,7 +86,7 @@ class PublishAndGetTest(unittest.TestCase):
         self.assertEqual(msg.properties['app_id'], self.app_id)
         self.assertEqual(
             msg.properties['message_id'],
-            self.msg.properties['message_id'].decode('utf-8'),
+            self.msg.properties['message_id'],
         )
         self.assertEqual(
             msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -128,7 +132,7 @@ class PublishAndConsumeTest(unittest.TestCase):
             self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(
                 msg.properties['message_id'],
-                self.msg.properties['message_id'].decode('utf-8'),
+                self.msg.properties['message_id'],
             )
             self.assertEqual(
                 msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -177,7 +181,7 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
             self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(
                 msg.properties['message_id'],
-                self.msg.properties['message_id'].decode('utf-8'),
+                self.msg.properties['message_id'],
             )
             self.assertEqual(
                 msg.properties['timestamp'], self.msg.properties['timestamp']
@@ -289,7 +293,7 @@ class ConsumerTagTest(unittest.TestCase):
             self.assertEqual(msg.properties['app_id'], self.app_id)
             self.assertEqual(
                 msg.properties['message_id'],
-                self.msg.properties['message_id'].decode('utf-8'),
+                self.msg.properties['message_id'],
             )
             self.assertEqual(
                 msg.properties['timestamp'], self.msg.properties['timestamp']

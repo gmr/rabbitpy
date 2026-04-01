@@ -148,6 +148,7 @@ class Channel0(threading.Thread):
 
         # Step 2: wait for Connection.Start
         frame = self._wait_for_frame(timeout=self._args['timeout'])
+        self._raise_if_server_close(frame)
         if not isinstance(frame, commands.Connection.Start):
             raise exceptions.ConnectionException(
                 f'Expected Connection.Start, got {type(frame).__name__}'
@@ -156,6 +157,7 @@ class Channel0(threading.Thread):
 
         # Step 3: wait for Connection.Tune
         frame = self._wait_for_frame(timeout=self._args['timeout'])
+        self._raise_if_server_close(frame)
         if not isinstance(frame, commands.Connection.Tune):
             raise exceptions.ConnectionException(
                 f'Expected Connection.Tune, got {type(frame).__name__}'
@@ -164,6 +166,7 @@ class Channel0(threading.Thread):
 
         # Step 4: send Connection.Open (TuneOk + Open sent in _on_connection_tune)
         frame = self._wait_for_frame(timeout=self._args['timeout'])
+        self._raise_if_server_close(frame)
         if not isinstance(frame, commands.Connection.OpenOk):
             raise exceptions.ConnectionException(
                 f'Expected Connection.OpenOk, got {type(frame).__name__}'
@@ -207,6 +210,27 @@ class Channel0(threading.Thread):
             )
             self._exceptions.put(exc_cls(frame.reply_code, frame.reply_text))
             self._events.set(ev_module.EXCEPTION_RAISED)
+
+    def _raise_if_server_close(
+        self, frame: pamqp.frame.FrameTypes
+    ) -> None:
+        """Raise the appropriate exception if the server sent Connection.Close.
+
+        Called after each ``_wait_for_frame`` during negotiation so that an
+        access-refused or forced-close from the broker surfaces as the correct
+        exception type rather than a generic ConnectionException.
+
+        """
+        if isinstance(frame, commands.Connection.Close):
+            LOGGER.error(
+                'Server closed the connection during negotiation (%s): %s',
+                frame.reply_code,
+                frame.reply_text,
+            )
+            exc_cls = exceptions.AMQP.get(
+                frame.reply_code, exceptions.RemoteClosedException
+            )
+            raise exc_cls(frame.reply_code, frame.reply_text)
 
     def _wait_for_frame(self, timeout: float) -> pamqp.frame.FrameTypes:
         """Block until a frame arrives on pending_frames or timeout expires.

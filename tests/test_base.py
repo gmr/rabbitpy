@@ -16,8 +16,8 @@ class AMQPClassTests(helpers.TestCase):
         self.assertRaises(ValueError, base.AMQPClass, 'Foo', 'Bar')
 
     def test_name_bytes(self):
-        obj = base.AMQPClass(self.channel, b'Foo')
-        self.assertIsInstance(obj.name, bytes)
+        # Python 3 only: bytes names are not accepted
+        self.assertRaises(ValueError, base.AMQPClass, self.channel, b'Foo')
 
     def test_name_str(self):
         obj = base.AMQPClass(self.channel, 'Foo')

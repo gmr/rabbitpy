@@ -52,7 +52,7 @@ class ServerCapabilitiesTest(helpers.TestCase):
         self.channel._server_capabilities['consumer_priorities'] = False
         self.assertRaises(
             exceptions.NotSupportedError,
-            self.channel._consume,
+            self.channel.register_consumer,
             self,
             True,
             100,

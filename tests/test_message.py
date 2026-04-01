@@ -358,7 +358,8 @@ class TestNonDeliveredMessageObject(helpers.TestCase):
     def test_coerce_property_int_to_str(self):
         self.msg.properties['expiration'] = 123
         self.msg._coerce_properties()
-        self.assertIsInstance(self.msg.properties['expiration'], bytes)
+        # pamqp 4 expects str for shortstr properties, not bytes
+        self.assertIsInstance(self.msg.properties['expiration'], str)
 
     def test_coerce_property_str_to_int(self):
         self.msg.properties['priority'] = '9'

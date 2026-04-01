@@ -376,7 +376,15 @@ class Channel(base.AMQPChannel):
             return None
         if not header_frame:
             LOGGER.debug('Malformed header frame: %r', header_frame)
-        props = header_frame.properties.to_dict() if header_frame else {}
+        if header_frame:
+            p = header_frame.properties
+            props = {
+                k: getattr(p, k)
+                for k in p.attributes()
+                if getattr(p, k) is not None
+            }
+        else:
+            props = {}
         msg = message.Message(self, body, props)
         msg.method = method_frame
         msg.name = method_frame.name
