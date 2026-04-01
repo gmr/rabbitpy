@@ -9,13 +9,17 @@ RabbitMQ and provides four classes as wrappers:
 
 """
 
+from __future__ import annotations
+
 import logging
 import typing
 
 from pamqp import commands
 
 from rabbitpy import base
-from rabbitpy import channel as chan
+
+if typing.TYPE_CHECKING:
+    from rabbitpy import channel as chan
 
 LOGGER = logging.getLogger(__name__)
 

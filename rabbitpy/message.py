@@ -6,6 +6,8 @@ acknowledging it.
 
 """
 
+from __future__ import annotations
+
 import datetime
 import json
 import logging
@@ -17,8 +19,10 @@ import uuid
 from pamqp import body, commands, header
 
 from rabbitpy import base, exceptions, utils
-from rabbitpy import channel as chan
-from rabbitpy import exchange as exc
+
+if typing.TYPE_CHECKING:
+    from rabbitpy import channel as chan
+    from rabbitpy import exchange as exc
 
 LOGGER = logging.getLogger(__name__)
 

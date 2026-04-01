@@ -4,13 +4,18 @@ and allows for any AMQP command to be issued, then committed or rolled back.
 
 """
 
+from __future__ import annotations
+
 import logging
 import types
+import typing
 
 from pamqp import commands
 
 from rabbitpy import base, exceptions
-from rabbitpy import channel as chan
+
+if typing.TYPE_CHECKING:
+    from rabbitpy import channel as chan
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +41,7 @@ class Tx(base.AMQPClass):
         super().__init__(channel, 'Tx')
         self._selected = False
 
-    def __enter__(self) -> 'Tx':
+    def __enter__(self) -> Tx:
         """For use as a context manager, return a handle to this object
         instance.
 

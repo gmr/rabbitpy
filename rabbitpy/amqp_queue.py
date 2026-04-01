@@ -27,13 +27,17 @@ if you would like to specify `no_ack`, `prefetch_count`, or `priority`:
 
 """
 
+from __future__ import annotations
+
 import logging
 import typing
 
 from pamqp import commands
 
 from rabbitpy import base, exceptions, exchange, message, utils
-from rabbitpy import channel as chan
+
+if typing.TYPE_CHECKING:
+    from rabbitpy import channel as chan
 
 LOGGER = logging.getLogger(__name__)
 
