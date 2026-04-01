@@ -23,14 +23,12 @@ from rabbitpy import (
     message,
 )
 from rabbitpy import (
-    connection as conn,
-)
-from rabbitpy import (
     events as rabbitpy_events,
 )
 
 if TYPE_CHECKING:
     from rabbitpy import amqp, amqp_queue
+    from rabbitpy import connection as conn
 
 LOGGER = logging.getLogger(__name__)
 
