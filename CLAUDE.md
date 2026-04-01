@@ -5,10 +5,11 @@ A pure python, thread-safe, minimalistic and pythonic RabbitMQ client library.
 ## Development
 
 ```bash
-uv sync --all-groups        # Install dependencies
+uv sync --all-groups        # Install all dependencies (dev + docs)
 uv run coverage run         # Run tests with coverage
 uv run coverage report      # View coverage report
 uv run pre-commit run -a    # Run linting
+uv run mkdocs serve         # Serve docs locally at http://127.0.0.1:8000
 ```
 
 ## Integration Tests

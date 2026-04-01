@@ -43,6 +43,11 @@ dev = [
     "pre-commit",
     "ruff",
 ]
+docs = [
+    "mkdocs>=1.5,<2",
+    "mkdocs-material>=9.5,<10",
+    "mkdocstrings[python]",
+]
 
 [tool.coverage.run]
 branch = true
