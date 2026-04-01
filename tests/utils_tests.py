@@ -2,20 +2,17 @@
 Test the rabbitpy utils module
 
 """
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+
 import sys
+import unittest
+
 from rabbitpy import utils
 
 # 3 Unicode Compatibility hack
-if sys.version_info[0] == 3:
-    unicode = str
+unicode = str
 
 
 class UtilsTestCase(unittest.TestCase):
-
     AMQP = 'amqp://guest:guest@localhost:5672/%2F?heartbeat_interval=1'
     AMQPS = 'amqps://guest:guest@localhost:5672/%2F?heartbeat_interval=1'
 
@@ -47,8 +44,9 @@ class UtilsTestCase(unittest.TestCase):
         self.assertEqual(utils.urlparse(self.AMQPS).fragment, self.FRAGMENT)
 
     def test_parse_qs(self):
-        self.assertDictEqual(utils.parse_qs(self.QUERY),
-                             {'heartbeat_interval': ['1']})
+        self.assertDictEqual(
+            utils.parse_qs(self.QUERY), {'heartbeat_interval': ['1']}
+        )
 
     def test_is_string_str(self):
         self.assertTrue(utils.is_string('Foo'))

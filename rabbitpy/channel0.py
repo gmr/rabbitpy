@@ -1,289 +1,315 @@
 """
-Channel0 is used for connection level communication between RabbitMQ and the
-client on channel 0.
+Channel0 handles AMQP connection negotiation on channel 0.
+
+After the TCP socket is connected, a Channel0 thread is started which sends
+the AMQP ProtocolHeader and completes the Connection.Start/Tune/Open handshake.
+Once negotiation succeeds the CHANNEL0_OPENED event is set.  On failure an
+exception is placed in the shared exceptions queue.
 
 """
-import locale
+
 import logging
+import queue
 import sys
+import threading
+import typing
 
-from pamqp import header
-from pamqp import heartbeat
-from pamqp import specification
+import pamqp.frame
+import pamqp.heartbeat
+from pamqp import commands, header
 
-from rabbitpy import __version__
-from rabbitpy import base
-from rabbitpy import events
-from rabbitpy import exceptions
-from rabbitpy.utils import queue
+from rabbitpy import __version__, exceptions
+from rabbitpy import events as ev_module
+
+if typing.TYPE_CHECKING:
+    from rabbitpy import io as io_module
+    from rabbitpy.url_parser import ConnectionArgs
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_LOCALE = locale.getdefaultlocale()
-del locale
+
+DEFAULT_LOCALE = 'en_US'
 
 
-class Channel0(base.AMQPChannel):
-    """Channel0 is used to negotiate a connection with RabbitMQ and for
-    processing and dispatching events on channel 0 once connected.
+class Channel0(threading.Thread):
+    """Negotiate and maintain the AMQP connection on channel 0.
 
-    :param dict connection_args: Data required to negotiate the connection
-    :param events_obj: The shared events coordination object
-    :type events_obj: rabbitpy.events.Events
-    :param exception_queue: The queue where any pending exceptions live
-    :type exception_queue: queue.Queue
-    :param write_queue: The queue to place data to write in
-    :type write_queue: queue.Queue
-    :param write_trigger: The socket to write to, to trigger IO writes
-    :type write_trigger: socket.socket
+    :param args: Parsed connection arguments (from url_parser.parse())
+    :param events: Shared Events object for cross-thread signalling
+    :param exceptions_queue: Queue for propagating exceptions to the main thread
 
     """
-    CHANNEL = 0
 
-    CLOSE_REQUEST_FRAME = specification.Connection.Close
-    DEFAULT_LOCALE = 'en-US'
+    def __init__(
+        self,
+        args: 'ConnectionArgs',
+        events: ev_module.Events,
+        exceptions_queue: queue.Queue,
+    ) -> None:
+        super().__init__(daemon=True, name='Channel0')
+        self.pending_frames: queue.Queue[pamqp.frame.FrameTypes | None] = (
+            queue.Queue()
+        )
+        self._args = args
+        self._events = events
+        self._exceptions = exceptions_queue
+        self._io: io_module.IO | None = None
+        self._open = False
+        self._properties: dict = {}
+        self._max_channels: int = args.get('channel_max', 65535)
+        self._max_frame_size: int = args.get('frame_max', 131072)
+        self._heartbeat_interval: int = args.get('heartbeat', 60)
 
-    def __init__(self, connection_args, events_obj, exception_queue,
-                 write_queue, write_trigger, connection):
-        super(Channel0, self).__init__(
-            exception_queue, write_trigger, connection)
-        self._channel_id = 0
-        self._args = connection_args
-        self._events = events_obj
-        self._exceptions = exception_queue
-        self._read_queue = queue.Queue()
-        self._write_queue = write_queue
-        self._write_trigger = write_trigger
-        self._state = self.CLOSED
-        self._max_channels = connection_args['channel_max']
-        self._max_frame_size = connection_args['frame_max']
-        self._heartbeat_interval = connection_args['heartbeat']
-        self.properties = None
-
-    def close(self):
-        """Close the connection via Channel0 communication."""
-        if self.open:
-            self._set_state(self.CLOSING)
-            self.rpc(specification.Connection.Close())
+    # -------------------------------------------------------------------------
+    # Public interface
+    # -------------------------------------------------------------------------
 
     @property
-    def heartbeat_interval(self):
-        """Return the AMQP heartbeat interval for the connection
-
-        :rtype: int
-
-        """
+    def heartbeat_interval(self) -> int:
+        """Return the negotiated AMQP heartbeat interval in seconds."""
         return self._heartbeat_interval
 
     @property
-    def maximum_channels(self):
-        """Return the AMQP maximum channel count for the connection
-
-        :rtype: int
-
-        """
+    def maximum_channels(self) -> int:
+        """Return the maximum number of channels for the connection."""
         return self._max_channels
 
     @property
-    def maximum_frame_size(self):
-        """Return the AMQP maximum frame size for the connection
-
-        :rtype: int
-
-        """
+    def maximum_frame_size(self) -> int:
+        """Return the maximum AMQP frame size in bytes."""
         return self._max_frame_size
 
-    def on_frame(self, value):
-        """Process a RPC frame received from the server
-
-        :param pamqp.message.Message value: The message value
-
-        """
-        LOGGER.debug('Received frame: %r', value.name)
-        if value.name == 'Connection.Close':
-            LOGGER.warning('RabbitMQ closed the connection (%s): %s',
-                           value.reply_code, value.reply_text)
-            self._set_state(self.CLOSED)
-            self._events.set(events.SOCKET_CLOSED)
-            self._events.set(events.CHANNEL0_CLOSED)
-            self._connection.close()
-            if value.reply_code in exceptions.AMQP:
-                err = exceptions.AMQP[value.reply_code](value.reply_text)
-            else:
-                err = exceptions.RemoteClosedException(value.reply_code,
-                                                       value.reply_text)
-            self._exceptions.put(err)
-            self._trigger_write()
-        elif value.name == 'Connection.Blocked':
-            LOGGER.warning('RabbitMQ has blocked the connection: %s',
-                           value.reason)
-            self._events.set(events.CONNECTION_BLOCKED)
-        elif value.name == 'Connection.CloseOk':
-            self._set_state(self.CLOSED)
-            self._events.set(events.CHANNEL0_CLOSED)
-        elif value.name == 'Connection.OpenOk':
-            self._on_connection_open_ok()
-        elif value.name == 'Connection.Start':
-            self._on_connection_start(value)
-        elif value.name == 'Connection.Tune':
-            self._on_connection_tune(value)
-        elif value.name == 'Connection.Unblocked':
-            LOGGER.info('Connection is no longer blocked')
-            self._events.clear(events.CONNECTION_BLOCKED)
-        elif value.name == 'Heartbeat':
-            pass
-        else:
-            LOGGER.warning('Unexpected Channel0 Frame: %r', value)
-            raise specification.AMQPUnexpectedFrame(value)
-
-    def send_heartbeat(self):
-        """Send a heartbeat frame to the remote connection."""
-        self.write_frame(heartbeat.Heartbeat())
-
-    def start(self):
-        """Start the AMQP protocol negotiation"""
-        self._set_state(self.OPENING)
-        self._write_protocol_header()
-
-    def _build_open_frame(self):
-        """Build and return the Connection.Open frame.
-
-        :rtype: pamqp.specification.Connection.Open
-
-        """
-        return specification.Connection.Open(self._args['virtual_host'])
-
-    def _build_start_ok_frame(self):
-        """Build and return the Connection.StartOk frame.
-
-        :rtype: pamqp.specification.Connection.StartOk
-
-        """
-        properties = {
-            'product': 'rabbitpy',
-            'platform': 'Python {0}.{1}.{2}'.format(*sys.version_info),
-            'capabilities': {'authentication_failure_close': True,
-                             'basic.nack': True,
-                             'connection.blocked': True,
-                             'consumer_cancel_notify': True,
-                             'publisher_confirms': True},
-            'information': 'See https://rabbitpy.readthedocs.io',
-            'version': __version__}
-        return specification.Connection.StartOk(client_properties=properties,
-                                                response=self._credentials,
-                                                locale=self._get_locale())
-
-    def _build_tune_ok_frame(self):
-        """Build and return the Connection.TuneOk frame.
-
-        :rtype: pamqp.specification.Connection.TuneOk
-
-        """
-        return specification.Connection.TuneOk(self._max_channels,
-                                               self._max_frame_size,
-                                               self._heartbeat_interval)
+    @property
+    def open(self) -> bool:
+        """Return True if the AMQP connection has been fully negotiated."""
+        return self._open
 
     @property
-    def _credentials(self):
-        """Return the marshaled credentials for the AMQP connection.
+    def properties(self) -> dict:
+        """Return the server properties received in Connection.Start."""
+        return self._properties
 
-        :rtype: str
+    def close(self) -> None:
+        """Send Connection.Close if the connection is currently open."""
+        if self._open and self._io is not None:
+            try:
+                self._io.write_frame(
+                    0,
+                    commands.Connection.Close(
+                        reply_code=200,
+                        reply_text='Normal shutdown',
+                        class_id=0,
+                        method_id=0,
+                    ),
+                )
+            except OSError as exc:
+                LOGGER.debug('Error sending Connection.Close: %r', exc)
+            self._open = False
 
-        """
-        return '\0%s\0%s' % (self._args['username'], self._args['password'])
+    def send_heartbeat(self) -> None:
+        """Write a heartbeat frame to the server."""
+        if self._io is not None:
+            try:
+                self._io.write_frame(0, pamqp.heartbeat.Heartbeat())
+            except OSError as exc:
+                LOGGER.debug('Error sending heartbeat: %r', exc)
 
-    def _get_locale(self):
-        """Return the current locale for the python interpreter or the default
-        locale.
+    def start(self, io: 'io_module.IO') -> None:  # type: ignore[override]
+        """Attach the IO object and start the negotiation thread.
 
-        :rtype: str
-
-        """
-        if not self._args['locale']:
-            return DEFAULT_LOCALE[0] or self.DEFAULT_LOCALE
-        return self._args['locale']
-
-    @staticmethod
-    def _negotiate(client_value, server_value):
-        """Return the negotiated value between what the client has requested
-        and the server has requested for how the two will communicate.
-
-        :param int client_value:
-        :param int server_value:
-        :return: int
-
-        """
-        return min(client_value, server_value) or \
-            (client_value or server_value)
-
-    def _on_connection_open_ok(self):
-        LOGGER.debug('Connection opened')
-        self._set_state(self.OPEN)
-        self._events.set(events.CHANNEL0_OPENED)
-
-    def _on_connection_start(self, frame_value):
-        """Negotiate the Connection.Start process, writing out a
-        Connection.StartOk frame when the Connection.Start frame is received.
-
-        :type frame_value: pamqp.specification.Connection.Start
-        :raises: rabbitpy.exceptions.ConnectionException
+        :param io: The connected IO thread to write frames through
 
         """
-        if not self._validate_connection_start(frame_value):
-            LOGGER.error('Could not negotiate a connection, disconnecting')
-            raise exceptions.ConnectionResetException()
+        self._io = io
+        super().start()
 
-        self.properties = frame_value.server_properties
-        for key in self.properties:
-            if key == 'capabilities':
-                for capability in self.properties[key]:
-                    LOGGER.debug('Server supports %s: %r',
-                                 capability, self.properties[key][capability])
-            else:
-                LOGGER.debug('Server %s: %r', key, self.properties[key])
-        self.write_frame(self._build_start_ok_frame())
+    # -------------------------------------------------------------------------
+    # Thread entry point
+    # -------------------------------------------------------------------------
 
-    def _on_connection_tune(self, frame_value):
-        """Negotiate the Connection.Tune frames, waiting for the
-        Connection.Tune frame from RabbitMQ and sending the Connection.TuneOk
-        frame.
+    def run(self) -> None:
+        """Run the AMQP handshake.  Any exception is queued for the caller."""
+        try:
+            self._negotiate()
+        except BaseException as exc:  # noqa: BLE001
+            LOGGER.debug('Channel0 negotiation failed: %r', exc)
+            self._exceptions.put(exc)
+            self._events.set(ev_module.EXCEPTION_RAISED)
 
-        :param specification.Connection.Tune frame_value: Tune frame
+    # -------------------------------------------------------------------------
+    # Internal helpers
+    # -------------------------------------------------------------------------
+
+    def _negotiate(self) -> None:
+        """Perform the full AMQP 0-9-1 connection handshake."""
+        assert self._io is not None  # noqa: S101
+
+        # Step 1: send the protocol header
+        self._io.write_frame(0, header.ProtocolHeader())
+
+        # Step 2: wait for Connection.Start
+        frame = self._wait_for_frame(timeout=self._args['timeout'])
+        if not isinstance(frame, commands.Connection.Start):
+            raise exceptions.ConnectionException(
+                f'Expected Connection.Start, got {type(frame).__name__}'
+            )
+        self._on_connection_start(frame)
+
+        # Step 3: wait for Connection.Tune
+        frame = self._wait_for_frame(timeout=self._args['timeout'])
+        if not isinstance(frame, commands.Connection.Tune):
+            raise exceptions.ConnectionException(
+                f'Expected Connection.Tune, got {type(frame).__name__}'
+            )
+        self._on_connection_tune(frame)
+
+        # Step 4: send Connection.Open (TuneOk + Open sent in _on_connection_tune)
+        frame = self._wait_for_frame(timeout=self._args['timeout'])
+        if not isinstance(frame, commands.Connection.OpenOk):
+            raise exceptions.ConnectionException(
+                f'Expected Connection.OpenOk, got {type(frame).__name__}'
+            )
+
+        LOGGER.debug('AMQP connection negotiated')
+        self._open = True
+        self._events.set(ev_module.CHANNEL0_OPENED)
+
+        # Step 5: process channel-0 frames for the lifetime of the connection
+        self._run_loop()
+
+    def _run_loop(self) -> None:
+        """Process channel-0 management frames (Blocked/Unblocked/Close)."""
+        while self._open:
+            try:
+                frame = self.pending_frames.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            if frame is None:
+                break
+            self._handle_runtime_frame(frame)
+
+    def _handle_runtime_frame(self, frame: pamqp.frame.FrameTypes) -> None:
+        """Dispatch a channel-0 frame received after connection is open."""
+        if isinstance(frame, commands.Connection.Blocked):
+            LOGGER.warning('Connection is blocked: %s', frame.reason)
+            self._events.set(ev_module.CONNECTION_BLOCKED)
+        elif isinstance(frame, commands.Connection.Unblocked):
+            LOGGER.info('Connection is unblocked')
+            self._events.clear(ev_module.CONNECTION_BLOCKED)
+        elif isinstance(frame, commands.Connection.Close):
+            LOGGER.error(
+                'Server closed the connection (%s): %s',
+                frame.reply_code,
+                frame.reply_text,
+            )
+            self._open = False
+            exc_cls = exceptions.AMQP.get(
+                frame.reply_code, exceptions.RemoteClosedException
+            )
+            self._exceptions.put(exc_cls(frame.reply_code, frame.reply_text))
+            self._events.set(ev_module.EXCEPTION_RAISED)
+
+    def _wait_for_frame(self, timeout: float) -> pamqp.frame.FrameTypes:
+        """Block until a frame arrives on pending_frames or timeout expires.
+
+        :param timeout: Maximum seconds to wait
+        :raises: exceptions.ConnectionException on timeout or IO shutdown
 
         """
-        self._max_frame_size = self._negotiate(self._max_frame_size,
-                                               frame_value.frame_max)
-        self._max_channels = self._negotiate(self._max_channels,
-                                             frame_value.channel_max)
+        deadline = timeout * 3  # give extra time for negotiation round-trips
+        waited = 0.0
+        interval = 0.1
+        while waited < deadline:
+            if not self._exceptions.empty():
+                raise self._exceptions.get()
+            try:
+                frame = self.pending_frames.get(timeout=interval)
+                if frame is not None:
+                    return frame
+            except queue.Empty:
+                pass
+            waited += interval
 
-        LOGGER.debug('Heartbeat interval (server/client): %r/%r',
-                     frame_value.heartbeat, self._heartbeat_interval)
+        raise exceptions.ConnectionException(
+            'Timed out waiting for AMQP server response during negotiation'
+        )
 
-        # Properly negotiate the heartbeat interval
-        if self._heartbeat_interval is None:
-            self._heartbeat_interval = frame_value.heartbeat
-        elif self._heartbeat_interval == 0 or frame_value.heartbeat == 0:
+    def _on_connection_start(self, frame: commands.Connection.Start) -> None:
+        """Process Connection.Start and send Connection.StartOk."""
+        self._properties = dict(frame.server_properties or {})
+        LOGGER.debug('Server properties: %r', self._properties)
+        self._io.write_frame(  # type: ignore[union-attr]
+            0,
+            commands.Connection.StartOk(
+                client_properties=self._build_client_properties(),
+                mechanism='PLAIN',
+                response=f'\0{self._args["username"]}\0{self._args["password"]}',
+                locale=self._args.get('locale') or DEFAULT_LOCALE,
+            ),
+        )
+
+    def _on_connection_tune(self, frame: commands.Connection.Tune) -> None:
+        """Process Connection.Tune, send TuneOk, then send Connection.Open."""
+        self._max_channels = self._negotiate_value(
+            frame.channel_max, self._args.get('channel_max', 0)
+        )
+        self._max_frame_size = self._negotiate_value(
+            frame.frame_max, self._args.get('frame_max', 0)
+        )
+        # Heartbeat: 0 from either side means disabled; otherwise take minimum
+        server_hb = frame.heartbeat or 0
+        client_hb = self._args.get('heartbeat', 60) or 0
+        if server_hb == 0 or client_hb == 0:
             self._heartbeat_interval = 0
+        else:
+            self._heartbeat_interval = min(server_hb, client_hb)
 
-        self.write_frame(self._build_tune_ok_frame())
-        self.write_frame(self._build_open_frame())
+        LOGGER.debug(
+            'Negotiated: channels=%i frame_size=%i heartbeat=%i',
+            self._max_channels,
+            self._max_frame_size,
+            self._heartbeat_interval,
+        )
+        assert self._io is not None  # noqa: S101
+        self._io.write_frame(
+            0,
+            commands.Connection.TuneOk(
+                channel_max=self._max_channels,
+                frame_max=self._max_frame_size,
+                heartbeat=self._heartbeat_interval,
+            ),
+        )
+        self._io.write_frame(
+            0,
+            commands.Connection.Open(
+                virtual_host=self._args['virtual_host'],
+            ),
+        )
 
     @staticmethod
-    def _validate_connection_start(frame_value):
-        """Validate the received Connection.Start frame
-
-        :param specification.Connection.Start frame_value: Frame to validate
-        :rtype: bool
+    def _negotiate_value(server_value: int, client_value: int) -> int:
+        """Return the negotiated value: minimum of both, or either if the
+        other is zero (meaning 'no preference').
 
         """
-        if (frame_value.version_major, frame_value.version_minor) != \
-                (specification.VERSION[0], specification.VERSION[1]):
-            LOGGER.warning('AMQP version error (received %i.%i, expected %r)',
-                           frame_value.version_major,
-                           frame_value.version_minor,
-                           specification.VERSION)
-            return False
-        return True
+        if server_value == 0:
+            return client_value
+        if client_value == 0:
+            return server_value
+        return min(server_value, client_value)
 
-    def _write_protocol_header(self):
-        """Send the protocol header to the connected server."""
-        self.write_frame(header.ProtocolHeader())
+    @staticmethod
+    def _build_client_properties() -> dict:
+        """Return the client property dict sent in Connection.StartOk."""
+        return {
+            'product': 'rabbitpy',
+            'version': __version__,
+            'platform': 'Python {}.{}.{}'.format(*sys.version_info[:3]),
+            'information': 'See https://rabbitpy.readthedocs.io',
+            'capabilities': {
+                'authentication_failure_close': True,
+                'basic.nack': True,
+                'connection.blocked': True,
+                'consumer_cancel_notify': True,
+                'publisher_confirms': True,
+            },
+        }

@@ -1,33 +1,27 @@
- # -*- coding: utf-8 -*-
 """
 Test the rabbitpy.message.Message class
 
 """
+
 import datetime
 import json
 import logging
 import time
 import uuid
+from unittest import mock
 
-import mock
-from pamqp import body
-from pamqp import header
-from pamqp import specification
+from pamqp import body, header
+from pamqp import commands as specification
 
-from rabbitpy import channel
-from rabbitpy import exceptions
-from rabbitpy import exchange
-from rabbitpy import message
-
+from rabbitpy import exceptions, exchange, message
 from tests import helpers
 
 logging.basicConfig(level=logging.DEBUG)
 
 
 class TestCreation(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreation, self).setUp()
+        super().setUp()
         self.body = uuid.uuid4()
         self.msg = message.Message(self.channel, self.body, opinionated=True)
 
@@ -42,9 +36,8 @@ class TestCreation(helpers.TestCase):
 
 
 class TestCreationWithDictBody(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithDictBody, self).setUp()
+        super().setUp()
         self.body = {'foo': str(uuid.uuid4())}
         self.msg = message.Message(self.channel, self.body)
 
@@ -52,83 +45,90 @@ class TestCreationWithDictBody(helpers.TestCase):
         self.assertEqual(self.msg.body, json.dumps(self.body))
 
     def test_message_content_type_is_set(self):
-        self.assertEqual(self.msg.properties['content_type'],
-                         'application/json')
+        self.assertEqual(
+            self.msg.properties['content_type'], 'application/json'
+        )
 
 
 class TestCreationWithStructTimeTimestamp(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithStructTimeTimestamp, self).setUp()
-        self.msg = message.Message(self.channel, str(uuid.uuid4()),
-                                   {'timestamp': time.localtime()})
+        super().setUp()
+        self.msg = message.Message(
+            self.channel, str(uuid.uuid4()), {'timestamp': time.localtime()}
+        )
 
     def test_message_timestamp_property_is_datetime(self):
-        self.assertIsInstance(self.msg.properties['timestamp'],
-                              datetime.datetime)
+        self.assertIsInstance(
+            self.msg.properties['timestamp'], datetime.datetime
+        )
 
 
 class TestCreationWithFloatTimestamp(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithFloatTimestamp, self).setUp()
-        self.msg = message.Message(self.channel, str(uuid.uuid4()),
-                                   {'timestamp': time.time()})
+        super().setUp()
+        self.msg = message.Message(
+            self.channel, str(uuid.uuid4()), {'timestamp': time.time()}
+        )
 
     def test_message_timestamp_property_is_datetime(self):
-        self.assertIsInstance(self.msg.properties['timestamp'],
-                              datetime.datetime)
+        self.assertIsInstance(
+            self.msg.properties['timestamp'], datetime.datetime
+        )
 
 
 class TestCreationWithIntTimestamp(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithIntTimestamp, self).setUp()
-        self.msg = message.Message(self.channel, str(uuid.uuid4()),
-                                   {'timestamp': int(time.time())})
+        super().setUp()
+        self.msg = message.Message(
+            self.channel, str(uuid.uuid4()), {'timestamp': int(time.time())}
+        )
 
     def test_message_timestamp_property_is_datetime(self):
-        self.assertIsInstance(self.msg.properties['timestamp'],
-                              datetime.datetime)
+        self.assertIsInstance(
+            self.msg.properties['timestamp'], datetime.datetime
+        )
 
 
 class TestCreationWithInvalidTimestampType(helpers.TestCase):
-
     def test_message_timestamp_property_is_datetime(self):
-        self.assertRaises(TypeError,
-                          message.Message,
-                          self.channel,
-                          str(uuid.uuid4()),
-                          {'timestamp': ['Ohai']})
+        self.assertRaises(
+            TypeError,
+            message.Message,
+            self.channel,
+            str(uuid.uuid4()),
+            {'timestamp': ['Ohai']},
+        )
 
 
 class TestCreationWithNoneTimestamp(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithNoneTimestamp, self).setUp()
-        self.msg = message.Message(self.channel, str(uuid.uuid4()),
-                                   {'timestamp': None})
+        super().setUp()
+        self.msg = message.Message(
+            self.channel, str(uuid.uuid4()), {'timestamp': None}
+        )
 
     def test_message_timestamp_property_is_datetime(self):
         self.assertIsNone(self.msg.properties['timestamp'])
 
 
 class TestCreationWithStrTimestamp(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithStrTimestamp, self).setUp()
-        self.msg = message.Message(self.channel, str(uuid.uuid4()),
-                                   {'timestamp': str(int(time.time()))})
+        super().setUp()
+        self.msg = message.Message(
+            self.channel,
+            str(uuid.uuid4()),
+            {'timestamp': str(int(time.time()))},
+        )
 
     def test_message_timestamp_property_is_datetime(self):
-        self.assertIsInstance(self.msg.properties['timestamp'],
-                              datetime.datetime)
+        self.assertIsInstance(
+            self.msg.properties['timestamp'], datetime.datetime
+        )
 
 
 class TestCreationWithDictBodyAndProperties(helpers.TestCase):
-
     def setUp(self):
-        super(TestCreationWithDictBodyAndProperties, self).setUp()
+        super().setUp()
         self.body = {'foo': str(uuid.uuid4())}
         self.msg = message.Message(self.channel, self.body, {'app_id': 'foo'})
 
@@ -136,14 +136,14 @@ class TestCreationWithDictBodyAndProperties(helpers.TestCase):
         self.assertEqual(self.msg.body, json.dumps(self.body))
 
     def test_message_content_type_is_set(self):
-        self.assertEqual(self.msg.properties['content_type'],
-                         'application/json')
+        self.assertEqual(
+            self.msg.properties['content_type'], 'application/json'
+        )
 
 
 class TestNonOpinionatedCreation(helpers.TestCase):
-
     def setUp(self):
-        super(TestNonOpinionatedCreation, self).setUp()
+        super().setUp()
         self.body = str(uuid.uuid4())
         self.msg = message.Message(self.channel, self.body)
 
@@ -158,23 +158,24 @@ class TestNonOpinionatedCreation(helpers.TestCase):
 
 
 class TestWithPropertiesCreation(helpers.TestCase):
-
     def setUp(self):
-        super(TestWithPropertiesCreation, self).setUp()
+        super().setUp()
         self.body = uuid.uuid4()
-        self.props = {'app_id': b'Foo',
-                      'content_type': b'application/json',
-                      'content_encoding': b'gzip',
-                      'correlation_id': str(uuid.uuid4()),
-                      'delivery_mode': 2,
-                      'expiration': int(time.time()) + 10,
-                      'headers': {'foo': 'bar'},
-                      'message_id': str(uuid.uuid4()),
-                      'message_type': b'TestCreation',
-                      'priority': 9,
-                      'reply_to': b'none',
-                      'timestamp': datetime.datetime.utcnow(),
-                      'user_id': b'guest'}
+        self.props = {
+            'app_id': b'Foo',
+            'content_type': b'application/json',
+            'content_encoding': b'gzip',
+            'correlation_id': str(uuid.uuid4()),
+            'delivery_mode': 2,
+            'expiration': int(time.time()) + 10,
+            'headers': {'foo': 'bar'},
+            'message_id': str(uuid.uuid4()),
+            'message_type': b'TestCreation',
+            'priority': 9,
+            'reply_to': b'none',
+            'timestamp': datetime.datetime.now(tz=datetime.UTC),
+            'user_id': b'guest',
+        }
         self.msg = message.Message(self.channel, self.body, dict(self.props))
 
     def test_message_body(self):
@@ -185,16 +186,17 @@ class TestWithPropertiesCreation(helpers.TestCase):
 
 
 class TestInvalidPropertyHandling(helpers.TestCase):
-
     def test_invalid_property_raises_key_error(self):
-        self.assertRaises(KeyError,
-                          message.Message,
-                          self.channel,
-                          str(uuid.uuid4()), {'invalid': True})
+        self.assertRaises(
+            KeyError,
+            message.Message,
+            self.channel,
+            str(uuid.uuid4()),
+            {'invalid': True},
+        )
 
 
 class TestDeliveredMessageObject(helpers.TestCase):
-
     BODY = '{"foo": "bar", "val": 1}'
     PROPERTIES = {'message_type': 'test'}
     CONSUMER_TAG = 'ctag0'
@@ -204,12 +206,14 @@ class TestDeliveredMessageObject(helpers.TestCase):
     ROUTING_KEY = 'test-routing-key'
 
     def setUp(self):
-        super(TestDeliveredMessageObject, self).setUp()
-        self.method = specification.Basic.Deliver(self.CONSUMER_TAG,
-                                                  self.DELIVERY_TAG,
-                                                  self.REDELIVERED,
-                                                  self.EXCHANGE,
-                                                  self.ROUTING_KEY)
+        super().setUp()
+        self.method = specification.Basic.Deliver(
+            self.CONSUMER_TAG,
+            self.DELIVERY_TAG,
+            self.REDELIVERED,
+            self.EXCHANGE,
+            self.ROUTING_KEY,
+        )
         self.msg = message.Message(self.channel, self.BODY, self.PROPERTIES)
         self.msg.method = self.method
         self.msg.name = self.method.name
@@ -244,8 +248,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.ack()
             frame_value = wframe.mock_calls[0][1][0]
-            self.assertEqual(frame_value.delivery_tag,
-                             self.DELIVERY_TAG)
+            self.assertEqual(frame_value.delivery_tag, self.DELIVERY_TAG)
 
     def test_ack_channel_write_frame_multiple_false_value(self):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
@@ -274,8 +277,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.nack()
             frame_value = wframe.mock_calls[0][1][0]
-            self.assertEqual(frame_value.delivery_tag,
-                             self.DELIVERY_TAG)
+            self.assertEqual(frame_value.delivery_tag, self.DELIVERY_TAG)
 
     def test_nack_channel_write_frame_requeue_false_value(self):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
@@ -316,8 +318,7 @@ class TestDeliveredMessageObject(helpers.TestCase):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
             self.msg.reject()
             frame_value = wframe.mock_calls[0][1][0]
-            self.assertEqual(frame_value.delivery_tag,
-                             self.DELIVERY_TAG)
+            self.assertEqual(frame_value.delivery_tag, self.DELIVERY_TAG)
 
     def test_reject_channel_write_frame_requeue_false_value(self):
         with mock.patch('rabbitpy.channel.Channel.write_frame') as wframe:
@@ -333,13 +334,10 @@ class TestDeliveredMessageObject(helpers.TestCase):
 
 
 class TestNonDeliveredMessageObject(helpers.TestCase):
-
-    BODY = {'foo': str(uuid.uuid4()),
-            'bar': 'baz',
-            'qux': 1}
+    BODY = {'foo': str(uuid.uuid4()), 'bar': 'baz', 'qux': 1}
 
     def setUp(self):
-        super(TestNonDeliveredMessageObject, self).setUp()
+        super().setUp()
         self.body = self.BODY
         self.msg = message.Message(self.channel, self.body, {'app_id': 'foo'})
 
@@ -370,48 +368,52 @@ class TestNonDeliveredMessageObject(helpers.TestCase):
     def test_coerce_property_str_to_empty_dict(self):
         self.msg.properties['headers'] = '9'
         self.msg._coerce_properties()
-        self.assertDictEqual(self.msg.properties['headers'], dict())
+        self.assertDictEqual(self.msg.properties['headers'], {})
 
     def test_coerce_property_str_timestamp(self):
         self.msg.properties['timestamp'] = str(int(time.time()))
         self.msg._coerce_properties()
-        self.assertIsInstance(self.msg.properties['timestamp'],
-                              datetime.datetime)
+        self.assertIsInstance(
+            self.msg.properties['timestamp'], datetime.datetime
+        )
 
 
 class TestPublishing(helpers.TestCase):
-
-    BODY = {'foo': str(uuid.uuid4()),
-            'bar': 'baz',
-            'qux': 1}
+    BODY = {'foo': str(uuid.uuid4()), 'bar': 'baz', 'qux': 1}
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
     @mock.patch('rabbitpy.channel.Channel.write_frames')
     def setUp(self, write_frames):
-        super(TestPublishing, self).setUp()
+        super().setUp()
         self.write_frames = write_frames
         self.msg = message.Message(self.channel, self.BODY, {'app_id': 'foo'})
         self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
 
     def test_publish_invokes_write_frame_with_basic_publish(self):
-        self.assertIsInstance(self.write_frames.mock_calls[0][1][0][0],
-                              specification.Basic.Publish)
+        self.assertIsInstance(
+            self.write_frames.mock_calls[0][1][0][0],
+            specification.Basic.Publish,
+        )
 
     def test_publish_with_exchange_object(self):
         _exchange = exchange.Exchange(self.channel, self.EXCHANGE)
         with mock.patch('rabbitpy.channel.Channel.write_frames') as wframes:
             self.msg.publish(_exchange, self.ROUTING_KEY)
-            self.assertEqual(wframes.mock_calls[0][1][0][0].exchange,
-                             self.EXCHANGE)
+            self.assertEqual(
+                wframes.mock_calls[0][1][0][0].exchange, self.EXCHANGE
+            )
 
     def test_publish_with_exchange_str(self):
-        self.assertEqual(self.write_frames.mock_calls[0][1][0][0].exchange,
-                         self.EXCHANGE)
+        self.assertEqual(
+            self.write_frames.mock_calls[0][1][0][0].exchange, self.EXCHANGE
+        )
 
     def test_publish_routing_key_value(self):
-        self.assertEqual(self.write_frames.mock_calls[0][1][0][0].routing_key,
-                         self.ROUTING_KEY)
+        self.assertEqual(
+            self.write_frames.mock_calls[0][1][0][0].routing_key,
+            self.ROUTING_KEY,
+        )
 
     def test_publish_mandatory_false_value(self):
         self.assertFalse(self.write_frames.mock_calls[0][1][0][0].mandatory)
@@ -422,34 +424,38 @@ class TestPublishing(helpers.TestCase):
             self.assertTrue(wframes.mock_calls[0][1][0][0].mandatory)
 
     def test_publish_invokes_write_frame_with_content_header(self):
-        self.assertIsInstance(self.write_frames.mock_calls[0][1][0][1],
-                              header.ContentHeader)
+        self.assertIsInstance(
+            self.write_frames.mock_calls[0][1][0][1], header.ContentHeader
+        )
 
     def test_content_header_frame_body_size(self):
-        self.assertEqual(self.write_frames.mock_calls[0][1][0][1].body_size,
-                         len(self.msg.body))
+        self.assertEqual(
+            self.write_frames.mock_calls[0][1][0][1].body_size,
+            len(self.msg.body),
+        )
 
     def test_content_header_frame_properties(self):
         value = self.write_frames.mock_calls[0][1][0][1].properties
         for key in self.msg.properties:
-            self.assertEqual(self.msg.properties[key],
-                             getattr(value, key))
+            self.assertEqual(self.msg.properties[key], getattr(value, key))
 
     def test_publish_invokes_write_frame_with_body(self):
-        self.assertIsInstance(self.write_frames.mock_calls[0][1][0][2],
-                              body.ContentBody)
+        self.assertIsInstance(
+            self.write_frames.mock_calls[0][1][0][2], body.ContentBody
+        )
 
     def test_content_body_value(self):
-        self.assertEqual(self.write_frames.mock_calls[0][1][0][2].value,
-                         bytes(json.dumps(self.BODY).encode('utf-8')))
+        self.assertEqual(
+            self.write_frames.mock_calls[0][1][0][2].value,
+            bytes(json.dumps(self.BODY).encode('utf-8')),
+        )
 
 
 class TestJSONDeserialization(helpers.TestCase):
-
     BODY = b'{"qux": 1, "foo": "d5525b9d", "bar": "baz"}'
 
     def setUp(self):
-        super(TestJSONDeserialization, self).setUp()
+        super().setUp()
         self.expectation = json.loads(self.BODY.decode('utf-8'))
         self.msg = message.Message(self.channel, self.BODY)
 
@@ -458,7 +464,6 @@ class TestJSONDeserialization(helpers.TestCase):
 
 
 class TestPublishingUnicode(helpers.TestCase):
-
     try:
         BODY = '☢'.decode('utf-8')
     except AttributeError:
@@ -468,25 +473,26 @@ class TestPublishingUnicode(helpers.TestCase):
 
     @mock.patch('rabbitpy.channel.Channel.write_frames')
     def setUp(self, write_frames):
-        super(TestPublishingUnicode, self).setUp()
+        super().setUp()
         self.write_frames = write_frames
         self.msg = message.Message(self.channel, self.BODY)
         self.msg.publish(self.EXCHANGE, self.ROUTING_KEY)
 
     def test_content_body_value(self):
-        self.assertEqual(self.write_frames.mock_calls[0][1][0][2].value,
-                         self.BODY.encode('utf-8'))
+        self.assertEqual(
+            self.write_frames.mock_calls[0][1][0][2].value,
+            self.BODY.encode('utf-8'),
+        )
 
 
 class TestPublisherConfirms(helpers.TestCase):
-
     BODY = 'confirm-this'
     EXCHANGE = 'foo'
     ROUTING_KEY = 'bar.baz'
 
     @mock.patch('rabbitpy.channel.Channel.write_frames')
     def setUp(self, write_frames):
-        super(TestPublisherConfirms, self).setUp()
+        super().setUp()
         self.write_frames = write_frames
         self.channel._publisher_confirms = True
         self.channel.wait_for_confirmation = self._confirm_wait = mock.Mock()
@@ -502,5 +508,9 @@ class TestPublisherConfirms(helpers.TestCase):
 
     def test_confirm_other_raises(self):
         self._confirm_wait.return_value = specification.Basic.Consume()
-        self.assertRaises(exceptions.UnexpectedResponseError,
-                          self.msg.publish, self.EXCHANGE, self.ROUTING_KEY)
+        self.assertRaises(
+            exceptions.UnexpectedResponseError,
+            self.msg.publish,
+            self.EXCHANGE,
+            self.ROUTING_KEY,
+        )

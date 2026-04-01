@@ -2,12 +2,12 @@
 Test the rabbitpy.channel classes
 
 """
-from rabbitpy import exceptions
 
+from rabbitpy import exceptions
 from tests import helpers
 
-class ServerCapabilitiesTest(helpers.TestCase):
 
+class ServerCapabilitiesTest(helpers.TestCase):
     def test_basic_nack_disabled(self):
         self.channel._server_capabilities['basic.nack'] = False
         self.assertFalse(self.channel._supports_basic_nack)
@@ -50,15 +50,23 @@ class ServerCapabilitiesTest(helpers.TestCase):
 
     def test_invoking_consume_raises(self):
         self.channel._server_capabilities['consumer_priorities'] = False
-        self.assertRaises(exceptions.NotSupportedError,
-                          self.channel._consume, self, True, 100)
+        self.assertRaises(
+            exceptions.NotSupportedError,
+            self.channel._consume,
+            self,
+            True,
+            100,
+        )
 
     def test_invoking_basic_nack_raises(self):
         self.channel._server_capabilities['basic_nack'] = False
-        self.assertRaises(exceptions.NotSupportedError,
-                          self.channel._multi_nack, 100)
+        self.assertRaises(
+            exceptions.NotSupportedError, self.channel._multi_nack, 100
+        )
 
     def test_invoking_enable_publisher_confirms_raises(self):
         self.channel._server_capabilities['publisher_confirms'] = False
-        self.assertRaises(exceptions.NotSupportedError,
-                          self.channel.enable_publisher_confirms)
+        self.assertRaises(
+            exceptions.NotSupportedError,
+            self.channel.enable_publisher_confirms,
+        )

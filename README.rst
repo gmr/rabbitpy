@@ -1,8 +1,9 @@
-rabbitpy - RabbitMQ simplified
-==============================
+rabbitpy
+========
 
 A pure python, thread-safe, minimalistic and Pythonic BSD Licensed
-AMQP/RabbitMQ library that supports Python 2.7+ and Python 3.4+.
+AMQP/RabbitMQ library that supports Python 3.9+.
+
 rabbitpy aims to provide a simple and easy to use API for interfacing with
 RabbitMQ, minimizing the programming overhead often found in other libraries.
 
@@ -17,12 +18,6 @@ your choice. I prefer pip:
 .. code:: bash
 
     pip install rabbitpy
-
-But there's always easy_install:
-
-.. code:: bash
-
-    easy_install rabbitpy
 
 Documentation
 -------------

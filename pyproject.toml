@@ -1,64 +1,198 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "rabbitpy"
-version = "2.0.1"
+version = "3.0.0"
 description = "A pure python, thread-safe, minimalistic and pythonic RabbitMQ client library"
 readme = "README.rst"
-requires-python = ">=3.8"
-license = { file = "LICENSE" }
-authors = [ { name = "Gavin M. Roy", email = "gavinmroy@gmail.com" } ]
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Gavin M. Roy", email = "gavinmroy@gmail.com"}
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
+    "Natural Language :: English",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Communications",
     "Topic :: Internet",
-    "Topic :: Software Development :: Libraries"
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
 ]
-dependencies = [
-  "pamqp>=2.3.0,<3.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "codecov",
-    "coverage[toml]",
-    "mock",
-    "flake8",
-    "flake8-comprehensions",
-    "flake8-deprecated",
-    "flake8-html",
-    "flake8-import-order",
-    "flake8-pyproject",
-    "flake8-quotes",
-    "flake8-rst-docstrings",
-    "flake8-tuple",
-    "codeclimate-test-reporter",
-]
+keywords = ["rabbitmq", "amqp", "messaging"]
+dependencies = ["pamqp>=4.0,<5.0"]
 
 [project.urls]
+Homepage = "https://github.com/gmr/rabbitpy"
 Documentation = "https://rabbitpy.readthedocs.io"
-Repository = "https://github.com/gmr/rabbitpy.git"
-"Code Coverage" = "https://app.codecov.io/github/gmr/rabbitpy"
 
-[tool.flake8]
-application-import-names = ["rabbitpy"]
-exclude = ["build", "ci", "docs", "env"]
-ignore = "RST304"
-import-order-style = "google"
+[dependency-groups]
+dev = [
+    "basedpyright",
+    "build",
+    "coverage[toml]",
+    "mypy",
+    "pre-commit",
+    "python-dotenv",
+    "ruff",
+]
+docs = [
+    "mkdocs>=1.5,<2",
+    "mkdocs-material>=9.5,<10",
+    "mkdocstrings[python]",
+]
+
+[tool.coverage.run]
+branch = true
+command_line = "-m unittest discover tests --buffer --verbose"
+data_file = "build/.coverage"
+source = ["rabbitpy"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+    "typing.TYPE_CHECKING",
+]
+
+[tool.coverage.html]
+directory = "build/coverage"
 
 [tool.coverage.xml]
 output = "build/coverage.xml"
 
-[tool.coverage.run]
-branch = true
-source = ["rabbitpy"]
-command_line = "-m unittest discover tests --buffer --verbose"
+[tool.hatch.build.targets.wheel]
+include = ["rabbitpy", "rabbitpy/py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Legacy test files: test type-validation (intentionally wrong types),
+# use pre-rewrite channel API, or have Python 2 compat cruft
+module = [
+    "tests.integration_tests",
+    "tests.utils_tests",
+    "tests.base_tests",
+    "tests.channel_test",
+    "tests.helpers",
+    "tests.test_queue",
+    "tests.test_message",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Restored legacy modules — not yet fully typed; suppress strict errors
+module = [
+    "rabbitpy.amqp",
+    "rabbitpy.amqp_queue",
+    "rabbitpy.base",
+    "rabbitpy.channel",
+    "rabbitpy.channel0",
+    "rabbitpy.exchange",
+    "rabbitpy.heartbeat",
+    "rabbitpy.message",
+    "rabbitpy.simple",
+    "rabbitpy.tx",
+    "rabbitpy.utils",
+]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+ignore_errors = true
+
+[tool.basedpyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+include = ["rabbitpy", "tests"]
+exclude = [
+    "examples/**",
+    ".venv/**",
+    "tests/base_tests.py",
+    "tests/channel_test.py",
+    "tests/helpers.py",
+    "tests/integration_tests.py",
+    "tests/test_message.py",
+    "tests/test_queue.py",
+    "tests/utils_tests.py",
+    "rabbitpy/amqp.py",
+    "rabbitpy/amqp_queue.py",
+    "rabbitpy/base.py",
+    "rabbitpy/channel.py",
+    "rabbitpy/channel0.py",
+    "rabbitpy/exchange.py",
+    "rabbitpy/heartbeat.py",
+    "rabbitpy/message.py",
+    "rabbitpy/simple.py",
+    "rabbitpy/tx.py",
+    "rabbitpy/utils.py",
+]
+
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = [
+    "BLE",   # flake8-blind-except
+    "C4",    # flake8-comprehensions
+    "C90",   # mccabe
+    "E", "W", # pycodestyle
+    "F",     # pyflakes
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "N",     # pep8-naming
+    "Q",     # flake8-quotes
+    "S",     # flake8-bandit
+    "ASYNC", # flake8-async
+    "B",     # flake8-bugbear
+    "DTZ",   # flake8-datetimez
+    "FURB",  # refurb
+    "RUF",   # ruff-specific
+    "T20",   # flake8-print
+    "UP",    # pyupgrade
+]
+ignore = [
+    "N818",  # exception class names not required to end in Error
+    "RSE",   # contradicts Python Style Guide
+    "UP040", # allow non-PEP695 type alias syntax
+]
+flake8-quotes = {inline-quotes = "single"}
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E501", "N802", "RUF012", "S", "T20", "T203"]
+"examples/**/*.py" = ["S", "T20"]
+# Restored legacy modules — relax line-length and mutable-default rules
+"rabbitpy/base.py" = ["E501", "RUF012", "UP007"]
+"rabbitpy/channel.py" = ["E501", "RUF012"]
+"rabbitpy/channel0.py" = ["E501", "RUF012"]
+"rabbitpy/amqp_queue.py" = ["E501", "RUF002", "RUF012"]
+"rabbitpy/exchange.py" = ["E501", "RUF012"]
+"rabbitpy/message.py" = ["E501", "RUF012"]
+"rabbitpy/simple.py" = ["E501", "RUF012"]
+"rabbitpy/tx.py" = ["E501", "RUF012"]
+"rabbitpy/heartbeat.py" = ["E501", "RUF012"]
+"rabbitpy/amqp.py" = ["E501", "RUF012"]

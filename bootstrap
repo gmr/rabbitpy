@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+#
+# NAME
+#    bootstrap -- initialize/update docker environment
+
+# vim: set ts=2 sts=2 sw=2 et:
+set -e
+
+TEST_HOST=${TEST_HOST:-"127.0.0.1"}
+
+echo "Integration test host: ${TEST_HOST}"
+
+get_exposed_port() {
+  docker compose port $1 $2 | cut -d: -f2
+}
+
+# Stop any running instances and clean up after them, then pull images
+docker compose down --volumes --remove-orphans
+docker compose pull -q
+docker compose up -d --wait
+
+cat > .env <<EOF
+MANAGEMENT_URL=http://${TEST_HOST}:$(get_exposed_port rabbitmq 15672)/%2f
+RABBITMQ_URL=amqp://guest:guest@${TEST_HOST}:$(get_exposed_port rabbitmq 5672)/%2f
+EOF

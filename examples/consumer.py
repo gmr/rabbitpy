@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import logging
+
 import rabbitpy
 
 URL = 'amqp://guest:guest@localhost:5672/%2f?heartbeat=15'
