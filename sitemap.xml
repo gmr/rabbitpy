@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/history/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/threads/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/api/connection/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/api/exceptions/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/examples/consumer/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/examples/getter/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+    <url>
+         <loc>https://gmr.github.io/rabbitpy/examples/publisher/</loc>
+         <lastmod>2026-04-03</lastmod>
+    </url>
+</urlset>
