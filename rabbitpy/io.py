@@ -249,7 +249,10 @@ class IO(threading.Thread):
         sock = socket.socket(address_family, sock_type, protocol)
         context = self._get_ssl_context()
         if context:
-            return context.wrap_socket(sock=sock)
+            return context.wrap_socket(
+                sock=sock,
+                server_hostname=self._host,
+            )
         return sock
 
     def _get_addr_info(self) -> AddrInfo:
