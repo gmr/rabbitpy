@@ -366,6 +366,12 @@ class TestNonDeliveredMessageObject(helpers.TestCase):
         self.msg._coerce_properties()
         self.assertIsInstance(self.msg.properties['priority'], int)
 
+    def test_coerce_property_int_stays_int(self):
+        self.msg.properties['priority'] = 9
+        self.msg._coerce_properties()
+        self.assertIsInstance(self.msg.properties['priority'], int)
+        self.assertEqual(self.msg.properties['priority'], 9)
+
     def test_coerce_property_str_to_empty_dict(self):
         self.msg.properties['headers'] = '9'
         self.msg._coerce_properties()
