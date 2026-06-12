@@ -370,7 +370,7 @@ class Message(base.AMQPClass):
                 elif not isinstance(value, str):
                     LOGGER.warning('Coercing property %s to str', key)
                     self.properties[key] = str(value)
-            elif python_type == 'int':
+            elif python_type == 'int' and not isinstance(value, int):
                 LOGGER.warning('Coercing property %s to int', key)
                 try:
                     self.properties[key] = int(value)
