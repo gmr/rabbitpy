@@ -3,7 +3,7 @@ rabbitpy, a pythonic RabbitMQ client
 
 """
 
-__version__ = '3.0.0'
+__version__ = '3.0.2'
 
 import logging
 
