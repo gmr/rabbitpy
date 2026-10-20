@@ -72,7 +72,7 @@ class Queue(base.AMQPClass):
     auto_delete = False
     dead_letter_exchange = None
     dead_letter_routing_key = None
-    durable = False
+    durable = True
     exclusive = False
     expires = None
     max_length = None
@@ -83,7 +83,7 @@ class Queue(base.AMQPClass):
         self,
         channel: chan.Channel,
         name: str = '',
-        durable: bool = False,
+        durable: bool = True,
         exclusive: bool = False,
         auto_delete: bool = False,
         max_length: int | None = None,

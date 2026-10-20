@@ -1,5 +1,9 @@
 # Version History
 
+## Unreleased
+
+- **Breaking:** `Queue` now defaults to `durable=True`. RabbitMQ 4.3 rejects transient non-exclusive queues. Pass `durable=False` with `exclusive=True` for a transient queue.
+
 ## 3.0.0 — *2024-05-08*
 
 - Change to use `ssl.SSLContext` since `ssl.wrap_socket` was deprecated in Python 3.7 and removed in 3.12
