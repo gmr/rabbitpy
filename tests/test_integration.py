@@ -30,7 +30,7 @@ class ConfirmedPublishQueueLengthTest(unittest.TestCase):
         self.channel.enable_publisher_confirms()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'pql-test')
         self.exchange.declare()
-        self.queue = rabbitpy.Queue(self.channel, 'pql-queue')
+        self.queue = rabbitpy.Queue(self.channel, 'pql-queue', durable=True)
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
@@ -55,7 +55,7 @@ class PublishAndGetTest(unittest.TestCase):
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pagt')
         self.exchange.declare()
-        self.queue = rabbitpy.Queue(self.channel, 'pagt-queue')
+        self.queue = rabbitpy.Queue(self.channel, 'pagt-queue', durable=True)
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
@@ -101,7 +101,7 @@ class PublishAndConsumeTest(unittest.TestCase):
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pact')
         self.exchange.declare()
-        self.queue = rabbitpy.Queue(self.channel, 'pact-queue')
+        self.queue = rabbitpy.Queue(self.channel, 'pact-queue', durable=True)
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
@@ -150,7 +150,7 @@ class PublishAndConsumeIteratorTest(unittest.TestCase):
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacit')
         self.exchange.declare()
-        self.queue = rabbitpy.Queue(self.channel, 'pacit-queue')
+        self.queue = rabbitpy.Queue(self.channel, 'pacit-queue', durable=True)
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
@@ -204,7 +204,7 @@ class PublishAndConsumeIteratorStopTest(unittest.TestCase):
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacist')
         self.exchange.declare()
-        self.queue = rabbitpy.Queue(self.channel, 'pacist-queue')
+        self.queue = rabbitpy.Queue(self.channel, 'pacist-queue', durable=True)
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
@@ -262,7 +262,7 @@ class ConsumerTagTest(unittest.TestCase):
         self.channel = self.connection.channel()
         self.exchange = rabbitpy.TopicExchange(self.channel, 'test-pacit')
         self.exchange.declare()
-        self.queue = rabbitpy.Queue(self.channel, 'pacit-queue')
+        self.queue = rabbitpy.Queue(self.channel, 'pacit-queue', durable=True)
         self.queue.declare()
         self.queue.bind(self.exchange, 'test.#')
 
@@ -312,7 +312,9 @@ class RedeliveredFlagTest(unittest.TestCase):
     def setUp(self):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
-        self.queue = rabbitpy.Queue(self.channel, 'redeliver-test')
+        self.queue = rabbitpy.Queue(
+            self.channel, 'redeliver-test', durable=True
+        )
         self.queue.declare()
 
         # Publish the message that will be rejected
@@ -344,7 +346,7 @@ class UnnamedQueueDeclareTest(unittest.TestCase):
         self.connection.close()
 
     def test_declaring_nameless_queue(self):
-        self.queue = rabbitpy.Queue(self.channel)
+        self.queue = rabbitpy.Queue(self.channel, exclusive=True)
         self.queue.declare()
         matches = re.match(r'^amq\.gen-[\w_\-]+$', self.queue.name)
         self.assertIsNotNone(matches)
@@ -588,8 +590,8 @@ class MultipleChannelsTest(unittest.TestCase):
     def test_independent_queues_on_separate_channels(self):
         ch1 = self.connection.channel()
         ch2 = self.connection.channel()
-        q1 = rabbitpy.Queue(ch1, 'multi-ch-q1', auto_delete=True)
-        q2 = rabbitpy.Queue(ch2, 'multi-ch-q2', auto_delete=True)
+        q1 = rabbitpy.Queue(ch1, 'multi-ch-q1', durable=True, auto_delete=True)
+        q2 = rabbitpy.Queue(ch2, 'multi-ch-q2', durable=True, auto_delete=True)
         q1.declare()
         q2.declare()
         msg1 = rabbitpy.Message(ch1, b'from-ch1')
@@ -614,7 +616,7 @@ class NackWithoutRequeueTest(unittest.TestCase):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.queue = rabbitpy.Queue(
-            self.channel, 'nack-no-requeue', auto_delete=True
+            self.channel, 'nack-no-requeue', durable=True, auto_delete=True
         )
         self.queue.declare()
         msg = rabbitpy.Message(self.channel, b'nack-me')
@@ -644,7 +646,7 @@ class QueuePurgeTest(unittest.TestCase):
         self.channel = self.connection.channel()
         self.channel.enable_publisher_confirms()
         self.queue = rabbitpy.Queue(
-            self.channel, 'purge-test-queue', auto_delete=True
+            self.channel, 'purge-test-queue', durable=True, auto_delete=True
         )
         self.queue.declare()
         for _ in range(5):
@@ -676,7 +678,7 @@ class LargeMessageTest(unittest.TestCase):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.queue = rabbitpy.Queue(
-            self.channel, 'large-msg-queue', auto_delete=True
+            self.channel, 'large-msg-queue', durable=True, auto_delete=True
         )
         self.queue.declare()
         self.body = b'X' * self.BODY_SIZE
@@ -732,7 +734,7 @@ class TransactionTest(unittest.TestCase):
         self.connection = rabbitpy.Connection(os.environ['RABBITMQ_URL'])
         self.channel = self.connection.channel()
         self.queue = rabbitpy.Queue(
-            self.channel, 'tx-test-queue', auto_delete=True
+            self.channel, 'tx-test-queue', durable=True, auto_delete=True
         )
         self.queue.declare()
 
